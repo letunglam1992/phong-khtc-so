@@ -63,7 +63,18 @@ Mỗi tài sản loại **"Cơ sở nhà, đất"** (hoặc "Trụ sở, nhà l�
 - **Xuất theo mẫu 0A.01**: ra lại đúng bố cục biểu (tiêu đề nhiều tầng, dấu x, dòng tổng) theo danh sách đang lọc.
 - Thẻ chỉ số (chưa cấp GCN, chưa đăng ký biến động, thiếu hồ sơ, không đúng mục đích) bấm được để lọc; các mục này đồng thời vào "Những vấn đề cần quan tâm" và Trợ lý điều hành; báo cáo tài sản công có phần nhà, đất.
 
+## 4c. Kiểm kê tài sản theo nhóm (Mẫu 01c-BC/TSCĐ, 08đ-BC/HTNS, 09đ-BC/HTTL)
 
+**Tài sản công → thẻ "Kiểm kê theo nhóm" → Nhập biểu kiểm kê**, chọn được nhiều tệp một lúc.
+
+- Tự nhận mẫu theo ký hiệu "Mẫu số …" trên biểu: tài sản cố định (01c), hạ tầng cấp nước sạch (08đ), hạ tầng thủy lợi (09đ). Nhận cột theo tiêu đề: số lượng, hiện vật, nguyên giá, giá trị còn lại, giá trị nâng cấp, hạch toán, tình trạng, thiên tai.
+- Kỳ kiểm kê lấy từ dòng ký "ngày … tháng … năm …"; biểu không có ngày ký thì lấy từ tên tệp (ví dụ …26052026). Sửa được trước khi nhập.
+- Đối chiếu dòng nhóm với dòng con, dòng TỔNG CỘNG với dòng chi tiết, ghi sổ và tình trạng với số lượng.
+- Nhập lại cùng mẫu, cùng kỳ: thay số liệu kỳ đó (có bản chụp). Kỳ khác: giữ lại, màn hình hiện cột "So kỳ trước".
+- Có bảng **đối chiếu đất, nhà** giữa kiểm kê 01c và hiện trạng 0A.01 (số khuôn viên/cơ sở, diện tích, nguyên giá, giá trị còn lại). Chỉ để rà soát; phần mềm không sửa số liệu.
+- Tài sản hỏng, không sử dụng, chưa ghi sổ, sử dụng không đúng mục đích được đưa vào cảnh báo và Trợ lý; báo cáo tài sản công có phần kết quả kiểm kê.
+
+## 5. Sao lưu, khôi phục
 
 - Dữ liệu nằm trong IndexedDB của **trình duyệt trên máy đang dùng**. Xóa dữ liệu duyệt web, dùng cửa sổ ẩn danh, đổi trình duyệt hoặc đổi máy sẽ không thấy dữ liệu.
 - **Sao lưu**: nút mũi tên ở thanh trên, hoặc Thiết lập → Sao lưu. Tệp JSON chứa toàn bộ dữ liệu, cấu hình và (tùy chọn) tệp đính kèm. Nên sao lưu hằng tuần; phần mềm nhắc khi quá 7 ngày.
