@@ -119,7 +119,7 @@
       else inner = inputHtml(f, w[f.k], id);
       return '<div class="fld' + (full ? ' full' : '') + '" data-fld="' + f.k + '"><label ' + (['rows', 'files', 'refs', 'multi', 'bool'].includes(f.type) ? '' : 'for="' + id + '"') + '>' + e(f.label) + (f.required ? ' <span class="req">*</span>' : '') + '</label>' + inner + (f.help ? '<div class="help">' + e(f.help) + '</div>' : '') + '</div>';
     };
-    root.innerHTML = '<form class="form" novalidate><div class="errbox hide" role="alert"></div>' + secs.map(s => (s.t ? '<div class="fsec">' + e(s.t) + '</div>' : '') + s.keys.filter(k => !hide.has(k)).map(k => fieldBox(Sc.field(o.coll, k))).join('')).join('') + '</form>';
+    root.innerHTML = '<form class="form" novalidate><div class="errbox hide" role="alert"></div>' + secs.map(s => (s.t ? '<div class="fsec"' + (s.key ? ' data-sec-key="' + s.key + '"' : '') + '>' + e(s.t) + '</div>' : '') + s.keys.filter(k => !hide.has(k)).map(k => fieldBox(Sc.field(o.coll, k))).join('')).join('') + '</form>';
     const form = $('form', root);
     bindMoney(form);
     form.addEventListener('input', () => { dirty = true; });
@@ -172,6 +172,7 @@
     };
     const shown = secs.flatMap(s => s.keys).filter(k => !hide.has(k)).map(k => Sc.field(o.coll, k));
     shown.forEach(f => { if (f.type === 'rows') renderRows(f); if (f.type === 'refs') renderRefs(f); if (f.type === 'files') renderFiles(f); });
+    if (sc.afterRender) sc.afterRender(form, w);
     if (o.afterRender) o.afterRender(form, w);
 
     function collect() {

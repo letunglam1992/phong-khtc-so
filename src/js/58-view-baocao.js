@@ -89,6 +89,17 @@
       d.h3('Theo đơn vị sử dụng'); tb('Tai san theo don vi', t => Sc.refName('donvi', t.donViId));
       d.h3('Theo loại tài sản'); tb('Tai san theo loai', t => t.loai);
       d.h3('Theo tình trạng sử dụng'); tb('Tai san theo tinh trang', t => t.tinhTrang);
+      const nd = all.filter(L.isNhaDat);
+      if (nd.length) {
+        const s = L.ndStats(nd), ng = nd.map(t => t.ndNgay).filter(Boolean).sort().pop();
+        d.h3('Tài sản nhà, đất' + (ng ? ' (hiện trạng đến ngày ' + U.fmtDate(ng) + ')' : ''));
+        d.p('Có ' + s.n + ' cơ sở nhà, đất do ' + s.soDonVi + ' cơ quan, đơn vị được giao quản lý; tổng diện tích đất ' + U.fmtNum(s.dtDat, 1) + ' m², diện tích nhà ' + U.fmtNum(s.dtNha, 1) + ' m²; nguyên giá ' + U.fmtMoney(s.nguyenGia) + ' đồng, giá trị còn lại ' + U.fmtMoney(s.conLai) + ' đồng. Hiện trạng sử dụng: ' + s.dung + ' cơ sở tiếp tục sử dụng đúng mục đích' + (s.khongDung ? ', ' + s.khongDung + ' cơ sở không đúng mục đích' : '') + '. Hồ sơ pháp lý: ' + s.daCap + ' cơ sở đã được cấp giấy chứng nhận; ' + s.chuaCap + ' cơ sở chưa được cấp' + (s.matMat ? '; ' + s.matMat + ' cơ sở đã cấp nhưng mất mát, thất lạc' : '') + (s.chuaRo ? '; ' + s.chuaRo + ' cơ sở chưa ghi tình trạng giấy chứng nhận' : '') + '; ' + s.chuaDK + ' cơ sở chưa đăng ký biến động đất đai; ' + s.hsThieu + ' cơ sở thiếu hồ sơ hình thành tài sản.');
+        const byDv = [...U.groupBy(nd, L.ndDonVi).entries()].map(([k, l]) => { const q = L.ndStats(l); return [k, q.n, q.dtDat, q.dtNha, q.nguyenGia, q.conLai, q.daCap, q.chuaCap + q.matMat, q.chuaDK, q.hsThieu]; });
+        d.table('Nha dat theo don vi', [{ t: 'Cơ quan, đơn vị được giao quản lý', w: 44 }, N('Số cơ sở'), N('Diện tích đất (m²)'), N('Diện tích nhà (m²)'), N('Nguyên giá'), N('Giá trị còn lại'), N('Đã cấp GCN'), N('Chưa có GCN'), N('Chưa ĐK biến động'), N('Thiếu hồ sơ')], byDv, ['Cộng', s.n, s.dtDat, s.dtNha, s.nguyenGia, s.conLai, s.daCap, s.chuaCap + s.matMat, s.chuaDK, s.hsThieu]);
+        const ton = nd.filter(t => t.gcnTT !== 'dacap' || t.chuaDKBD || t.hsThieu || t.htSD === 'khongdung');
+        d.h3('Cơ sở nhà, đất còn tồn tại về hồ sơ, hiện trạng (' + ton.length + ')');
+        d.table('Nha dat ton tai', [{ t: 'Đơn vị', w: 36 }, { t: 'Tài sản', w: 50 }, { t: 'Tồn tại', w: 40 }, { t: 'Nguyên nhân', w: 40 }], ton.map(t => [L.ndDonVi(t), t.ten, [t.gcnTT === 'chuacap' ? 'Chưa cấp GCN' : t.gcnTT === 'matmat' ? 'GCN mất, thất lạc' : !t.gcnTT ? 'Chưa ghi tình trạng GCN' : '', t.chuaDKBD ? 'Chưa ĐK biến động' : '', t.hsThieu ? 'Thiếu hồ sơ' : '', t.htSD === 'khongdung' ? 'Không đúng mục đích' : ''].filter(Boolean).join('; '), t.nguyenNhanHS || '']));
+      }
       const bd = all.flatMap(t => (t.bienDong || []).filter(b => L.inRange(b.ngay, P.from, P.to)).map(b => [U.fmtDate(b.ngay), b.loai, t.ten, Sc.refName('donvi', t.donViId), b.noiDung || '', b.soQD || '', U.num(b.giaTri) || '']));
       d.h3('Biến động trong kỳ (' + bd.length + ')');
       d.table('Bien dong tai san', [{ t: 'Ngày', w: 12 }, { t: 'Loại biến động', w: 20 }, { t: 'Tài sản', w: 40 }, { t: 'Đơn vị', w: 24 }, { t: 'Nội dung', w: 40 }, { t: 'Số quyết định', w: 18 }, N('Giá trị')], bd);

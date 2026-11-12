@@ -337,9 +337,110 @@
   /* ================= TÀI SẢN ================= */
   L.tsGroup = (list, keyFn) => {
     const m = new Map();
-    list.forEach(t => { const k = keyFn(t) || '(chưa xác định)'; const g = m.get(k) || { k, n: 0, nguyenGia: 0, conLai: 0 }; g.n += U.num(t.soLuong) || 1; g.nguyenGia += U.num(t.nguyenGia); g.conLai += U.num(t.conLai); m.set(k, g); });
+    list.forEach(t => { const k = keyFn(t) || '(chưa xác định)'; const g = m.get(k) || { k, n: 0, nguyenGia: 0, conLai: 0, dtNha: 0, dtDat: 0 }; g.n += U.num(t.soLuong) || 1; g.nguyenGia += U.num(t.nguyenGia); g.conLai += U.num(t.conLai); g.dtNha += U.num(t.dtNha); g.dtDat += U.num(t.dtDat); m.set(k, g); });
     return Array.from(m.values()).sort((a, b) => b.nguyenGia - a.nguyenGia);
   };
+  /* ---- Tài sản nhà, đất (Phụ biểu 0A.01-T.STC) ---- */
+  L.ND_LOAI = ['Cơ sở nhà, đất', 'Trụ sở, nhà làm việc'];
+  const has = v => v !== undefined && v !== null && v !== '';
+  L.isNhaDat = t => L.ND_LOAI.includes(t.loai) || has(t.dtNha) || has(t.dtDat) || !!t.gcnTT || !!t.donViGiao;
+  L.ndDonVi = t => t.donViGiao || A.Schema.refName('donvi', t.donViId) || '(chưa ghi đơn vị)';
+  L.ndStats = list => {
+    const s = { n: list.length, dtNha: 0, dtDat: 0, nguyenGia: 0, conLai: 0, daCap: 0, chuaCap: 0, matMat: 0, chuaRo: 0, chuaDK: 0, hsThieu: 0, hsDayDu: 0, dung: 0, khongDung: 0, donVi: new Set() };
+    list.forEach(t => {
+      s.dtNha += U.num(t.dtNha); s.dtDat += U.num(t.dtDat); s.nguyenGia += U.num(t.nguyenGia); s.conLai += U.num(t.conLai); s.donVi.add(U.norm(L.ndDonVi(t)));
+      if (t.gcnTT === 'dacap') s.daCap++; else if (t.gcnTT === 'chuacap') s.chuaCap++; else if (t.gcnTT === 'matmat') s.matMat++; else s.chuaRo++;
+      if (t.chuaDKBD) s.chuaDK++; if (t.hsThieu) s.hsThieu++; if (t.hsDayDu) s.hsDayDu++;
+      if (t.htSD === 'dung') s.dung++; else if (t.htSD === 'khongdung') s.khongDung++;
+    });
+    s.soDonVi = s.donVi.size; return s;
+  };
+  L.ndHoSo = t => t.gcnTT === 'dacap' ? ['hoanthanh', 'Đã cấp GCN'] : t.gcnTT === 'chuacap' ? ['quahan', 'Chưa cấp GCN'] : t.gcnTT === 'matmat' ? ['saphan', 'GCN mất, thất lạc'] : ['', 'Chưa ghi GCN'];
+
+  /* Đọc Phụ biểu 0A.01-T.STC. rows: mảng 2 chiều giá trị thô (raw:true). Nhận cột theo tiêu đề, không theo vị trí. */
+  L.parseNhaDat = rows => {
+    const out = { items: [], warnings: [], title: '', cols: {}, tong: null, headerRow: -1 };
+    const T = (r, c) => U.norm((rows[r] || [])[c]).replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+    let hr = -1;
+    for (let i = 0; i < Math.min(rows.length, 30); i++) { const r = (rows[i] || []).map((_, c) => T(i, c)); if (r.some(c => c.includes('duoc giao quan ly')) && r.some(c => c === 'ten tai san')) { hr = i; break; } }
+    if (hr < 0) { out.warnings.push('Không tìm thấy dòng tiêu đề có cột "Tên cơ quan, đơn vị đang được giao quản lý" và "Tên tài sản". Tệp không đúng Phụ biểu 0A.01-T.STC.'); return out; }
+    out.headerRow = hr;
+    for (let i = 0; i < hr; i++) { const t = (rows[i] || []).find(c => typeof c === 'string' && /tong hop hien trang/.test(U.norm(c))); if (t) { out.title = String(t).trim(); break; } }
+    const C = out.cols, set = (k, c) => { if (C[k] === undefined) C[k] = c; };
+    for (let r = hr; r <= hr + 3 && r < rows.length; r++) (rows[r] || []).forEach((_, c) => {
+      const t = T(r, c); if (!t) return;
+      if (t === 'stt' || t === 'tt') set('stt', c);
+      else if (t.includes('duoc giao quan ly')) set('donVi', c);
+      else if (t === 'ten tai san') set('ten', c);
+      else if (t.startsWith('dien tich nha')) set('dtNha', c);
+      else if (t.startsWith('dien tich dat')) set('dtDat', c);
+      else if (t === 'nguyen gia') set('nguyenGia', c);
+      else if (t.startsWith('gia tri con lai')) set('conLai', c);
+      else if (t === 'dung muc dich') set('dung', c);
+      else if (t === 'khong dung muc dich') set('khongDung', c);
+      else if (t.startsWith('nguyen nhan')) set('nguyenNhan', c);
+      else if (t.includes('mat mat') || t.includes('that lac')) set('matMat', c);
+      else if (t.startsWith('chua duoc cap giay')) set('chuaCap', c);
+      else if (t.startsWith('da duoc cap giay')) set('daCap', c);
+      else if (t.includes('day du ho so hinh thanh')) set('hsDayDu', c);
+      else if (t.includes('chua dang ky') && t.includes('bien dong')) set('chuaDK', c);
+      else if (t.includes('thieu ho so hinh thanh')) set('hsThieu', c);
+      else if (t === 'ghi chu') set('ghiChu', c);
+    });
+    ['donVi', 'ten'].forEach(k => { if (C[k] === undefined) out.warnings.push('Thiếu cột bắt buộc: ' + (k === 'ten' ? 'Tên tài sản' : 'Tên cơ quan, đơn vị đang được giao quản lý')); });
+    if (C.ten === undefined || C.donVi === undefined) return out;
+    const NAMES = { stt: 'STT', dtNha: 'Diện tích nhà', dtDat: 'Diện tích đất', nguyenGia: 'Nguyên giá', conLai: 'Giá trị còn lại', dung: 'Đúng mục đích', khongDung: 'Không đúng mục đích', daCap: 'Đã được cấp GCN', hsDayDu: 'Đầy đủ hồ sơ', matMat: 'Mất mát, thất lạc', chuaCap: 'Chưa được cấp GCN', chuaDK: 'Chưa đăng ký biến động', hsThieu: 'Thiếu hồ sơ', nguyenNhan: 'Nguyên nhân', ghiChu: 'Ghi chú' };
+    const miss = Object.keys(NAMES).filter(k => C[k] === undefined); if (miss.length) out.warnings.push('Biểu không có cột: ' + miss.map(k => NAMES[k]).join(', ') + ' — các trường này để trống.');
+    const v = (row, k) => C[k] === undefined ? null : row[C[k]];
+    const str = x => (x === null || x === undefined) ? '' : String(x).replace(/\s+/g, ' ').trim();
+    const tick = x => str(x) !== '';
+    const textSum = { dtNha: 0, dtDat: 0, nguyenGia: 0, conLai: 0 }, excelDate = [];
+    const num = (x, r, label, k) => { if (x === null || x === undefined || str(x) === '') return ''; const n = typeof x === 'number' ? x : U.parseNum(x); if (n === null || n === '') { out.warnings.push('Dòng ' + (r + 1) + ': ' + label + ' "' + str(x) + '" không phải số — để trống.'); return ''; } if (typeof x !== 'number') { textSum[k] += n; out.warnings.push('Dòng ' + (r + 1) + ': ' + label + ' ghi dạng chữ "' + str(x) + '", đọc thành ' + U.fmtNum(n) + '.'); } return n; };
+    const seen = new Map();
+    for (let r = hr + 1; r < rows.length; r++) {
+      const row = rows[r] || [], ten = str(v(row, 'ten')), dv = str(v(row, 'donVi')), sttRaw = v(row, 'stt');
+      const stt = typeof sttRaw === 'number' ? sttRaw : U.parseNum(sttRaw);
+      if (!ten && !dv) continue;
+      if (stt === '' || stt === null) {   // dòng tổng hoặc dòng tiêu đề nhóm
+        if (dv && !ten && out.tong === null && ['dtNha', 'dtDat', 'nguyenGia', 'conLai'].some(k => typeof v(row, k) === 'number')) out.tong = { row: r + 1, ten: dv, dtNha: U.num(v(row, 'dtNha')), dtDat: U.num(v(row, 'dtDat')), nguyenGia: U.num(v(row, 'nguyenGia')), conLai: U.num(v(row, 'conLai')) };
+        continue;
+      }
+      if (!ten) { out.warnings.push('Dòng ' + (r + 1) + ': thiếu tên tài sản — bỏ qua.'); continue; }
+      const it = { row: r + 1, stt, donViGiao: dv, ten, dtNha: num(v(row, 'dtNha'), r, 'diện tích nhà', 'dtNha'), dtDat: num(v(row, 'dtDat'), r, 'diện tích đất', 'dtDat'), nguyenGia: num(v(row, 'nguyenGia'), r, 'nguyên giá', 'nguyenGia'), conLai: num(v(row, 'conLai'), r, 'giá trị còn lại', 'conLai'),
+        htSD: '', gcnTT: '', gcnSo: '', gcnNgay: '', hsDayDu: tick(v(row, 'hsDayDu')), hsThieu: tick(v(row, 'hsThieu')), chuaDKBD: tick(v(row, 'chuaDK')), nguyenNhanHS: str(v(row, 'nguyenNhan')), ghiChuBieu: str(v(row, 'ghiChu')) };
+      const dung = tick(v(row, 'dung')), kd = tick(v(row, 'khongDung'));
+      if (dung && kd) out.warnings.push('Dòng ' + (r + 1) + ' "' + U.trunc(ten, 50) + '": đánh dấu cả "đúng mục đích" và "không đúng mục đích".');
+      it.htSD = kd ? 'khongdung' : dung ? 'dung' : '';
+      // Cột "Đã được cấp GCN": có thể là dấu x, số GCN, ngày cấp (chuỗi hoặc ngày Excel)
+      const dc = v(row, 'daCap'), cc = tick(v(row, 'chuaCap')), mm = tick(v(row, 'matMat'));
+      if (typeof dc === 'number') { const d = U.parseDate(dc); if (d) { it.gcnNgay = d; it.gcnSo = 'Cấp ngày ' + U.fmtDate(d); excelDate.push(r + 1); } else it.gcnSo = String(dc); }
+      else if (tick(dc) && !/^x$/i.test(str(dc))) {
+        it.gcnSo = str(dc);
+        const m = it.gcnSo.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) { const d = U.parseDate(m[0]); if (d) it.gcnNgay = d; else out.warnings.push('Dòng ' + (r + 1) + ': ngày cấp GCN "' + m[0] + '" không hợp lệ.'); }
+      }
+      it.gcnTT = mm ? 'matmat' : cc ? 'chuacap' : tick(dc) ? 'dacap' : '';
+      if (cc && tick(dc)) out.warnings.push('Dòng ' + (r + 1) + ' "' + U.trunc(ten, 50) + '": vừa có thông tin "đã cấp GCN" vừa đánh dấu "chưa được cấp" — ghi nhận là chưa cấp.');
+      if (it.hsDayDu && it.hsThieu) out.warnings.push('Dòng ' + (r + 1) + ' "' + U.trunc(ten, 50) + '": vừa đánh dấu "đầy đủ hồ sơ" vừa "thiếu hồ sơ hình thành tài sản".');
+      if (it.nguyenGia !== '' && it.conLai !== '' && it.conLai > it.nguyenGia) out.warnings.push('Dòng ' + (r + 1) + ' "' + U.trunc(ten, 50) + '": giá trị còn lại lớn hơn nguyên giá.');
+      // Khóa nhận diện để nhập lại kỳ sau: đơn vị + tên; trùng trong cùng biểu thì đánh số thứ tự lần xuất hiện
+      const key = U.norm(dv) + '|' + U.norm(ten), prev = seen.get(key) || [];
+      if (prev.length) out.warnings.push('Dòng ' + (r + 1) + ' trùng đơn vị và tên tài sản với dòng ' + prev.join(', ') + ' (số liệu khác nhau) — vẫn nhập thành cơ sở riêng; nên ghi rõ tên để phân biệt.');
+      it.ndKey = key + (prev.length ? '#' + (prev.length + 1) : '');
+      seen.set(key, prev.concat([r + 1]));
+      out.items.push(it);
+    }
+    if (excelDate.length) out.warnings.push('Ngày cấp GCN ở các dòng ' + excelDate.join(', ') + ' được lưu dạng ngày của Excel; phần mềm đọc theo ngày/tháng/năm của Excel — đối chiếu với giấy chứng nhận vì khi gõ, Excel có thể đã đảo ngày và tháng.');
+    if (out.tong) {
+      const NM = { dtNha: 'Diện tích nhà', dtDat: 'Diện tích đất', nguyenGia: 'Nguyên giá', conLai: 'Giá trị còn lại' };
+      Object.keys(NM).forEach(k => {
+        const sum = U.sum(out.items, x => x[k]), d = sum - out.tong[k]; if (Math.abs(d) <= 0.01) return;
+        out.warnings.push('Dòng tổng (dòng ' + out.tong.row + '): ' + NM[k] + ' ghi ' + U.fmtNum(out.tong[k]) + ', tổng các dòng chi tiết là ' + U.fmtNum(sum) + ' (chênh ' + U.fmtNum(d) + ')' + (textSum[k] && Math.abs(d - textSum[k]) <= 0.01 ? ' — đúng bằng các ô ghi số dạng chữ: hàm SUM của Excel không cộng các ô này, cần sửa ô về dạng số trên biểu gốc.' : '.'));
+      });
+    }
+    return out;
+  };
+  L.ndKey = t => t.ndKey || (U.norm(t.donViGiao) + '|' + U.norm(t.ten));
+
   L.tsCanXuLy = () => S.all('taisan').filter(t => ['Hư hỏng, chờ sửa chữa', 'Không còn nhu cầu sử dụng', 'Chờ điều chuyển', 'Chờ thanh lý'].includes(t.tinhTrang));
 
   /* ================= ĐẤU THẦU, HỢP ĐỒNG ================= */
@@ -407,12 +508,18 @@
     });
     S.all('goithau').forEach(g => { const x = L.gt(g); if (x.over) add(3, 'dauthau', g.ten, x.note, 'goithau', g.id); else if (x.near) add(1, 'dauthau', g.ten, x.note, 'goithau', g.id); if (x.chuaHD) add(1, 'dauthau', g.ten, 'Đã có kết quả lựa chọn nhà thầu nhưng chưa nhập hợp đồng', 'goithau', g.id); });
     S.all('hopdong').forEach(h => { const x = L.hd(h), ten = 'Hợp đồng ' + h.so + (h.ten ? ': ' + U.trunc(h.ten, 90) : ''); if (x.over) add(3, 'hopdong', ten, x.note + ' (' + U.fmtDate(h.ngayKT) + ')', 'hopdong', h.id); else if (x.near) add(1, 'hopdong', ten, x.note + ' (' + U.fmtDate(h.ngayKT) + ')', 'hopdong', h.id); else if (x.chuaThanhLy) add(1, 'hopdong', ten, x.note, 'hopdong', h.id); });
+    // Tài sản nhà, đất: tổng hợp hồ sơ pháp lý, hiện trạng sử dụng
+    const nd = S.all('taisan').filter(L.isNhaDat), ns = L.ndStats(nd);
+    if (ns.khongDung) add(2, 'nhadat', ns.khongDung + ' cơ sở nhà, đất đang sử dụng không đúng mục đích', nd.filter(t => t.htSD === 'khongdung').slice(0, 4).map(t => L.ndDonVi(t) + ': ' + U.trunc(t.ten, 60)).join('; '), 'route', 'taisan');
+    if (ns.chuaCap + ns.matMat) add(1, 'nhadat', (ns.chuaCap + ns.matMat) + '/' + ns.n + ' cơ sở nhà, đất chưa có giấy chứng nhận QSD đất' + (ns.matMat ? ' (trong đó ' + ns.matMat + ' đã cấp nhưng mất, thất lạc)' : ''), 'Thuộc ' + new Set(nd.filter(t => t.gcnTT === 'chuacap' || t.gcnTT === 'matmat').map(t => U.norm(L.ndDonVi(t)))).size + ' đơn vị được giao quản lý', 'route', 'taisan');
+    if (ns.chuaDK) add(1, 'nhadat', ns.chuaDK + ' cơ sở nhà, đất chưa đăng ký hồ sơ biến động đất đai', nd.filter(t => t.chuaDKBD).slice(0, 4).map(t => L.ndDonVi(t) + (t.nguyenNhanHS ? ' — ' + U.trunc(t.nguyenNhanHS, 60) : '')).join('; '), 'route', 'taisan');
+    if (ns.hsThieu) add(1, 'nhadat', ns.hsThieu + ' cơ sở nhà, đất thiếu hồ sơ hình thành tài sản', nd.filter(t => t.hsThieu).slice(0, 4).map(t => L.ndDonVi(t) + ': ' + U.trunc(t.ten, 50)).join('; '), 'route', 'taisan');
     // Bao phủ chức năng: đầu mục chính thức chưa có người chủ trì
     const dmChua = S.all('danhmuc').filter(d => d.loai !== 'noibo' && !d.chuTriId);
     if (dmChua.length) add(2, 'dmchuapc', dmChua.length + ' đầu mục chức năng, nhiệm vụ chưa phân công cán bộ chủ trì', 'Trên tổng số ' + S.all('danhmuc').filter(d => d.loai !== 'noibo').length + ' đầu mục theo ' + A.Seed.QD + '. Mã: ' + dmChua.slice(0, 12).map(d => d.ma).join(', ') + (dmChua.length > 12 ? '…' : ''), 'route', 'canbo');
     return out.sort((a, b) => (b.sev - a.sev) || ((b.days || 0) - (a.days || 0)));
   };
-  L.ALERT_LABEL = { quahan: 'Quá hạn', tondong: 'Tồn đọng', saphan: 'Sắp đến hạn', nguyco: 'Nguy cơ', chuapc: 'Chưa phân công', xinykien: 'Xin ý kiến', dacham: 'Dự án chậm', danguyco: 'Dự án có nguy cơ', gnthap: 'Giải ngân thấp', dauthau: 'Đấu thầu', hopdong: 'Hợp đồng', quyettoan: 'Quyết toán', dmchuapc: 'Phân công' };
+  L.ALERT_LABEL = { quahan: 'Quá hạn', tondong: 'Tồn đọng', saphan: 'Sắp đến hạn', nguyco: 'Nguy cơ', chuapc: 'Chưa phân công', xinykien: 'Xin ý kiến', dacham: 'Dự án chậm', danguyco: 'Dự án có nguy cơ', gnthap: 'Giải ngân thấp', dauthau: 'Đấu thầu', hopdong: 'Hợp đồng', quyettoan: 'Quyết toán', dmchuapc: 'Phân công', nhadat: 'Nhà, đất' };
 
   /* ================= TRỢ LÝ ĐIỀU HÀNH (theo luật, có căn cứ) ================= */
   L.assistant = y => {
@@ -432,7 +539,7 @@
       chuaPhanCong: { items: pick('chuapc', 'dmchuapc'), basis: 'Nhiệm vụ chưa hoàn thành không có cán bộ chủ trì; đầu mục chức năng chưa gán cán bộ chủ trì.' },
       linhVuc: { items: linhVuc, basis: 'Đếm nhiệm vụ chưa hoàn thành và quá hạn theo 10 nhóm chức năng của QĐ 324.' },
       baoCaoLanhDao: { items: pick('xinykien', 'tondong').concat(al.filter(a => a.sev === 3 && ['dacham', 'gnthap', 'hopdong', 'dauthau'].includes(a.loai))), basis: 'Mục đã đánh dấu "cần xin ý kiến", kiến nghị của dự án, nhu cầu điều chỉnh vốn, việc tồn đọng quá ' + A.nguong('tonDong') + ' ngày và các cảnh báo mức cao về dự án, giải ngân, hợp đồng.' },
-      chuDong: { items: dmTrong, quyetToan: pick('quyettoan'), ts: L.tsCanXuLy(), basis: 'Đầu mục chức năng định kỳ chưa có nhiệm vụ nào trong năm ' + yy + '; dự án hoàn thành chưa quyết toán; tài sản ở tình trạng chờ xử lý.' },
+      chuDong: { items: dmTrong, quyetToan: pick('quyettoan'), nhaDat: pick('nhadat'), ts: L.tsCanXuLy(), basis: 'Đầu mục chức năng định kỳ chưa có nhiệm vụ nào trong năm ' + yy + '; dự án hoàn thành chưa quyết toán; tài sản ở tình trạng chờ xử lý; cơ sở nhà, đất chưa có GCN, chưa đăng ký biến động, thiếu hồ sơ hoặc sử dụng không đúng mục đích.' },
       counts: { al: al.length, cao: al.filter(a => a.sev === 3).length }
     };
   };

@@ -1,5 +1,5 @@
 const {chromium}=require('playwright');const path=require('path'),fs=require('fs');
-const SHOTS=process.argv[2], XLS=process.argv[3];
+const SHOTS=process.argv[2], XLS=process.argv[3], ND=process.argv[4];
 let pass=0,fail=0;const ok=(c,m)=>{if(c){pass++;console.log('  ok  '+m)}else{fail++;console.log('FAIL  '+m)}};
 (async()=>{const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:1440,height:900},acceptDownloads:true});const p=await ctx.newPage();
 const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource|Mã truy cập không hợp lệ|Sai mã bí mật/.test(m.text()))errs.push(m.text())});
@@ -162,6 +162,64 @@ ok(await ev(()=>{const x=App.L.hd(App.Store.all('hopdong')[0]);return x.thanhToa
 await ev(async()=>{const r=App.Schema.check('taisan',{ten:'x',loai:'Tài sản khác',nguyenGia:1,conLai:2});window.__c=r});
 ok(await ev(()=>window.__c.errors.some(e=>/còn lại lớn hơn nguyên giá/.test(e))),'chặn giá trị còn lại > nguyên giá');
 for(const r of ['taisan','dauthau']){await go(r);ok(!/gặp lỗi/.test(await txt()),'trang có dữ liệu hiển thị được: '+r)}
+
+console.log('# 9b. Tài sản nhà, đất — Phụ biểu 0A.01-T.STC (tệp thật)');
+await go('taisan');
+let [fnd]=await Promise.all([p.waitForEvent('filechooser'),(async()=>{await p.click('[data-ndimp]');await p.waitForSelector('[data-pick]');await p.click('[data-pick]')})()]);
+await fnd.setFiles(ND);await p.waitForSelector('[data-map]');await p.waitForTimeout(200);
+let mt=(await p.textContent('.modal')).replace(/\s+/g,' ');
+ok(/đọc được 79 cơ sở nhà, đất của 25 đơn vị/.test(mt),'đọc 79 cơ sở, 25 đơn vị được giao quản lý');
+ok(await p.inputValue('#nd_ngay')==='2026-10-30','lấy ngày hiện trạng 30/10/2026 từ tên tệp');
+ok(/chênh 458,90\).*hàm SUM của Excel không cộng/.test(mt)&&/chênh 1\.118,20/.test(mt),'chỉ ra dòng tổng diện tích lệch do ô ghi số dạng chữ');
+ok(/Dòng 63 .*đầy đủ hồ sơ.*thiếu hồ sơ/.test(mt),'chỉ ra dòng 63 vừa đủ vừa thiếu hồ sơ');
+ok(/Dòng 21: ngày cấp GCN 02\/11\/2026 sau ngày lập biểu 30\/10\/2026/.test(mt),'chỉ ra ngày cấp GCN sau ngày lập biểu (dòng 21)');
+const vpdk=await ev(()=>App.Store.all('donvi').find(d=>d.ten==='Văn phòng Đăng ký đất đai').id),kl=await ev(()=>App.Store.all('donvi').find(d=>d.ten==='Chi cục Kiểm lâm').id);
+ok(await p.inputValue('[data-map="van phong dang ky dat dai"]')===vpdk&&await p.inputValue('[data-map="van phong chi cuc kiem lam"]')===kl,'gợi ý đúng: VP Đăng ký đất đai, VP Chi cục Kiểm lâm');
+ok(await p.inputValue('[data-map="hat kiem lam khu vuc i"]')==='','không tự gán Hạt Kiểm lâm (không suy đoán quan hệ trực thuộc)');
+await p.selectOption('[data-map="hat kiem lam khu vuc i"]',kl);await p.waitForTimeout(200);
+await p.screenshot({path:SHOTS+'/e_nd_import.png'});
+await p.click('.modal-f .btn.primary');await p.waitForTimeout(900);
+const nds=await ev(()=>{const l=App.Store.all('taisan').filter(App.L.isNhaDat),s=App.L.ndStats(l);return {n:s.n,ng:s.nguyenGia,cl:s.conLai,dc:s.daCap,cc:s.chuaCap,dk:s.chuaDK,th:s.hsThieu,dtN:s.dtNha}});
+ok(nds.n===79&&nds.ng===409298670782&&nds.cl===326911291412,'79 cơ sở; nguyên giá 409.298.670.782, còn lại 326.911.291.412 — khớp dòng tổng biểu');
+ok(nds.dc===32&&nds.cc===44&&nds.dk===3&&nds.th===5,'32 đã cấp GCN, 44 chưa cấp, 3 chưa ĐK biến động, 5 thiếu hồ sơ');
+ok(await ev(()=>{const t=App.Store.all('taisan').find(x=>/Nguyễn Lương Bằng/.test(x.ten));return t.gcnTT==='dacap'&&t.gcnNgay==='2008-01-01'&&t.hsDayDu&&t.donViId&&App.Schema.refName('donvi',t.donViId)==='CC Kiểm lâm'&&t.ma}),'dòng 25: GCN số AL 177247 ngày 01/01/2008, đủ hồ sơ, gắn Chi cục Kiểm lâm, có mã');
+ok(await ev(()=>{const t=App.Store.all('taisan').find(x=>x.nd&&x.nd.dong===12);return t.chuaDKBD&&/biến động/.test(t.nguyenNhanHS)}),'dòng 12: chưa ĐK biến động, có nguyên nhân');
+ok(await ev(()=>App.Store.all('taisan').filter(x=>/Pha Khuông, Xã Co Mạ/.test(x.ten)).length)===2,'2 cơ sở trùng tên (dòng 62, 66) giữ thành 2 bản ghi');
+// sửa tại phần mềm rồi nhập lại → không trùng, giữ trường riêng
+await ev(async()=>{const t=App.Store.all('taisan').find(x=>x.ndThuTu===1);await App.Store.save('taisan',Object.assign({},t,{ghiChu:'Ghi chú riêng tại PM',bienDong:[{ngay:'2026-11-01',loai:'Kiểm kê',noiDung:'Kiểm kê thử'}]}))});
+[fnd]=await Promise.all([p.waitForEvent('filechooser'),(async()=>{await p.click('[data-ndimp]');await p.waitForSelector('[data-pick]');await p.click('[data-pick]')})()]);
+await fnd.setFiles(ND);await p.waitForSelector('[data-map]');await p.waitForTimeout(200);
+ok(await p.inputValue('[data-map="hat kiem lam khu vuc i"]')===kl,'nhớ lựa chọn gắn đơn vị từ lần trước');
+mt=(await p.locator('.modal .kpis').nth(1).textContent()).replace(/\s+/g,'');ok(/Thêmmới0/.test(mt)&&/Cậpnhật0/.test(mt),'nhập lại cùng biểu: 0 thêm, 0 cập nhật');
+await p.click('.modal-f .btn.primary');await p.waitForTimeout(600);
+ok(await ev(()=>{const t=App.Store.all('taisan').find(x=>x.ndThuTu===1);return App.Store.all('taisan').filter(App.L.isNhaDat).length===79&&t.ghiChu==='Ghi chú riêng tại PM'&&t.bienDong.length===1}),'vẫn 79 cơ sở; ghi chú, biến động nhập tại phần mềm được giữ');
+// lọc qua thẻ KPI
+await go('taisan');await p.click('[data-ndf="chuacap"]');await p.waitForTimeout(300);
+ok(/44 dòng/.test(await p.textContent('.pager')),'bấm thẻ "Chưa cấp GCN" → lọc 44 dòng');
+await p.screenshot({path:SHOTS+'/e_taisan.png',fullPage:true});
+await p.selectOption('[data-f="nd"]','');await p.waitForTimeout(200);
+// form ẩn/hiện nhóm nhà đất + cảnh báo
+await p.click('[data-add]');await p.waitForSelector('.modal form');
+ok(await p.$eval('[data-fld="dtDat"]',e=>e.classList.contains('hide')),'thêm tài sản mới: nhóm trường nhà, đất ẩn');
+await p.selectOption('[data-k="loai"]','Cơ sở nhà, đất');await p.waitForTimeout(100);
+ok(!await p.$eval('[data-fld="dtDat"]',e=>e.classList.contains('hide')),'chọn loại "Cơ sở nhà, đất" → hiện nhóm trường nhà, đất');
+await p.fill('[data-k="ten"]','Cơ sở thử nghiệm');await p.check('[data-k="hsDayDu"]');await p.check('[data-k="hsThieu"]');await p.fill('[data-k="dtDat"]','-5');
+await p.click('.modal-f .btn.primary');await p.waitForTimeout(200);ok(/Diện tích đất" không được âm/.test(await p.textContent('.errbox')),'chặn diện tích âm');
+await p.fill('[data-k="dtDat"]','500');await p.click('.modal-f .btn.primary');await p.waitForTimeout(250);
+ok(/vừa "Thiếu hồ sơ hình thành tài sản"/.test(await p.locator('.ov').last().textContent()),'cảnh báo vừa đủ vừa thiếu hồ sơ, vẫn cho lưu');
+await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(300);
+ok(await ev(()=>App.Store.all('taisan').filter(App.L.isNhaDat).length)===80,'lưu được cơ sở thứ 80');
+// xuất mẫu 0A.01
+const nx=await dl(()=>p.click('[data-ndexp]'));const nw=X.readFile(nx),na=X.utils.sheet_to_json(nw.Sheets['A01-STC'],{header:1,defval:''});
+ok(na[4][1]==='Tên cơ quan, đơn vị đang được giao quản lý'&&na[7][5]===409298670782+0&&na.length===8+80,'xuất mẫu 0A.01: đúng tiêu đề cột, dòng tổng nguyên giá, 80 dòng');
+ok(na[8][1]==='Trung tâm nước Quan trắc môi trường'&&na[8][9]==='Cấp ngày 01/02/2023'&&na[8][7]==='x','dòng 1 xuất đúng thứ tự, GCN, dấu x');
+ok((nw.Sheets['A01-STC']['!merges']||[]).length>=20,'giữ cấu trúc ô gộp tiêu đề');
+const rnd=X.utils.sheet_to_json(nw.Sheets['A01-STC'],{header:1,raw:true,defval:null});
+ok(await p.evaluate(r=>{const q=App.L.parseNhaDat(r);return q.items.length===80&&!q.warnings.some(w=>/Dòng tổng/.test(w))},rnd),'đọc lại tệp vừa xuất bằng chính bộ đọc: 80 dòng, dòng tổng khớp');
+ok(await ev(()=>App.L.alerts(2026).some(a=>a.loai==='nhadat'&&/44\/80 cơ sở nhà, đất chưa có giấy chứng nhận/.test(a.title))),'cảnh báo tổng hợp: 44/80 cơ sở chưa có GCN');
+await go('baocao');await p.selectOption('#bc_type','taisan');await p.waitForTimeout(250);
+ok(/80 cơ sở nhà, đất do 26 cơ quan, đơn vị/.test(await p.textContent('[data-paper]')),'báo cáo tài sản có phần nhà, đất');
+await ev(async()=>{await App.Store.removeMany(App.Store.all('taisan').filter(App.L.isNhaDat).filter(t=>t.ten!=='Xe ô tô thử').map(t=>['taisan',t.id]),'dọn thử nhà đất');await App.Store.setCfg({ndMap:{}})});
 
 console.log('# 10. Bảng điều hành và Trợ lý');
 await go('tongquan');await p.waitForTimeout(200);

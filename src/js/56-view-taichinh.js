@@ -15,6 +15,7 @@
   Sc.C.taisan.sections = [
     { t: 'Tài sản', keys: ['ten', 'ma', 'loai', 'donViId', 'thongSo', 'nguon', 'namSD', 'soLuong'] },
     { t: 'Giá trị, tình trạng', keys: ['nguyenGia', 'conLai', 'tinhTrang', 'ngayKiemKe'] },
+    { t: 'Cơ sở nhà, đất (theo Phụ biểu 0A.01-T.STC)', key: 'nhadat', keys: ['donViGiao', 'ndNgay', 'dtNha', 'dtDat', 'htSD', 'gcnTT', 'gcnSo', 'gcnNgay', 'hsDayDu', 'hsThieu', 'chuaDKBD', 'nguyenNhanHS', 'ghiChuBieu'] },
     { t: 'Biến động và hồ sơ', keys: ['bienDong', 'dinhKem', 'ghiChu'] }];
   Sc.C.goithau.sections = [
     { t: 'Gói thầu, nhu cầu mua sắm', keys: ['ten', 'duAnId', 'donViId', 'loai', 'nguonVon', 'duToan', 'giaGoiThau', 'hinhThuc'] },
@@ -170,39 +171,163 @@
   }
   A.openers.taisan = id => UI.detail({
     coll: 'taisan', id,
-    head: t => '<div class="gap mb">' + UI.chip(t.tinhTrang === 'Đang sử dụng' ? 'hoanthanh' : ['Đã thanh lý', 'Đã điều chuyển'].includes(t.tinhTrang) ? '' : 'saphan', t.tinhTrang || 'Chưa ghi tình trạng') + '<span class="tag">' + e(t.loai || '') + '</span>' + (U.num(t.nguyenGia) ? '<span class="tag">Hao mòn lũy kế: ' + U.fmtMoney(U.num(t.nguyenGia) - U.num(t.conLai)) + ' đồng</span>' : '') + '</div>',
+    head: t => {
+      let h = '<div class="gap mb">' + UI.chip(t.tinhTrang === 'Đang sử dụng' ? 'hoanthanh' : ['Đã thanh lý', 'Đã điều chuyển'].includes(t.tinhTrang) ? '' : t.tinhTrang ? 'saphan' : '', t.tinhTrang || 'Chưa ghi tình trạng') + '<span class="tag">' + e(t.loai || '') + '</span>' + (U.num(t.nguyenGia) ? '<span class="tag">Hao mòn lũy kế: ' + U.fmtMoney(U.num(t.nguyenGia) - U.num(t.conLai)) + ' đồng</span>' : '') + '</div>';
+      if (L.isNhaDat(t)) {
+        const hs = L.ndHoSo(t), w = A.Schema.C.taisan.warn(t);
+        h += '<div class="kpis mb"><div class="kpi teal static"><span class="k-l">Diện tích đất</span><span class="k-v">' + (t.dtDat === '' || t.dtDat === undefined ? '—' : U.fmtNum(t.dtDat)) + '<small> m²</small></span></div><div class="kpi static"><span class="k-l">Diện tích nhà</span><span class="k-v">' + (t.dtNha === '' || t.dtNha === undefined ? '—' : U.fmtNum(t.dtNha)) + '<small> m²</small></span></div><div class="kpi ' + (t.gcnTT === 'dacap' ? 'ok' : t.gcnTT ? 'bad' : '') + ' static"><span class="k-l">Giấy chứng nhận</span><span class="k-v" style="font-size:16px">' + e(hs[1]) + '</span><span class="k-s">' + e(t.gcnSo || '') + '</span></div><div class="kpi ' + (t.chuaDKBD || t.hsThieu ? 'warn' : 'ok') + ' static"><span class="k-l">Hồ sơ</span><span class="k-v" style="font-size:16px">' + (t.hsThieu ? 'Thiếu hồ sơ' : t.hsDayDu ? 'Đầy đủ hồ sơ' : 'Chưa ghi') + '</span><span class="k-s">' + (t.chuaDKBD ? 'Chưa đăng ký biến động đất đai' : '&nbsp;') + '</span></div></div>' +
+          (w.length ? '<div class="note warn mb">' + w.map(e).join('<br>') + '</div>' : '') + (t.nd ? '<div class="small muted mb">Nguồn: Phụ biểu 0A.01-T.STC, dòng ' + t.nd.dong + (t.nd.tep ? ' tệp ' + e(t.nd.tep) : '') + (t.ndNgay ? ', hiện trạng đến ' + U.fmtDate(t.ndNgay) : '') + '.</div>' : '');
+      }
+      return h;
+    },
     actions: [{ label: 'Ghi biến động', icon: 'history', on: (t, a, reopen) => bienDongDialog(t, reopen) }]
   });
+
+  /* ---------- Nhập Phụ biểu 0A.01-T.STC ---------- */
+  const tokens = s => new Set(U.norm(s).split(/[^a-z0-9]+/).filter(x => x && x !== 'va'));
+  const suggestDV = name => {   // chỉ gợi ý khi tên trên biểu chứa đủ các từ của tên đơn vị dự toán — không suy diễn quan hệ cấp trên
+    const tk = tokens(name); let best = null, bn = 0;
+    S.all('donvi').forEach(d => { const dt = tokens(d.ten); if (dt.size && [...dt].every(x => tk.has(x)) && dt.size > bn) { best = d; bn = dt.size; } });
+    return best ? best.id : '';
+  };
+  async function importNhaDat() {
+    const m = UI.modal({
+      title: 'Nhập biểu hiện trạng tài sản nhà, đất', sub: 'Phụ biểu 0A.01-T.STC — Tổng hợp hiện trạng tài sản nhà, đất', size: 'lg',
+      body: '<p class="soft">Mỗi dòng của biểu là một cơ sở nhà, đất. Phần mềm nhận cột theo tiêu đề (chịu được việc chèn, đổi vị trí cột), đọc giá trị đã tính của ô công thức, đối chiếu với dòng tổng. Nhập lại biểu kỳ sau sẽ cập nhật đúng cơ sở theo đơn vị được giao và tên tài sản, không tạo trùng; mã tài sản, biến động, hồ sơ đính kèm đã nhập tại phần mềm được giữ nguyên.</p><div class="gap"><button class="btn primary" data-pick>' + ic('upload', 16) + 'Chọn tệp Excel</button></div><div data-step class="mt"></div>',
+      buttons: [{ label: 'Đóng', on: a => a.close() }]
+    });
+    let wb = null, fname = '', parsed = null, map = {}, ngay = '';
+    const step = $('[data-step]', m.body);
+    const plan = () => {
+      const exist = new Map(S.all('taisan').filter(L.isNhaDat).map(t => [L.ndKey(t), t])), out = { items: [], them: 0, sua: 0, giu: 0, vangMat: [] }, seen = new Set();
+      parsed.items.forEach(it => {
+        const old = exist.get(it.ndKey) || exist.get(U.norm(it.donViGiao) + '|' + U.norm(it.ten)); seen.add(old ? old.id : null);
+        const src = { ten: it.ten, donViGiao: it.donViGiao, donViId: map[U.norm(it.donViGiao)] || '', dtNha: it.dtNha, dtDat: it.dtDat, nguyenGia: it.nguyenGia, conLai: it.conLai, htSD: it.htSD, gcnTT: it.gcnTT, gcnSo: it.gcnSo, gcnNgay: it.gcnNgay, hsDayDu: it.hsDayDu, hsThieu: it.hsThieu, chuaDKBD: it.chuaDKBD, nguyenNhanHS: it.nguyenNhanHS, ghiChuBieu: it.ghiChuBieu, ndNgay: ngay, ndKey: it.ndKey, ndThuTu: it.stt, nd: { bieu: '0A.01-T.STC', dong: it.row, tep: fname } };
+        let rec;
+        if (old) { rec = Object.assign({}, old, src); if (!map[U.norm(it.donViGiao)] && old.donViId) rec.donViId = old.donViId; }
+        else rec = Object.assign({ loai: 'Cơ sở nhà, đất', soLuong: 1, tinhTrang: it.htSD ? 'Đang sử dụng' : '', bienDong: [], dinhKem: [], ghiChu: '' }, src);
+        const real = !old || A.Schema.diff('taisan', old, rec).length > 0;
+        if (!old) out.them++; else if (real) out.sua++; else out.giu++;
+        out.items.push({ rec, real, isNew: !old });
+      });
+      exist.forEach(t => { if (t.nd && !seen.has(t.id)) out.vangMat.push(t); });
+      return out;
+    };
+    const draw = () => {
+      const s = L.ndStats(parsed.items), units = U.groupBy(parsed.items, x => U.norm(x.donViGiao)), dvs = S.all('donvi'), p = plan();
+      const after = parsed.items.filter(x => x.gcnNgay && ngay && x.gcnNgay > ngay);
+      $('[data-out]', step).innerHTML = !parsed.items.length ? '<div class="note bad">' + e(parsed.warnings.join(' ') || 'Không đọc được dòng tài sản nào.') + '</div>' :
+        '<div class="note">' + e(parsed.title || 'Biểu không có tiêu đề') + ' — đọc được <b>' + parsed.items.length + '</b> cơ sở nhà, đất của <b>' + units.size + '</b> đơn vị được giao quản lý.</div>' +
+        '<div class="kpis mt"><div class="kpi teal static"><span class="k-l">Diện tích đất</span><span class="k-v"><small>' + U.fmtNum(s.dtDat, 1) + ' m²</small></span></div><div class="kpi static"><span class="k-l">Diện tích nhà</span><span class="k-v"><small>' + U.fmtNum(s.dtNha, 1) + ' m²</small></span></div><div class="kpi acc static"><span class="k-l">Nguyên giá</span><span class="k-v"><small>' + U.fmtShort(s.nguyenGia) + '</small></span><span class="k-s">Còn lại ' + U.fmtShort(s.conLai) + '</span></div><div class="kpi ok static"><span class="k-l">Đã cấp GCN</span><span class="k-v">' + s.daCap + '</span><span class="k-s">Chưa cấp ' + s.chuaCap + ' · chưa ghi ' + s.chuaRo + '</span></div><div class="kpi warn static"><span class="k-l">Chưa ĐK biến động · thiếu hồ sơ</span><span class="k-v">' + s.chuaDK + ' · ' + s.hsThieu + '</span></div></div>' +
+        '<div class="kpis mt"><div class="kpi ok static"><span class="k-l">Thêm mới</span><span class="k-v">' + p.them + '</span></div><div class="kpi info static"><span class="k-l">Cập nhật</span><span class="k-v">' + p.sua + '</span></div><div class="kpi static"><span class="k-l">Không đổi</span><span class="k-v">' + p.giu + '</span></div></div>' +
+        '<div class="form mt"><div class="fld"><label for="nd_ngay">Hiện trạng tính đến ngày</label><input class="inp" type="date" id="nd_ngay" value="' + e(ngay) + '"><div class="help">Lấy từ tên tệp nếu có; sửa nếu khác.</div></div></div>' +
+        (parsed.warnings.length || after.length ? '<div class="note warn mt"><b>Kết quả kiểm tra biểu</b> (vẫn nhập được; các điểm này được ghi lại để rà soát):<ul style="margin:4px 0 0;padding-left:18px">' + parsed.warnings.map(w => '<li>' + e(w) + '</li>').join('') + after.map(x => '<li>Dòng ' + x.row + ': ngày cấp GCN ' + U.fmtDate(x.gcnNgay) + ' sau ngày lập biểu ' + U.fmtDate(ngay) + ' — khả năng bị đảo ngày, tháng.</li>').join('') + '</ul></div>' : '') +
+        (p.vangMat.length ? '<div class="note mt">' + p.vangMat.length + ' cơ sở nhập từ biểu trước không có trong biểu này (được giữ lại, không xóa): ' + e(p.vangMat.slice(0, 4).map(t => U.trunc(t.ten, 50)).join('; ')) + (p.vangMat.length > 4 ? '…' : '') + '</div>' : '') +
+        '<div class="eyebrow">Gắn đơn vị được giao quản lý với đơn vị dự toán (tùy chọn)</div><p class="small soft" style="margin-top:-4px">Dùng để tổng hợp theo đơn vị dự toán. Phần mềm chỉ gợi ý khi tên trên biểu chứa đủ tên đơn vị dự toán; các đơn vị cấp dưới (Hạt Kiểm lâm, Ban quản lý rừng…) anh/chị tự chọn — phần mềm không suy đoán quan hệ trực thuộc. Lựa chọn được nhớ cho lần nhập sau.</p>' +
+        '<div class="gap mb"><span class="small">Gán các đơn vị chưa gán vào</span><select class="sel" style="width:auto" data-bulk aria-label="Đơn vị dự toán để gán hàng loạt"><option value="">— chọn —</option>' + dvs.map(d => '<option value="' + d.id + '">' + e(d.ten) + '</option>').join('') + '</select></div>' +
+        '<div class="tbl-wrap" style="max-height:260px;overflow:auto"><table class="tbl"><thead><tr><th>Đơn vị được giao quản lý (theo biểu)</th><th class="num">Số cơ sở</th><th>Đơn vị dự toán</th></tr></thead><tbody>' + [...units.entries()].map(([k, l]) => '<tr><td class="wrap">' + e(l[0].donViGiao) + '</td><td class="num">' + l.length + '</td><td><select class="sel" style="height:32px;min-width:220px" data-map="' + e(k) + '" aria-label="Đơn vị dự toán của ' + e(l[0].donViGiao) + '"><option value="">— Chưa gán —</option>' + dvs.map(d => '<option value="' + d.id + '"' + (map[k] === d.id ? ' selected' : '') + '>' + e(d.ten) + '</option>').join('') + '</select></td></tr>').join('') + '</tbody></table></div>';
+      $$('[data-map]', step).forEach(s2 => s2.onchange = () => { map[s2.dataset.map] = s2.value; draw(); });
+      const bulk = $('[data-bulk]', step); if (bulk) bulk.onchange = () => { if (!bulk.value) return; units.forEach((_, k) => { if (!map[k]) map[k] = bulk.value; }); draw(); };
+      const nd = $('#nd_ngay', step); if (nd) nd.onchange = () => { ngay = U.isISO(nd.value) ? nd.value : ''; draw(); };
+      m.setFooter(parsed.items.length ? [{ label: 'Đóng', on: a => a.close() }, { label: 'Nhập ' + parsed.items.length + ' cơ sở nhà, đất', cls: 'primary', icon: 'check', on: commit }] : [{ label: 'Đóng', on: a => a.close() }]);
+    };
+    const commit = async a => {
+      if (!ngay) { UI.toast('Nhập ngày tính hiện trạng của biểu.', 'bad'); return; }
+      const p = plan();
+      try {
+        if (p.sua) await S.snapshot('Trước khi nhập lại biểu nhà, đất');
+        const items = p.items.filter(x => x.real || x.isNew).map(x => ({ c: 'taisan', rec: x.rec }));
+        let seq = 0; const base = A.Schema.nextMa('taisan');
+        items.forEach(x => { if (!x.rec.ma) x.rec.ma = base.replace(/(\d+)$/, d => String(+d + seq++).padStart(3, '0')); });
+        // giữ thứ tự dòng của biểu cho cả bản ghi không đổi
+        const keep = p.items.filter(x => !x.real && !x.isNew).map(x => x.rec);
+        if (items.length) await S.saveMany(items, { note: 'Nhập biểu hiện trạng nhà, đất (0A.01-T.STC) tệp ' + fname + ': ' + p.them + ' thêm, ' + p.sua + ' cập nhật' });
+        if (keep.length) await S.saveMany(keep.map(r => ({ c: 'taisan', rec: r })), { silent: true });
+        const ndMap = Object.assign({}, S.cfg.ndMap || {}, map); await S.setCfg({ ndMap });
+        a.close(); UI.toast('Đã nhập: ' + p.them + ' cơ sở thêm, ' + p.sua + ' cập nhật, ' + p.giu + ' không đổi.', 'ok');
+        A.vs.tsG = { g: 'dvg' };
+      } catch (er) { UI.fail(er); }
+    };
+    $('[data-pick]', m.body).onclick = async () => {
+      const file = await UI.pickFile('.xlsx,.xls'); if (!file) return;
+      try {
+        wb = await UI.readWorkbook(file); fname = file.name;
+        const fm = fname.match(/(\d{1,2})[-_.](\d{1,2})[-_.](\d{4})/); ngay = fm ? (U.parseDate(fm[1] + '/' + fm[2] + '/' + fm[3]) || '') : '';
+        const rowsOf = n => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
+        const pref = wb.SheetNames.find(n => L.parseNhaDat(rowsOf(n)).items.length) || wb.SheetNames[0];
+        step.innerHTML = '<div class="fld"><label for="nd_s">Trang tính</label><select class="sel" id="nd_s">' + wb.SheetNames.map(n => '<option' + (n === pref ? ' selected' : '') + '>' + e(n) + '</option>').join('') + '</select></div><div data-out class="mt"></div>';
+        const load = n => { parsed = L.parseNhaDat(rowsOf(n)); map = {}; const saved = S.cfg.ndMap || {}; parsed.items.forEach(x => { const k = U.norm(x.donViGiao); if (map[k] === undefined) map[k] = saved[k] !== undefined ? saved[k] : suggestDV(x.donViGiao); }); draw(); };
+        $('#nd_s', step).onchange = x => load(x.target.value);
+        load(pref);
+      } catch (er) { UI.fail(er); }
+    };
+  }
+
+  /* ---------- Xuất đúng mẫu Phụ biểu 0A.01-T.STC ---------- */
+  A.exportNhaDat = list => {
+    list = list.slice().sort((a, b) => (U.num(a.ndThuTu) || 1e9) - (U.num(b.ndThuTu) || 1e9) || U.cmp(L.ndDonVi(a), L.ndDonVi(b)) || U.cmp(a.ten, b.ten));
+    const x = v => v ? 'x' : '', n = v => (v === '' || v === undefined || v === null) ? '' : +v, s = L.ndStats(list);
+    const ngay = list.map(t => t.ndNgay).filter(Boolean).sort().pop();
+    const aoa = [
+      ['', '', '', '', '', '', '', '', 'Phụ biểu số 0A.01-T.STC'],
+      ['TỔNG HỢP HIỆN TRẠNG TÀI SẢN NHÀ, ĐẤT'],
+      ['(' + A.cfg('coQuan') + (ngay ? ' — hiện trạng đến ngày ' + U.fmtDate(ngay) : '') + '; xuất từ phần mềm ngày ' + U.fmtDate(U.today()) + ')'],
+      [],
+      ['STT', 'Tên cơ quan, đơn vị đang được giao quản lý', 'Tên tài sản', 'Diện tích nhà (m²)', 'Diện tích đất (m²)', 'Giá trị tài sản (đồng)', '', 'Hiện trạng sử dụng (tích dấu X vào ô tương ứng)', '', 'Hồ sơ pháp lý (tích dấu X vào ô tương ứng)', '', '', '', '', '', '', 'Ghi chú'],
+      ['', '', '', '', '', 'Nguyên giá', 'Giá trị còn lại', 'Tiếp tục sử dụng', '', 'Đã được cấp giấy chứng nhận QSD đất, tài sản', 'Đầy đủ hồ sơ hình thành tài sản', 'Đã được cấp GCN, hồ sơ tài sản nhưng mất mát, thất lạc', 'Chưa được cấp giấy chứng nhận QSD đất, tài sản', 'Chưa đăng ký hồ sơ biến động đất đai', 'Thiếu hồ sơ hình thành tài sản', 'Nguyên nhân chưa đăng ký biến động, chưa đầy đủ hồ sơ tài sản', ''],
+      ['', '', '', '', '', '', '', 'Đúng mục đích', 'Không đúng mục đích', '', '', '', '', '', '', '', ''],
+      ['', A.cfg('coQuan').replace(/ tỉnh .*$/i, '').toUpperCase(), '', s.dtNha, s.dtDat, s.nguyenGia, s.conLai, '', '', '', '', '', '', '', '', '', '']
+    ].concat(list.map((t, i) => [i + 1, L.ndDonVi(t), t.ten, n(t.dtNha), n(t.dtDat), n(t.nguyenGia), n(t.conLai), x(t.htSD === 'dung'), x(t.htSD === 'khongdung'), t.gcnTT === 'dacap' ? (t.gcnSo || 'x') : '', x(t.hsDayDu), x(t.gcnTT === 'matmat'), x(t.gcnTT === 'chuacap'), x(t.chuaDKBD), x(t.hsThieu), t.nguyenNhanHS || '', t.ghiChuBieu || '']));
+    const M = (r1, c1, r2, c2) => ({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } });
+    UI.xlsx('hien-trang-nha-dat-0A01-' + UI.stamp() + '.xlsx', [{
+      name: 'A01-STC', aoa, widths: [5, 34, 46, 12, 12, 17, 17, 9, 9, 24, 10, 12, 12, 12, 10, 30, 28],
+      merges: [M(1, 0, 1, 16), M(2, 0, 2, 16), M(4, 0, 6, 0), M(4, 1, 6, 1), M(4, 2, 6, 2), M(4, 3, 6, 3), M(4, 4, 6, 4), M(4, 5, 4, 6), M(5, 5, 6, 5), M(5, 6, 6, 6), M(4, 7, 4, 8), M(5, 7, 5, 8), M(4, 9, 4, 15)].concat([9, 10, 11, 12, 13, 14, 15].map(c => M(5, c, 6, c))).concat([M(4, 16, 6, 16)])
+    }]);
+    UI.toast('Đã xuất ' + list.length + ' cơ sở nhà, đất theo mẫu 0A.01-T.STC.', 'ok');
+  };
+
   A.views.taisan = {
-    title: 'Tài sản công', sub: 'Tài sản của các đơn vị thuộc phạm vi tổng hợp, tham mưu của Phòng: nguyên giá, giá trị còn lại, tình trạng, biến động',
+    title: 'Tài sản công', sub: 'Tài sản của các đơn vị thuộc phạm vi tổng hợp, tham mưu của Phòng: nhà, đất, phương tiện, máy móc; nguyên giá, giá trị còn lại, hồ sơ pháp lý, biến động',
     render(root, p) {
-      const all = S.all('taisan'), G = A.vs.tsG || (A.vs.tsG = { g: 'dv' });
-      const kf = { dv: t => Sc.refName('donvi', t.donViId), loai: t => t.loai, tt: t => t.tinhTrang, nguon: t => t.nguon };
-      const groups = L.tsGroup(all, kf[G.g]), cho = L.tsCanXuLy();
+      const all = S.all('taisan'), G = A.vs.tsG || (A.vs.tsG = { g: 'dv' }), nd = all.filter(L.isNhaDat), ns = L.ndStats(nd);
+      const kf = { dv: t => Sc.refName('donvi', t.donViId), dvg: t => L.isNhaDat(t) ? L.ndDonVi(t) : Sc.refName('donvi', t.donViId), loai: t => t.loai, tt: t => t.tinhTrang, nguon: t => t.nguon, gcn: t => L.isNhaDat(t) ? L.ndHoSo(t)[1] : '(không phải nhà, đất)' };
+      const groups = L.tsGroup(G.g === 'dvg' || G.g === 'gcn' ? nd : all, kf[G.g] || kf.dv), cho = L.tsCanXuLy();
       const y = +U.today().slice(0, 4), bd = all.flatMap(t => (t.bienDong || []).filter(b => U.yearOf(b.ngay) === y).map(b => ({ t, b })));
-      const top = '<div class="kpis mb"><div class="kpi acc static"><span class="k-l">Tổng số tài sản</span><span class="k-v">' + (all.length ? U.fmtNum(U.sum(all, t => U.num(t.soLuong) || 1), 0) : '—') + '</span><span class="k-s">' + all.length + ' dòng theo dõi</span></div><div class="kpi static"><span class="k-l">Tổng nguyên giá</span><span class="k-v"><small>' + (all.length ? U.fmtShort(U.sum(all, t => t.nguyenGia)) : '—') + '</small></span></div><div class="kpi static"><span class="k-l">Giá trị còn lại</span><span class="k-v"><small>' + (all.length ? U.fmtShort(U.sum(all, t => t.conLai)) : '—') + '</small></span><span class="k-s">' + (all.length ? U.fmtPct(U.pct(U.sum(all, t => t.conLai), U.sum(all, t => t.nguyenGia))) + ' nguyên giá' : '') + '</span></div><div class="kpi ' + (cho.length ? 'warn' : 'ok') + ' static"><span class="k-l">Chờ xử lý</span><span class="k-v">' + cho.length + '</span><span class="k-s">Hư hỏng, chờ điều chuyển, thanh lý</span></div><div class="kpi info static"><span class="k-l">Biến động năm ' + y + '</span><span class="k-v">' + bd.length + '</span><span class="k-s">' + ['Mua sắm, tiếp nhận', 'Điều chuyển', 'Thanh lý'].map(k => bd.filter(x => x.b.loai === k).length + ' ' + k.split(',')[0].toLowerCase()).join(' · ') + '</span></div></div>' +
-        (all.length ? '<div class="card mb"><div class="card-h"><h3>Tổng hợp tài sản</h3><span class="grow"></span><div class="seg">' + [['dv', 'Theo đơn vị'], ['loai', 'Theo loại'], ['tt', 'Theo tình trạng'], ['nguon', 'Theo nguồn hình thành']].map(s => '<button data-g="' + s[0] + '" class="' + (G.g === s[0] ? 'on' : '') + '">' + s[1] + '</button>').join('') + '</div></div><div class="card-b"><table class="tbl"><thead><tr><th>Nhóm</th><th class="num">Số lượng</th><th class="num">Nguyên giá</th><th class="num">Giá trị còn lại</th><th>Tỷ lệ còn lại</th></tr></thead><tbody>' + groups.map(g => '<tr><td>' + e(g.k) + '</td><td class="num">' + U.fmtNum(g.n, 0) + '</td><td class="num">' + U.fmtMoney(g.nguyenGia) + '</td><td class="num">' + U.fmtMoney(g.conLai) + '</td><td style="min-width:130px">' + (g.nguyenGia ? UI.pbar(U.pct(g.conLai, g.nguyenGia)) : '') + '</td></tr>').join('') + '</tbody></table></div></div>' : '');
-      UI.listView(root, {
+      const ndNgay = nd.map(t => t.ndNgay).filter(Boolean).sort().pop();
+      const k = (cls, label, val, sub, f) => '<button class="kpi ' + cls + '"' + (f ? ' data-ndf="' + f + '"' : ' tabindex="-1"') + '><span class="k-l">' + label + '</span><span class="k-v">' + val + '</span><span class="k-s">' + (sub || '&nbsp;') + '</span></button>';
+      const top = '<div class="kpis mb"><div class="kpi acc static"><span class="k-l">Tổng số tài sản</span><span class="k-v">' + (all.length ? U.fmtNum(U.sum(all, t => U.num(t.soLuong) || 1), 0) : '—') + '</span><span class="k-s">' + all.length + ' dòng theo dõi</span></div><div class="kpi static"><span class="k-l">Tổng nguyên giá</span><span class="k-v"><small>' + (all.length ? U.fmtShort(U.sum(all, t => t.nguyenGia)) : '—') + '</small></span></div><div class="kpi static"><span class="k-l">Giá trị còn lại</span><span class="k-v"><small>' + (all.length ? U.fmtShort(U.sum(all, t => t.conLai)) : '—') + '</small></span><span class="k-s">' + (all.length ? U.fmtPct(U.pct(U.sum(all, t => t.conLai), U.sum(all, t => t.nguyenGia))) + ' nguyên giá' : '') + '</span></div><div class="kpi ' + (cho.length ? 'warn' : 'ok') + ' static"><span class="k-l">Chờ xử lý</span><span class="k-v">' + cho.length + '</span><span class="k-s">Hư hỏng, chờ điều chuyển, thanh lý</span></div><div class="kpi info static"><span class="k-l">Biến động năm ' + y + '</span><span class="k-v">' + bd.length + '</span><span class="k-s">' + ['Mua sắm, tiếp nhận', 'Điều chuyển', 'Thanh lý'].map(q => bd.filter(x => x.b.loai === q).length + ' ' + q.split(',')[0].toLowerCase()).join(' · ') + '</span></div></div>' +
+        '<div class="card mb"><div class="card-h"><h3>Tài sản nhà, đất</h3><span class="grow"></span><button class="btn sm" data-ndimp>' + ic('upload', 15) + 'Nhập biểu 0A.01</button><button class="btn sm" data-ndexp' + (nd.length ? '' : ' disabled') + '>' + ic('download', 15) + 'Xuất theo mẫu 0A.01</button><div class="sub">Theo Phụ biểu 0A.01-T.STC "Tổng hợp hiện trạng tài sản nhà, đất"' + (ndNgay ? ' — hiện trạng đến ' + U.fmtDate(ndNgay) : '') + '. Bấm thẻ để lọc danh sách.</div></div><div class="card-b">' +
+        (nd.length ? '<div class="kpis">' + k('teal', 'Cơ sở nhà, đất', ns.n, ns.soDonVi + ' đơn vị được giao quản lý', 'nd') + k('', 'Diện tích đất', '<small>' + U.fmtNum(ns.dtDat, 1) + ' m²</small>', 'Diện tích nhà ' + U.fmtNum(ns.dtNha, 1) + ' m²') + k('acc', 'Nguyên giá nhà, đất', '<small>' + U.fmtShort(ns.nguyenGia) + '</small>', 'Còn lại ' + U.fmtShort(ns.conLai)) + k('ok', 'Đã cấp GCN', ns.daCap + '<small>/' + ns.n + '</small>', ns.chuaRo ? ns.chuaRo + ' cơ sở chưa ghi tình trạng GCN' : '', 'dacap') + k(ns.chuaCap ? 'bad' : 'ok', 'Chưa cấp GCN', ns.chuaCap, ns.matMat ? ns.matMat + ' GCN mất, thất lạc' : '', 'chuacap') + k(ns.chuaDK ? 'warn' : 'ok', 'Chưa đăng ký biến động', ns.chuaDK, '', 'chuadk') + k(ns.hsThieu ? 'warn' : 'ok', 'Thiếu hồ sơ hình thành', ns.hsThieu, ns.hsDayDu + ' cơ sở đủ hồ sơ', 'thieu') + k(ns.khongDung ? 'bad' : 'ok', 'Sử dụng không đúng mục đích', ns.khongDung, ns.dung + ' đúng mục đích', 'khongdung') + '</div>'
+          : '<div class="empty" style="padding:16px"><p>Chưa có dữ liệu nhà, đất. Bấm "Nhập biểu 0A.01" để đưa biểu tổng hợp hiện trạng nhà, đất của Sở vào, hoặc thêm từng tài sản với loại "Cơ sở nhà, đất".</p></div>') + '</div></div>' +
+        (all.length ? '<div class="card mb"><div class="card-h"><h3>Tổng hợp tài sản</h3><span class="grow"></span><div class="seg">' + [['dv', 'Đơn vị dự toán'], ['dvg', 'Đơn vị được giao (nhà, đất)'], ['gcn', 'Hồ sơ pháp lý (nhà, đất)'], ['loai', 'Loại'], ['tt', 'Tình trạng'], ['nguon', 'Nguồn hình thành']].map(s => '<button data-g="' + s[0] + '" class="' + (G.g === s[0] ? 'on' : '') + '">' + s[1] + '</button>').join('') + '</div></div><div class="card-b"><div style="max-height:380px;overflow:auto"><table class="tbl"><thead><tr><th>Nhóm</th><th class="num">Số lượng</th>' + (nd.length ? '<th class="num">Diện tích đất (m²)</th><th class="num">Diện tích nhà (m²)</th>' : '') + '<th class="num">Nguyên giá</th><th class="num">Giá trị còn lại</th><th>Tỷ lệ còn lại</th></tr></thead><tbody>' + groups.map(g => '<tr><td>' + e(g.k) + '</td><td class="num">' + U.fmtNum(g.n, 0) + '</td>' + (nd.length ? '<td class="num">' + (g.dtDat ? U.fmtNum(g.dtDat, 1) : '') + '</td><td class="num">' + (g.dtNha ? U.fmtNum(g.dtNha, 1) : '') + '</td>' : '') + '<td class="num">' + U.fmtMoney(g.nguyenGia) + '</td><td class="num">' + U.fmtMoney(g.conLai) + '</td><td style="min-width:130px">' + (g.nguyenGia ? UI.pbar(U.pct(g.conLai, g.nguyenGia)) : '') + '</td></tr>').join('') + '</tbody><tfoot><tr><td>Cộng</td><td class="num">' + U.fmtNum(U.sum(groups, g => g.n), 0) + '</td>' + (nd.length ? '<td class="num">' + U.fmtNum(U.sum(groups, g => g.dtDat), 1) + '</td><td class="num">' + U.fmtNum(U.sum(groups, g => g.dtNha), 1) + '</td>' : '') + '<td class="num">' + U.fmtMoney(U.sum(groups, g => g.nguyenGia)) + '</td><td class="num">' + U.fmtMoney(U.sum(groups, g => g.conLai)) + '</td><td></td></tr></tfoot></table></div></div></div>' : '');
+      const ND_F = [['nd', 'Chỉ nhà, đất'], ['khac', 'Tài sản khác'], ['dacap', 'Nhà, đất — đã cấp GCN'], ['chuacap', 'Nhà, đất — chưa cấp GCN'], ['matmat', 'Nhà, đất — GCN mất, thất lạc'], ['chuaro', 'Nhà, đất — chưa ghi GCN'], ['chuadk', 'Nhà, đất — chưa ĐK biến động'], ['thieu', 'Nhà, đất — thiếu hồ sơ'], ['khongdung', 'Nhà, đất — không đúng mục đích']];
+      const ndTest = (r, v) => { const isN = L.isNhaDat(r); if (v === 'khac') return !isN; if (!isN) return false; return v === 'nd' || (v === 'chuaro' ? !r.gcnTT : v === 'chuadk' ? !!r.chuaDKBD : v === 'thieu' ? !!r.hsThieu : v === 'khongdung' ? r.htSD === 'khongdung' : r.gcnTT === v); };
+      const lv = UI.listView(root, {
         key: 'taisan', coll: 'taisan', top, preset: p && p.preset, rows: () => S.all('taisan'), addLabel: 'Thêm tài sản',
-        empty: { t: 'Chưa có tài sản nào', p: 'Thêm từng tài sản hoặc nhập danh sách từ Excel (tải tệp mẫu trong hộp thoại Nhập Excel).' },
+        empty: { t: 'Chưa có tài sản nào', p: 'Nhập biểu hiện trạng nhà, đất (0A.01), thêm từng tài sản hoặc nhập danh sách từ Excel.' },
         filters: [
-          { k: 'dv', label: 'Đơn vị', opts: dvOpts, test: (r, v) => r.donViId === v },
+          { k: 'nd', label: 'Nhà, đất', opts: () => ND_F, test: ndTest },
+          { k: 'dvg', label: 'Đơn vị được giao', opts: () => [...new Set(S.all('taisan').filter(L.isNhaDat).map(L.ndDonVi))].sort(U.cmp).map(x => [x, x]), test: (r, v) => L.isNhaDat(r) && L.ndDonVi(r) === v },
+          { k: 'dv', label: 'Đơn vị dự toán', opts: dvOpts, test: (r, v) => r.donViId === v },
           { k: 'loai', label: 'Loại', opts: () => A.list('loaiTaiSan').map(x => [x, x]), test: (r, v) => r.loai === v },
           { k: 'tt', label: 'Tình trạng', opts: () => A.list('tinhTrangTS').map(x => [x, x]), test: (r, v) => r.tinhTrang === v }],
-        sort: { k: 'ten', dir: 1 },
+        searchText: t => [t.ma, t.ten, t.loai, t.thongSo, t.donViGiao, Sc.refName('donvi', t.donViId), t.gcnSo, t.nguyenNhanHS, t.ghiChuBieu, t.ghiChu].join(' '),
+        sort: { k: 'stt', dir: 1 },
         cols: [
-          { k: 'ma', label: 'Mã', cls: 'nowrap', html: t => '<span class="muted small">' + e(t.ma || '') + '</span>' },
-          { k: 'ten', label: 'Tài sản', cls: 'wrap', html: t => '<div class="t1">' + e(t.ten) + '</div><div class="t2">' + e([t.loai, t.thongSo].filter(Boolean).join(' · ')) + '</div>' },
-          { k: 'donViId', label: 'Đơn vị sử dụng', val: t => Sc.refName('donvi', t.donViId), html: t => e(Sc.refName('donvi', t.donViId)) || '<span class="muted">—</span>' },
-          { k: 'namSD', label: 'Năm SD', cls: 'num' },
+          { k: 'stt', label: 'Mã', cls: 'nowrap', val: t => (U.num(t.ndThuTu) || 1e6) + (t.ma ? 0 : 0.5), html: t => '<span class="muted small">' + e(t.ma || '') + '</span>' + (t.ndThuTu ? '<div class="t2">Dòng biểu ' + t.ndThuTu + '</div>' : '') },
+          { k: 'ten', label: 'Tài sản', cls: 'wrap', html: t => '<div class="t1">' + e(t.ten) + '</div><div class="t2">' + e(L.isNhaDat(t) ? [t.dtDat !== '' && t.dtDat !== undefined ? 'Đất ' + U.fmtNum(t.dtDat) + ' m²' : '', t.dtNha !== '' && t.dtNha !== undefined ? 'nhà ' + U.fmtNum(t.dtNha) + ' m²' : '', t.gcnSo].filter(Boolean).join(' · ') : [t.loai, t.thongSo].filter(Boolean).join(' · ')) + '</div>' },
+          { k: 'donViId', label: 'Đơn vị', cls: 'wrap', val: t => L.isNhaDat(t) ? L.ndDonVi(t) : Sc.refName('donvi', t.donViId), html: t => { const g = L.isNhaDat(t) && t.donViGiao, d = Sc.refName('donvi', t.donViId); return (g ? e(t.donViGiao) + (d && U.norm(d) !== U.norm(t.donViGiao) ? '<div class="t2">' + e(d) + '</div>' : '') : (d ? e(d) : '<span class="muted">—</span>')); } },
           { k: 'nguyenGia', label: 'Nguyên giá', cls: 'num', val: t => U.num(t.nguyenGia), html: t => U.fmtMoney(t.nguyenGia) },
           { k: 'conLai', label: 'Giá trị còn lại', cls: 'num', val: t => U.num(t.conLai), html: t => U.fmtMoney(t.conLai) },
-          { k: 'tinhTrang', label: 'Tình trạng', html: t => UI.chip(t.tinhTrang === 'Đang sử dụng' ? 'hoanthanh' : ['Đã thanh lý', 'Đã điều chuyển'].includes(t.tinhTrang) ? '' : t.tinhTrang ? 'saphan' : '', t.tinhTrang || 'Chưa ghi') },
-          { k: 'ngayKiemKe', label: 'Kiểm kê', cls: 'nowrap', html: t => U.fmtDate(t.ngayKiemKe) || '<span class="muted">—</span>' }],
+          { k: 'hoso', label: 'Hồ sơ pháp lý', val: t => L.isNhaDat(t) ? L.ndHoSo(t)[1] : '', html: t => { if (!L.isNhaDat(t)) return '<span class="muted small">—</span>'; const h = L.ndHoSo(t); return UI.chip(h[0], h[1]) + (t.chuaDKBD ? '<div class="t2" style="color:var(--warn-fg)">Chưa ĐK biến động</div>' : '') + (t.hsThieu ? '<div class="t2" style="color:var(--warn-fg)">Thiếu hồ sơ</div>' : '') + (t.htSD === 'khongdung' ? '<div class="t2 lech">Không đúng mục đích</div>' : ''); } },
+          { k: 'tinhTrang', label: 'Tình trạng', html: t => UI.chip(t.tinhTrang === 'Đang sử dụng' ? 'hoanthanh' : ['Đã thanh lý', 'Đã điều chuyển'].includes(t.tinhTrang) ? '' : t.tinhTrang ? 'saphan' : '', t.tinhTrang || 'Chưa ghi') }],
         onRow: t => A.open('taisan', t.id),
-        foot: rs => '<tr><td colspan="4">Cộng ' + rs.length + ' dòng</td><td class="num">' + U.fmtMoney(U.sum(rs, t => t.nguyenGia)) + '</td><td class="num">' + U.fmtMoney(U.sum(rs, t => t.conLai)) + '</td><td colspan="2"></td></tr>'
+        foot: rs => '<tr><td colspan="3">Cộng ' + rs.length + ' dòng' + (rs.some(L.isNhaDat) ? ' · đất ' + U.fmtNum(U.sum(rs, t => t.dtDat), 1) + ' m² · nhà ' + U.fmtNum(U.sum(rs, t => t.dtNha), 1) + ' m²' : '') + '</td><td class="num">' + U.fmtMoney(U.sum(rs, t => t.nguyenGia)) + '</td><td class="num">' + U.fmtMoney(U.sum(rs, t => t.conLai)) + '</td><td colspan="2"></td></tr>'
       });
       $$('[data-g]', root).forEach(b => b.onclick = () => { G.g = b.dataset.g; A.render(); });
+      $('[data-ndimp]', root).onclick = importNhaDat;
+      $('[data-ndexp]', root).onclick = () => { const rows = lv.rows().filter(L.isNhaDat); A.exportNhaDat(rows.length ? rows : nd); };
+      UI.on(root, 'click', '[data-ndf]', b => A.go('taisan', { preset: { nd: b.dataset.ndf } }));
     }
   };
 

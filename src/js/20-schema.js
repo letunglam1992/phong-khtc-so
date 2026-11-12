@@ -15,7 +15,7 @@
     linhVucDA: ['Đo đạc, bản đồ, đăng ký đất đai', 'Tài nguyên đất, giá đất', 'Môi trường', 'Tài nguyên nước', 'Thủy lợi', 'Lâm nghiệp', 'Trồng trọt và bảo vệ thực vật', 'Chăn nuôi, thú y, thủy sản', 'Phát triển nông thôn', 'Khuyến nông', 'Chuyển đổi số', 'Khoa học và công nghệ', 'Khác'],
     nguonVon: ['Vốn đầu tư công - ngân sách Trung ương', 'Vốn đầu tư công - ngân sách địa phương', 'Sự nghiệp kinh tế', 'Nguồn thu sử dụng đất', 'Sự nghiệp bảo vệ môi trường', 'Sự nghiệp khoa học và công nghệ', 'Chuyển đổi số', 'Chương trình mục tiêu quốc gia', 'Vốn ODA, viện trợ', 'Nguồn khác'],
     nhomKP: ['Kinh phí thường xuyên (tự chủ)', 'Kinh phí không thường xuyên (không tự chủ)', 'Kinh phí chương trình, đề án', 'Nguồn kinh phí khác'],
-    loaiTaiSan: ['Trụ sở, nhà làm việc', 'Phương tiện (xe ô tô, phương tiện vận tải)', 'Máy móc, thiết bị', 'Trang thiết bị làm việc', 'Tài sản chuyên dùng', 'Tài sản khác'],
+    loaiTaiSan: ['Trụ sở, nhà làm việc', 'Cơ sở nhà, đất', 'Phương tiện (xe ô tô, phương tiện vận tải)', 'Máy móc, thiết bị', 'Trang thiết bị làm việc', 'Tài sản chuyên dùng', 'Tài sản khác'],
     nguonTaiSan: ['Ngân sách nhà nước', 'Tiếp nhận, điều chuyển', 'Dự án, viện trợ', 'Nguồn thu sự nghiệp, quỹ phát triển hoạt động sự nghiệp', 'Khác'],
     tinhTrangTS: ['Đang sử dụng', 'Hư hỏng, chờ sửa chữa', 'Không còn nhu cầu sử dụng', 'Chờ điều chuyển', 'Chờ thanh lý', 'Đã điều chuyển', 'Đã thanh lý'],
     loaiBienDongTS: ['Mua sắm, tiếp nhận', 'Điều chuyển', 'Sửa chữa, bảo dưỡng', 'Thanh lý', 'Kiểm kê', 'Khác'],
@@ -48,6 +48,9 @@
     ttGT: [['nhucau', 'Nhu cầu mua sắm'], ['dutoan', 'Đã duyệt dự toán'], ['khlcnt', 'Đã duyệt KHLCNT'], ['danglcnt', 'Đang lựa chọn nhà thầu'], ['cokq', 'Đã có kết quả LCNT'], ['dakyhd', 'Đã ký hợp đồng'], ['huy', 'Hủy, không thực hiện']],
     ttHD: [['dang', 'Đang thực hiện'], ['nghiemthu', 'Đã nghiệm thu'], ['thanhly', 'Đã thanh lý'], ['tamdung', 'Tạm dừng'], ['chamdut', 'Chấm dứt trước hạn']],
     ttCB: [['danglam', 'Đang công tác'], ['nghi', 'Nghỉ, chuyển công tác']],
+    // Theo Phụ biểu 0A.01-T.STC "Tổng hợp hiện trạng tài sản nhà, đất"
+    htSD: [['dung', 'Tiếp tục sử dụng — đúng mục đích'], ['khongdung', 'Tiếp tục sử dụng — không đúng mục đích']],
+    gcnTT: [['dacap', 'Đã được cấp giấy chứng nhận QSD đất, tài sản'], ['matmat', 'Đã được cấp GCN, hồ sơ tài sản nhưng mất mát, thất lạc'], ['chuacap', 'Chưa được cấp giấy chứng nhận QSD đất, tài sản']],
     tinhChatDM: [['thuongxuyen', 'Thường xuyên'], ['dinhky', 'Định kỳ'], ['dotxuat', 'Đột xuất, khi có yêu cầu']],
     kyDM: [['thang', 'Tháng'], ['quy', 'Quý'], ['6thang', '6 tháng'], ['9thang', '9 tháng'], ['nam', 'Năm']],
     loaiDM: [['chinhthuc', 'Nhiệm vụ chính thức (theo quyết định)'], ['noibo', 'Việc hỗ trợ nội bộ (ngoài quyết định)']]
@@ -310,6 +313,20 @@
       F('conLai', 'Giá trị còn lại (đồng)', 'money', { table: true }),
       F('tinhTrang', 'Tình trạng sử dụng', 'select', { list: 'tinhTrangTS', table: true }),
       F('ngayKiemKe', 'Ngày kiểm kê gần nhất', 'date'),
+      // --- Cơ sở nhà, đất (Phụ biểu 0A.01-T.STC) ---
+      F('donViGiao', 'Cơ quan, đơn vị đang được giao quản lý', 'text', { help: 'Ghi đúng như trên biểu (có thể là đơn vị cấp dưới của đơn vị dự toán, ví dụ Hạt Kiểm lâm)' }),
+      F('dtNha', 'Diện tích nhà (m²)', 'number'),
+      F('dtDat', 'Diện tích đất (m²)', 'number'),
+      F('htSD', 'Hiện trạng sử dụng', 'select', { opt: 'htSD' }),
+      F('ndNgay', 'Hiện trạng tính đến ngày', 'date'),
+      F('gcnTT', 'Giấy chứng nhận QSD đất, tài sản', 'select', { opt: 'gcnTT' }),
+      F('gcnSo', 'Số GCN, ngày cấp', 'text', { help: 'Ghi như trên biểu, ví dụ: Số AL 177247 cấp ngày 01/01/2008' }),
+      F('gcnNgay', 'Ngày cấp GCN', 'date'),
+      F('hsDayDu', 'Đầy đủ hồ sơ hình thành tài sản', 'bool'),
+      F('hsThieu', 'Thiếu hồ sơ hình thành tài sản', 'bool'),
+      F('chuaDKBD', 'Chưa đăng ký hồ sơ biến động đất đai', 'bool'),
+      F('nguyenNhanHS', 'Nguyên nhân chưa đăng ký biến động, chưa đầy đủ hồ sơ tài sản', 'textarea'),
+      F('ghiChuBieu', 'Ghi chú theo biểu nhà, đất', 'textarea'),
       F('bienDong', 'Biến động (mua sắm, điều chuyển, sửa chữa, thanh lý, kiểm kê)', 'rows', {
         cols: [F('ngay', 'Ngày', 'date', { required: true }), F('loai', 'Loại biến động', 'select', { list: 'loaiBienDongTS', required: true }), F('noiDung', 'Nội dung'),
         F('soQD', 'Số quyết định'), F('giaTri', 'Giá trị (đồng)', 'money')]
@@ -317,7 +334,34 @@
       F('dinhKem', 'Hồ sơ tài sản', 'files'),
       F('ghiChu', 'Ghi chú', 'textarea')
     ],
-    validate(r) { const e = []; if (r.nguyenGia !== '' && r.conLai !== '' && U.num(r.conLai) > U.num(r.nguyenGia)) e.push('Giá trị còn lại lớn hơn nguyên giá.'); return e; }
+    validate(r) {
+      const e = [];
+      if (r.nguyenGia !== '' && r.conLai !== '' && U.num(r.conLai) > U.num(r.nguyenGia)) e.push('Giá trị còn lại lớn hơn nguyên giá.');
+      ['dtNha', 'dtDat'].forEach(k => { if (typeof r[k] === 'number' && r[k] < 0) e.push('"' + (k === 'dtNha' ? 'Diện tích nhà' : 'Diện tích đất') + '" không được âm.'); });
+      return e;
+    },
+    // Cảnh báo (vẫn cho lưu): phản ánh đúng mâu thuẫn có thể có trên biểu gốc để rà soát
+    warn(r) {
+      const w = [];
+      if (r.hsDayDu && r.hsThieu) w.push('Vừa đánh dấu "Đầy đủ hồ sơ hình thành tài sản" vừa "Thiếu hồ sơ hình thành tài sản".');
+      if (r.gcnTT === 'chuacap' && (r.gcnSo || r.gcnNgay)) w.push('Ghi "Chưa được cấp GCN" nhưng có số hoặc ngày cấp GCN.');
+      if (r.gcnNgay && r.gcnNgay > U.today()) w.push('Ngày cấp GCN ở tương lai (' + U.fmtDate(r.gcnNgay) + ') — có thể bị đảo ngày, tháng khi nhập.');
+      if (r.gcnNgay && r.ndNgay && r.gcnNgay > r.ndNgay) w.push('Ngày cấp GCN (' + U.fmtDate(r.gcnNgay) + ') sau ngày lập biểu hiện trạng (' + U.fmtDate(r.ndNgay) + ').');
+      return w;
+    },
+    // Ẩn nhóm trường nhà, đất với tài sản khác (phương tiện, máy móc…) để form gọn
+    afterRender(form) {
+      const keys = ['donViGiao', 'dtNha', 'dtDat', 'htSD', 'ndNgay', 'gcnTT', 'gcnSo', 'gcnNgay', 'hsDayDu', 'hsThieu', 'chuaDKBD', 'nguyenNhanHS', 'ghiChuBieu'];
+      const sel = form.querySelector('[data-k="loai"]');
+      const filled = () => keys.some(k => { const el = form.querySelector('[data-k="' + k + '"]'); return el && (el.type === 'checkbox' ? el.checked : el.value.trim()); });
+      const apply = () => {
+        const on = A.L.ND_LOAI.includes(sel && sel.value) || filled();
+        keys.forEach(k => { const f = form.querySelector('[data-fld="' + k + '"]'); if (f) f.classList.toggle('hide', !on); });
+        const sec = form.querySelector('[data-sec-key="nhadat"]'); if (sec) sec.classList.toggle('hide', !on);
+      };
+      if (sel) sel.addEventListener('change', apply);
+      apply();
+    }
   };
   C.goithau = {
     label: 'Gói thầu, mua sắm', title: r => r.ten, unique: r => U.norm(r.ten) + '|' + (r.duAnId || ''), uniqueLabel: 'tên gói thầu trong cùng dự án',
@@ -446,6 +490,7 @@
         }));
       });
       if (sc.validate && !errors.length) (sc.warnOnly ? warnings : errors).push(...sc.validate(r));
+      if (sc.warn && !errors.length) warnings.push(...sc.warn(r));
       if (sc.unique && !errors.length) {
         const key = sc.unique(r);
         if (key && key.replace(/\|/g, '')) {

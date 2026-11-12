@@ -54,7 +54,16 @@ Báo cáo, thống kê · Nhật ký cập nhật · Sao lưu/khôi phục · K�
 
 Các ngưỡng 7, 30, 20 đổi được ở Thiết lập. Đây là ngưỡng nhắc việc nội bộ, không phải quy định pháp luật.
 
-## 5. Sao lưu, khôi phục
+## 4b. Tài sản nhà, đất (Phụ biểu 0A.01-T.STC)
+
+Mỗi tài sản loại **"Cơ sở nhà, đất"** (hoặc "Trụ sở, nhà làm việc") có thêm nhóm trường theo đúng biểu tổng hợp hiện trạng nhà, đất: cơ quan, đơn vị đang được giao quản lý; diện tích nhà, diện tích đất (m²); hiện trạng sử dụng (đúng / không đúng mục đích); giấy chứng nhận (đã cấp — số, ngày cấp / mất, thất lạc / chưa cấp); đầy đủ hồ sơ, thiếu hồ sơ hình thành tài sản; chưa đăng ký biến động đất đai; nguyên nhân; ghi chú theo biểu; ngày tính hiện trạng.
+
+- **Tài sản công → Nhập biểu 0A.01**: chọn tệp Excel biểu. Phần mềm nhận cột theo tiêu đề, đọc giá trị đã tính của ô công thức, đối chiếu với dòng tổng, báo các điểm cần rà soát trước khi ghi. Nhập lại biểu kỳ sau cập nhật đúng cơ sở (theo đơn vị được giao + tên tài sản), không tạo trùng; mã, biến động, hồ sơ, ghi chú nhập tại phần mềm được giữ.
+- **Gắn đơn vị được giao với đơn vị dự toán**: phần mềm chỉ gợi ý khi tên trên biểu chứa đủ tên đơn vị dự toán (ví dụ "Văn phòng Chi cục Kiểm lâm" → Chi cục Kiểm lâm). Đơn vị cấp dưới (Hạt Kiểm lâm, Ban quản lý rừng…) do anh/chị chọn; lựa chọn được nhớ cho lần sau.
+- **Xuất theo mẫu 0A.01**: ra lại đúng bố cục biểu (tiêu đề nhiều tầng, dấu x, dòng tổng) theo danh sách đang lọc.
+- Thẻ chỉ số (chưa cấp GCN, chưa đăng ký biến động, thiếu hồ sơ, không đúng mục đích) bấm được để lọc; các mục này đồng thời vào "Những vấn đề cần quan tâm" và Trợ lý điều hành; báo cáo tài sản công có phần nhà, đất.
+
+
 
 - Dữ liệu nằm trong IndexedDB của **trình duyệt trên máy đang dùng**. Xóa dữ liệu duyệt web, dùng cửa sổ ẩn danh, đổi trình duyệt hoặc đổi máy sẽ không thấy dữ liệu.
 - **Sao lưu**: nút mũi tên ở thanh trên, hoặc Thiết lập → Sao lưu. Tệp JSON chứa toàn bộ dữ liệu, cấu hình và (tùy chọn) tệp đính kèm. Nên sao lưu hằng tuần; phần mềm nhắc khi quá 7 ngày.
