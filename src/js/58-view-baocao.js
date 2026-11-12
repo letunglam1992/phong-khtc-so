@@ -100,6 +100,14 @@
         d.h3('Cơ sở nhà, đất còn tồn tại về hồ sơ, hiện trạng (' + ton.length + ')');
         d.table('Nha dat ton tai', [{ t: 'Đơn vị', w: 36 }, { t: 'Tài sản', w: 50 }, { t: 'Tồn tại', w: 40 }, { t: 'Nguyên nhân', w: 40 }], ton.map(t => [L.ndDonVi(t), t.ten, [t.gcnTT === 'chuacap' ? 'Chưa cấp GCN' : t.gcnTT === 'matmat' ? 'GCN mất, thất lạc' : !t.gcnTT ? 'Chưa ghi tình trạng GCN' : '', t.chuaDKBD ? 'Chưa ĐK biến động' : '', t.hsThieu ? 'Thiếu hồ sơ' : '', t.htSD === 'khongdung' ? 'Không đúng mục đích' : ''].filter(Boolean).join('; '), t.nguyenNhanHS || '']));
       }
+      const lt = L.kkLatest ? L.kkLatest() : {};
+      if (!P.dv && Object.keys(lt).length) {
+        d.h3('Kết quả kiểm kê tài sản theo nhóm');
+        const NG = { tscd: 'Tài sản cố định tại cơ quan, tổ chức, đơn vị', thuyloi: 'Tài sản kết cấu hạ tầng thủy lợi', nuocsach: 'Tài sản kết cấu hạ tầng cấp nước sạch', khac: 'Mẫu kiểm kê khác' };
+        const tb2 = Object.keys(lt).map(m => { const s = L.kkSum(lt[m].rows); return [NG[m] + ' (' + (lt[m].rows[0].maMau || '') + ', kỳ ' + U.fmtDate(lt[m].ky) + ')', s.slKK, s.nguyenGia, s.gtcl, s.tyLe === null ? '' : s.tyLe, s.chuaGhiSo, s.sdKhongDung, s.khongSD, s.hong]; });
+        d.table('Kiem ke theo nhom', [{ t: 'Nhóm tài sản', w: 60 }, N('Số lượng'), N('Nguyên giá'), N('Giá trị còn lại'), PC('Tỷ lệ còn lại'), N('Chưa ghi sổ'), N('SD không đúng mục đích'), N('Không sử dụng'), N('Hỏng')], tb2, ['Cộng', U.sum(tb2, r => r[1]), U.sum(tb2, r => r[2]), U.sum(tb2, r => r[3]), U.pct(U.sum(tb2, r => r[3]), U.sum(tb2, r => r[2])) || '', U.sum(tb2, r => r[5]), U.sum(tb2, r => r[6]), U.sum(tb2, r => r[7]), U.sum(tb2, r => r[8])]);
+        Object.keys(lt).forEach(m => { const rows = lt[m].rows.filter(r => U.num(r.level) <= 1 && (r.slKK !== '' || r.nguyenGia !== '') && (U.num(r.nguyenGia) || U.num(r.slKK))); if (!rows.length) return; d.p(NG[m] + ' — chi tiết:'); d.table('KK ' + m, [{ t: 'STT', w: 7 }, { t: 'Danh mục tài sản', w: 54 }, N('Số lượng'), N('Nguyên giá'), N('Giá trị còn lại'), N('Hỏng')], rows.map(r => [r.stt, r.danhMuc, r.slKK, r.nguyenGia, r.gtcl, r.hong])); });
+      }
       const bd = all.flatMap(t => (t.bienDong || []).filter(b => L.inRange(b.ngay, P.from, P.to)).map(b => [U.fmtDate(b.ngay), b.loai, t.ten, Sc.refName('donvi', t.donViId), b.noiDung || '', b.soQD || '', U.num(b.giaTri) || '']));
       d.h3('Biến động trong kỳ (' + bd.length + ')');
       d.table('Bien dong tai san', [{ t: 'Ngày', w: 12 }, { t: 'Loại biến động', w: 20 }, { t: 'Tài sản', w: 40 }, { t: 'Đơn vị', w: 24 }, { t: 'Nội dung', w: 40 }, { t: 'Số quyết định', w: 18 }, N('Giá trị')], bd);

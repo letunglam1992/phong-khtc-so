@@ -1,5 +1,5 @@
 const {chromium}=require('playwright');const path=require('path'),fs=require('fs');
-const SHOTS=process.argv[2], XLS=process.argv[3], ND=process.argv[4];
+const SHOTS=process.argv[2], XLS=process.argv[3], ND=process.argv[4], KK=process.argv.slice(5);
 let pass=0,fail=0;const ok=(c,m)=>{if(c){pass++;console.log('  ok  '+m)}else{fail++;console.log('FAIL  '+m)}};
 (async()=>{const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:1440,height:900},acceptDownloads:true});const p=await ctx.newPage();
 const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource|Mã truy cập không hợp lệ|Sai mã bí mật/.test(m.text()))errs.push(m.text())});
@@ -219,6 +219,48 @@ ok(await p.evaluate(r=>{const q=App.L.parseNhaDat(r);return q.items.length===80&
 ok(await ev(()=>App.L.alerts(2026).some(a=>a.loai==='nhadat'&&/44\/80 cơ sở nhà, đất chưa có giấy chứng nhận/.test(a.title))),'cảnh báo tổng hợp: 44/80 cơ sở chưa có GCN');
 await go('baocao');await p.selectOption('#bc_type','taisan');await p.waitForTimeout(250);
 ok(/80 cơ sở nhà, đất do 26 cơ quan, đơn vị/.test(await p.textContent('[data-paper]')),'báo cáo tài sản có phần nhà, đất');
+console.log('# 9c. Kiểm kê tài sản theo nhóm — Mẫu 01c, 08đ, 09đ (tệp thật)');
+await go('taisan');await p.click('[data-tst="kk"]');await p.waitForTimeout(200);
+ok(/Chưa có kết quả kiểm kê/.test(await txt()),'thẻ kiểm kê: trạng thái rỗng có hướng dẫn');
+let [fkk]=await Promise.all([p.waitForEvent('filechooser'),(async()=>{await p.click('[data-kki]');await p.waitForSelector('.modal [data-pick]');await p.click('.modal [data-pick]')})()]);
+await fkk.setFiles(KK);await p.waitForSelector('[data-ky="2"]');await p.waitForTimeout(200);
+let km=(await p.textContent('.modal')).replace(/\s+/g,' ');
+ok(/Tài sản cố định ?01c-BC\/TSCĐ/.test(km)&&/Hạ tầng thủy lợi ?09đ-BC\/HTTL/.test(km)&&/Hạ tầng cấp nước sạch ?08đ-BC\/HTNS/.test(km),'tự nhận 3 mẫu theo ký hiệu "Mẫu số" trên biểu');
+ok(await p.inputValue('[data-ky="0"]')==='2026-05-26'&&await p.inputValue('[data-ky="1"]')==='2026-05-26'&&await p.inputValue('[data-ky="2"]')==='2026-05-26','kỳ 26/05/2026: lấy từ dòng ký (01c) và từ tên tệp (08đ, 09đ)');
+ok(/Lấy từ dòng ký/.test(km)&&/Lấy từ tên tệp/.test(km),'ghi rõ nguồn của ngày kỳ');
+ok(/để trống giá trị còn lại.*Xe ô tô 6-8 chỗ ngồi/.test(km),'chỉ ra 3 dòng có nguyên giá nhưng trống giá trị còn lại (01c)');
+ok((km.match(/Dòng nhóm khớp tổng dòng con; dòng TỔNG CỘNG khớp/g)||[]).length===2,'08đ, 09đ: dòng nhóm và TỔNG CỘNG khớp');
+await p.screenshot({path:SHOTS+'/e_kk_import.png'});
+await p.click('.modal-f .btn.primary');await p.waitForTimeout(900);
+const kk=await ev(()=>{const r={};['tscd','thuyloi','nuocsach'].forEach(m=>{const s=App.L.kkSum(App.L.kkRows(m,'2026-05-26'));r[m]=[s.slKK,s.nguyenGia,s.gtcl,s.hong,s.khongSD]});r.n=App.Store.count('kiemke');return r});
+ok(kk.n===85,'lưu 85 dòng (56 + 14 + 15)');
+ok(kk.tscd.join()==='2121,529448269667,370994708499,32,1','TSCĐ: 2.121 tài sản, NG 529.448.269.667, GTCL 370.994.708.499, 32 hỏng, 1 không SD — khớp TỔNG CỘNG');
+ok(kk.thuyloi.join()==='4,764366215000,630528842705,0,0','Thủy lợi: 4 tài sản, NG 764.366.215.000 — khớp');
+ok(kk.nuocsach.join()==='36,374131876000,182344390000,1,0','Nước sạch: 36 công trình, NG 374.131.876.000, 1 hỏng — khớp');
+await p.waitForTimeout(200);let kt=(await txt()).replace(/\s+/g,' ');
+ok(/Tổng nguyên giá 3 nhóm ?1\.667,9 tỷ/.test(kt),'tổng nguyên giá 3 nhóm 1.667,9 tỷ');
+ok(/Đối chiếu đất, nhà/.test(kt)&&await p.$$eval('.card table tbody tr',e=>e.length)>0,'có bảng đối chiếu đất, nhà giữa 01c và 0A.01');
+ok(await p.$$eval('tr[data-id]',e=>e.length)===await ev(()=>App.Store.all('kiemke').filter(r=>['slKK','hvKK','nguyenGia','gtcl','daGhiSo','hong'].some(k=>r[k]!==''&&r[k]!==0)).length)&&await p.$$eval('tr[data-id]',e=>e.length)===35,'ẩn dòng danh mục không có số liệu: còn 35 dòng');
+await p.uncheck('#kk_an');await p.waitForTimeout(250);ok(await p.$$eval('tr[data-id]',e=>e.length)===85,'bỏ ẩn: hiện đủ 85 dòng');
+await p.check('#kk_an');await p.waitForTimeout(250);
+await p.screenshot({path:SHOTS+'/e_kk.png',fullPage:true});
+ok(await ev(()=>App.L.alerts(2026).some(a=>a.loai==='kiemke'&&/^33 tài sản cố định hỏng hoặc không sử dụng/.test(a.title))&&App.L.alerts(2026).some(a=>a.loai==='kiemke'&&/^1 hạ tầng cấp nước sạch hỏng/.test(a.title))),'cảnh báo: 33 TSCĐ và 1 công trình nước sạch hỏng, không sử dụng');
+const kx=await dl(()=>p.click('[data-kkx]'));ok(X.readFile(kx).SheetNames.length===3,'xuất Excel: 3 trang tính');
+await p.click('tr[data-id]');await p.waitForSelector('.modal .tabs');ok(/Tệp .*dòng 10/.test(await p.textContent('.modal'))||/dòng/.test(await p.textContent('.modal')),'mở chi tiết dòng kiểm kê, có nguồn tệp và dòng');await p.keyboard.press('Escape');await p.waitForTimeout(150);
+// nhập lại cùng kỳ: thay, không nhân đôi
+[fkk]=await Promise.all([p.waitForEvent('filechooser'),(async()=>{await p.click('[data-kki]');await p.waitForSelector('.modal [data-pick]');await p.click('.modal [data-pick]')})()]);
+await fkk.setFiles(KK.slice(0,1));await p.waitForSelector('[data-ky="0"]');await p.waitForTimeout(150);
+ok(/Đã có 56 dòng kỳ này — sẽ thay thế/.test(await p.textContent('.modal')),'nhập lại cùng mẫu, cùng kỳ: báo sẽ thay thế');
+await p.fill('[data-ky="0"]','2026-12-31');await p.waitForTimeout(200);
+await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(900);
+ok(await ev(()=>App.Store.count('kiemke'))===141&&await ev(()=>App.L.kkKys().join())==='2026-12-31,2026-05-26','nhập kỳ khác (31/12/2026): giữ kỳ cũ để so sánh — 2 kỳ, 141 dòng');
+ok(/so sánh với kỳ 26\/05\/2026/.test(await txt()),'kỳ mới hiện cột so sánh với kỳ trước');
+await ev(async()=>{await App.Store.removeMany(App.Store.all('kiemke').filter(r=>r.ky==='2026-12-31').map(r=>['kiemke',r.id]),'dọn kỳ thử')});
+await go('baocao');await p.selectOption('#bc_type','taisan');await p.waitForTimeout(250);
+ok(/Kết quả kiểm kê tài sản theo nhóm/.test(await p.textContent('[data-paper]'))&&/1\.667\.946\.360\.667/.test(await p.textContent('[data-paper]')),'báo cáo tài sản: có kết quả kiểm kê, tổng NG 1.667.946.360.667');
+await go('tongquan');ok(/Nguyên giá theo kiểm kê 26\/05\/2026/.test(await txt()),'bảng điều hành: thẻ Tài sản công theo kiểm kê');
+await go('taisan');await p.click('[data-tst="ds"]');await p.waitForTimeout(150);
+
 await ev(async()=>{await App.Store.removeMany(App.Store.all('taisan').filter(App.L.isNhaDat).filter(t=>t.ten!=='Xe ô tô thử').map(t=>['taisan',t.id]),'dọn thử nhà đất');await App.Store.setCfg({ndMap:{}})});
 
 console.log('# 10. Bảng điều hành và Trợ lý');
