@@ -1,6 +1,6 @@
 # Phòng Kế hoạch - Tài chính số — Hướng dẫn sử dụng
 
-Phiên bản 1.0.0. Sản phẩm là một tệp duy nhất: `dist/PhongKHTC-so.html`. Mở bằng Chrome, Edge hoặc Firefox trên máy tính hay điện thoại; không cần cài đặt, không cần mạng (trừ khi đồng bộ, kết nối).
+Phiên bản 1.0.0. Dùng trên web tại **https://phong-khtc-so.vercel.app** (trên điện thoại: menu trình duyệt → "Thêm vào màn hình chính" để có biểu tượng như ứng dụng). Hoặc dùng tệp độc lập `PhongKHTC-so.html`. Mở bằng Chrome, Edge hoặc Firefox trên máy tính hay điện thoại; không cần cài đặt, không cần mạng (trừ khi đồng bộ, kết nối).
 
 ## 1. Căn cứ và phạm vi
 

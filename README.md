@@ -2,6 +2,8 @@
 
 Phần mềm điều hành Phòng Kế hoạch - Tài chính, Sở Nông nghiệp và Môi trường tỉnh Sơn La: chức năng nhiệm vụ theo QĐ 324/QĐ-SNNMT, nhiệm vụ – văn bản giao việc, cán bộ – phân công, chương trình dự án, kế hoạch vốn – giải ngân, tài chính ngân sách, tài sản công, đấu thầu – hợp đồng, báo cáo; kết nối với phần mềm **Điều hành nhiệm vụ** và **Dự án đầu tư tỉnh Sơn La**.
 
+Địa chỉ sử dụng: **https://phong-khtc-so.vercel.app**
+
 Ứng dụng web một tệp, dữ liệu lưu trong IndexedDB của trình duyệt. Hướng dẫn sử dụng đầy đủ: [HUONG-DAN.md](HUONG-DAN.md).
 
 ## Cấu trúc mã nguồn
