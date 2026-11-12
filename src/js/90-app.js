@@ -5,10 +5,9 @@
 (function (A) {
   const U = A.U, S = A.Store, L = A.L, UI = A.UI, Sc = A.Schema, e = U.esc, ic = A.icon, $ = UI.$, $$ = UI.$$;
   const NAV = [
-    ['Điều hành', [['tongquan', 'Bảng điều hành', 'home'], ['troly', 'Trợ lý điều hành', 'spark']]],
-    ['Nhiệm vụ', [['chucnang', 'Chức năng, nhiệm vụ', 'book'], ['nhiemvu', 'Nhiệm vụ, công việc', 'task'], ['vanban', 'Văn bản giao việc', 'doc'], ['canbo', 'Cán bộ, phân công', 'users']]],
-    ['Chương trình, dự án', [['duan', 'Chương trình, dự án', 'project'], ['von', 'Kế hoạch vốn, giải ngân', 'coins'], ['dauthau', 'Đấu thầu, hợp đồng', 'gavel']]],
-    ['Tài chính, tài sản', [['ngansach', 'Tài chính, ngân sách', 'wallet'], ['taisan', 'Tài sản công', 'building']]],
+    ['Điều hành', [['tongquan', 'Bảng điều hành', 'home'], ['troly', 'Trợ lý điều hành', 'spark'], ['vanbanden', 'Văn bản đến', 'inbox']]],
+    ['Tài chính, đầu tư', [['ngansach', 'Tài chính, giải ngân', 'wallet'], ['dauthau', 'Đấu thầu, hợp đồng', 'gavel'], ['von', 'Kế hoạch vốn đầu tư', 'coins'], ['taisan', 'Tài sản công', 'building']]],
+    ['Nhiệm vụ, dự án', [['nhiemvu', 'Nhiệm vụ, công việc', 'task'], ['duan', 'Chương trình, dự án', 'project'], ['vanban', 'Văn bản', 'doc'], ['chucnang', 'Chức năng, nhiệm vụ', 'book'], ['canbo', 'Cán bộ, phân công', 'users']]],
     ['Tổng hợp', [['baocao', 'Báo cáo, thống kê', 'report'], ['ketnoi', 'Kết nối phần mềm', 'link'], ['lichsu', 'Nhật ký cập nhật', 'history'], ['thietlap', 'Thiết lập, sao lưu', 'gear']]]
   ];
   A.route = 'tongquan'; A.params = null;
@@ -33,8 +32,9 @@
     $$('.nav-item').forEach(b => { const on = b.dataset.r === A.route; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
     const p = A.params; A.params = null;
     try { v.render(root, p); } catch (er) { console.error(er); root.innerHTML = '<div class="card"><div class="card-b"><h3>Trang này gặp lỗi khi hiển thị</h3><p class="soft">' + e(er.message) + '</p><p class="small muted">Dữ liệu không bị ảnh hưởng. Hãy sao lưu ở Thiết lập và báo lại nội dung lỗi này.</p></div></div>'; }
-    try { badgeCache = L.alerts(A.year()).filter(a => a.sev === 3).length; } catch (x) { badgeCache = 0; }
+    try { badgeCache = (A.dashAlerts ? A.dashAlerts(A.year()) : L.alerts(A.year())).filter(a => a.sev === 3).length; } catch (x) { badgeCache = 0; }
     const bd = $('#nav-badge'); if (bd) { bd.textContent = badgeCache; bd.classList.toggle('hide', !badgeCache); }
+    if (A.VBD) A.VBD.badge();
     $('#who').textContent = S.cfg.nguoiDung ? S.cfg.nguoiDung : 'Chưa đặt tên người dùng';
     yearSelect();
   };
@@ -75,7 +75,7 @@
     document.documentElement.setAttribute('data-theme', S.cfg.theme === 'dark' ? 'dark' : 'light');
     if (S.cfg.nam === undefined) S.cfg.nam = +U.today().slice(0, 4);
     app.innerHTML = '<aside class="side" aria-label="Menu chính"><div class="brand"><div class="brand-mark" aria-hidden="true">KH<br>TC</div><div class="brand-txt">Phòng KH-TC số<small>Sở Nông nghiệp và Môi trường Sơn La</small></div></div><nav class="nav">' +
-      NAV.map(g => '<div class="nav-sec">' + g[0] + '</div>' + g[1].map(i => '<button class="nav-item" data-r="' + i[0] + '" title="' + e(i[1]) + '">' + ic(i[2], 19) + '<span class="lbl">' + i[1] + '</span>' + (i[0] === 'troly' ? '<span class="badge hide" id="nav-badge" aria-label="Số việc cần xử lý ngay"></span>' : '') + '</button>').join('')).join('') +
+      NAV.map(g => '<div class="nav-sec">' + g[0] + '</div>' + g[1].map(i => '<button class="nav-item" data-r="' + i[0] + '" title="' + e(i[1]) + '">' + ic(i[2], 19) + '<span class="lbl">' + i[1] + '</span>' + (i[0] === 'vanbanden' ? '<span class="badge hide" id="nav-vbd" aria-label="Văn bản chờ duyệt"></span>' : '') + (i[0] === 'troly' ? '<span class="badge hide" id="nav-badge" aria-label="Số việc cần xử lý ngay"></span>' : '') + '</button>').join('')).join('') +
       '</nav><div class="side-foot"><span class="who" id="who"></span><button class="btn icon collapse-btn" id="collapse" aria-label="Thu gọn hoặc mở rộng menu" title="Thu gọn menu">' + ic('chevL', 17) + '</button></div></aside>' +
       '<div class="main"><header class="top"><button class="tbtn icon menu-btn" id="menu" aria-label="Mở menu">' + ic('menu', 19) + '</button><div class="top-title"><div class="top-eyebrow" id="t-eye"></div><h1 id="t-title"></h1><div class="top-sub" id="t-sub"></div></div><div class="top-tools"><label class="tbtn" title="Năm dữ liệu đang xem">' + ic('calendar', 16) + '<span class="sr">Năm dữ liệu</span><select id="year" aria-label="Năm dữ liệu"></select></label><button class="tbtn search" id="search">' + ic('search', 16) + '<span>Tìm toàn bộ dữ liệu…</span><kbd>Ctrl K</kbd></button><button class="tbtn" id="quickadd">' + ic('plus', 16) + 'Thêm nhanh</button><button class="tbtn icon" id="backup" aria-label="Sao lưu dữ liệu" title="Sao lưu dữ liệu ra tệp JSON">' + ic('download', 17) + '</button><button class="tbtn icon" id="theme" aria-label="Đổi giao diện sáng, tối" title="Giao diện sáng / tối">' + ic('moon', 17) + '</button></div></header><main class="content" id="content" tabindex="-1"></main></div>';
     if (S.cfg.collapsed) app.classList.add('collapsed');
@@ -100,6 +100,8 @@
     A.render();
     S.trimHistory().catch(() => { });
     if (A.autoSync) setTimeout(() => A.autoSync().catch(er => console.warn(er)), 800);
+    if (A.VBD) setTimeout(() => A.VBD.autoCheck(), 1500);
+    if (A.chat) A.chat.mount();
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
     // Nhắc sao lưu: có dữ liệu nghiệp vụ và quá 7 ngày chưa sao lưu
     const biz = S.count('nhiemvu') + S.count('duan') + S.count('ngansach') + S.count('vanban') + S.count('taisan');

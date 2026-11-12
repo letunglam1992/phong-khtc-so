@@ -444,29 +444,41 @@
   L.tsCanXuLy = () => S.all('taisan').filter(t => ['Hư hỏng, chờ sửa chữa', 'Không còn nhu cầu sử dụng', 'Chờ điều chuyển', 'Chờ thanh lý'].includes(t.tinhTrang));
 
   /* ================= ĐẤU THẦU, HỢP ĐỒNG ================= */
+  const GT_THU_TU = ['nhucau', 'dutoan', 'trinhkh', 'khlcnt', 'danglcnt', 'cokq', 'dakyhd'];
+  L.gtBuoc = g => Math.max(0, GT_THU_TU.indexOf(g.trangThai || 'nhucau'));
   L.gt = g => {
     const today = U.today(), o = { st: 'chua', label: A.optLabel('ttGT', g.trangThai || 'nhucau') };
-    const truocKQ = ['nhucau', 'dutoan', 'khlcnt', 'danglcnt'].includes(g.trangThai || 'nhucau');
-    if (g.trangThai === 'dakyhd') o.st = 'hoanthanh'; else if (g.trangThai === 'huy') o.st = 'tamdung'; else if (g.trangThai === 'danglcnt' || g.trangThai === 'cokq') o.st = 'dang';
+    const truocKQ = ['nhucau', 'dutoan', 'trinhkh', 'khlcnt', 'danglcnt'].includes(g.trangThai || 'nhucau');
+    if (g.trangThai === 'dakyhd') o.st = 'hoanthanh'; else if (g.trangThai === 'huy') o.st = 'tamdung'; else if (['danglcnt', 'cokq', 'khlcnt', 'trinhkh'].includes(g.trangThai)) o.st = 'dang';
     if (truocKQ && U.isISO(g.hanLCNT)) {
       const left = U.diffDays(g.hanLCNT, today);
       if (left < 0) { o.over = true; o.st = 'quahan'; o.note = 'Quá thời hạn lựa chọn nhà thầu ' + (-left) + ' ngày'; }
       else if (left <= A.nguong('sapHan')) { o.near = true; o.st = 'saphan'; o.note = 'Còn ' + left + ' ngày đến hạn lựa chọn nhà thầu'; }
     }
     if (g.trangThai === 'cokq' && !S.all('hopdong').some(h => h.goiThauId === g.id)) o.chuaHD = true;
+    o.tietKiem = U.num(g.giaTrung) > 0 && U.num(g.giaGoiThau) > 0 ? U.num(g.giaGoiThau) - U.num(g.giaTrung) : null;
+    o.buocCuoi = (g.tienTrinh || []).filter(x => U.isISO(x.ngay)).sort((a, b) => a.ngay < b.ngay ? 1 : -1)[0] || null;
     return o;
   };
+  // Giá trị, thời hạn hiệu lực của hợp đồng sau các phụ lục
+  L.hdGiaTri = h => U.num(h.giaTri) + U.sum(h.phuLuc || [], x => x.giaTriDC);
+  L.hdHan = h => { const g = (h.phuLuc || []).map(x => x.giaHanDen).filter(U.isISO).sort().pop(); return g && (!h.ngayKT || g > h.ngayKT) ? g : (h.ngayKT || ''); };
   L.hd = h => {
-    const today = U.today(), tt = U.sum(h.thanhToan || [], x => x.soTien), nt = U.sum(h.nghiemThu || [], x => x.giaTri);
-    const o = { thanhToan: tt, nghiemThu: nt, conLai: U.num(h.giaTri) - tt, tyLeTT: U.pct(tt, U.num(h.giaTri)), st: 'dang', label: A.optLabel('ttHD', h.trangThai || 'dang') };
+    const today = U.today(), tt = U.sum(h.thanhToan || [], x => x.soTien), nt = U.sum(h.nghiemThu || [], x => x.giaTri), gt = L.hdGiaTri(h), han = L.hdHan(h), dang = (h.trangThai || 'dang') === 'dang', chuaTL = !['thanhly', 'chamdut'].includes(h.trangThai);
+    const o = { giaTriHL: gt, han, giaHan: han && h.ngayKT && han !== h.ngayKT, thanhToan: tt, nghiemThu: nt, conLai: gt - tt, tyLeTT: U.pct(tt, gt), st: 'dang', label: A.optLabel('ttHD', h.trangThai || 'dang'), canhBao: [] };
+    o.tamUngCon = Math.max(0, U.num(h.tamUng) - U.num(h.tamUngThuHoi)); o.ntChuaTT = Math.max(0, nt - tt);
     if (h.trangThai === 'thanhly') o.st = 'hoanthanh'; else if (h.trangThai === 'tamdung' || h.trangThai === 'chamdut') o.st = 'tamdung';
-    if ((h.trangThai || 'dang') === 'dang' && U.isISO(h.ngayKT)) {
-      const left = U.diffDays(h.ngayKT, today);
-      if (left < 0) { o.over = true; o.st = 'quahan'; o.note = 'Quá hạn hợp đồng ' + (-left) + ' ngày'; }
-      else if (left <= A.nguong('hdSapHet')) { o.near = true; o.st = 'saphan'; o.note = 'Còn ' + left + ' ngày hết hạn hợp đồng'; }
+    const near = A.nguong('hdSapHet'), xet = (ngay, ten) => { if (!U.isISO(ngay)) return; const left = U.diffDays(ngay, today); if (left < 0) o.canhBao.push({ sev: 3, t: ten + ' đã hết hiệu lực ' + (-left) + ' ngày (' + U.fmtDate(ngay) + ')' }); else if (left <= near) o.canhBao.push({ sev: 2, t: ten + ' còn ' + left + ' ngày hết hiệu lực (' + U.fmtDate(ngay) + ')' }); };
+    if (dang && U.isISO(han)) {
+      const left = U.diffDays(han, today);
+      if (left < 0) { o.over = true; o.st = 'quahan'; o.note = 'Quá thời hạn hợp đồng ' + (-left) + ' ngày'; }
+      else if (left <= near) { o.near = true; o.st = 'saphan'; o.note = 'Còn ' + left + ' ngày hết thời hạn hợp đồng'; }
     }
+    if (chuaTL && h.trangThai !== 'nghiemthu') xet(h.baoLanhTHHan, 'Bảo đảm thực hiện hợp đồng');
+    if (chuaTL && o.tamUngCon > 0.5) xet(h.baoLanhTUHan, 'Bảo lãnh tạm ứng (còn ' + U.fmtShort(o.tamUngCon) + ' chưa thu hồi)');
     if (h.trangThai === 'nghiemthu') { o.chuaThanhLy = true; o.note = 'Đã nghiệm thu, chưa thanh lý'; if (o.conLai > 0.5) o.note += '; còn ' + U.fmtMoney(o.conLai) + ' đồng chưa thanh toán'; }
-    if (U.num(h.tamUng) > tt + 0.5 && (h.trangThai || 'dang') === 'dang') o.tamUngCao = true;
+    if (o.ntChuaTT > 0.5 && chuaTL) o.canhBao.push({ sev: 1, t: 'Đã nghiệm thu ' + U.fmtShort(o.ntChuaTT) + ' chưa thanh toán' });
+    if (U.num(h.tamUng) > tt + 0.5 && dang) o.tamUngCao = true;
     return o;
   };
 
@@ -474,7 +486,12 @@
   // sev: 3 = cần xử lý ngay, 2 = cần quan tâm, 1 = lưu ý
   L.alerts = y => {
     const out = [], add = (sev, loai, title, detail, coll, id, extra) => out.push(Object.assign({ sev, loai, title, detail, coll, id }, extra || {}));
-    const nvs = L.nvOfYear(y);
+    const nvAll = L.nvOfYear(y), nvs = nvAll.filter(t => !t.ext);
+    // Dữ liệu đồng bộ từ 2 phần mềm chuyên dụng: chỉ tổng hợp 1 dòng/phần mềm, xử lý chi tiết tại phần mềm gốc
+    const tdnv = nvAll.filter(t => t.ext && t.ext.src === 'tdnv' && L.open(t) && t.trangThai !== 'tamdung');
+    if (tdnv.length) { const qh = tdnv.filter(t => L.nv(t).st === 'quahan').length, sh = tdnv.filter(t => L.nv(t).st === 'saphan').length; if (qh || sh) add(qh ? 2 : 1, 'ngoai', 'Phần mềm Điều hành nhiệm vụ: ' + qh + ' nhiệm vụ quá hạn, ' + sh + ' sắp đến hạn', 'Theo dữ liệu đồng bộ lần gần nhất; xử lý tại phần mềm Điều hành nhiệm vụ', 'link', (A.KN ? A.KN.cfg().nvApp : '')); }
+    const dadt = L.daOfYear(y).filter(d => d.ext && d.ext.src === 'dadt');
+    if (dadt.length) { const ch = dadt.filter(d => L.da(d).cham).length; if (ch) add(1, 'ngoai', 'Phần mềm Dự án đầu tư: ' + ch + ' dự án trễ tiến độ', 'Theo dữ liệu đồng bộ lần gần nhất; xử lý tại phần mềm Dự án đầu tư', 'link', (A.KN ? A.KN.cfg().daApp : '')); }
     nvs.forEach(t => {
       const v = L.nv(t); if (!L.open(t) || t.trangThai === 'tamdung') return;
       const who = t.chuTriId ? A.Schema.refName('canbo', t.chuTriId) : 'chưa phân công';
@@ -493,7 +510,7 @@
       if (x.over) add(3, 'quahan', 'Văn bản ' + v.soKyHieu + ': ' + U.trunc(v.trichYeu, 110), 'Quá hạn ' + x.late + ' ngày, chưa tạo nhiệm vụ theo dõi', 'vanban', v.id, { days: x.late });
       else if (x.near) add(1, 'saphan', 'Văn bản ' + v.soKyHieu + ': ' + U.trunc(v.trichYeu, 110), x.label + ', chưa tạo nhiệm vụ theo dõi', 'vanban', v.id);
     });
-    L.daOfYear(y).forEach(d => {
+    L.daOfYear(y).filter(d => !d.ext).forEach(d => {
       const x = L.da(d);
       if (x.cham) add(3, 'dacham', d.ten, 'Chậm tiến độ ' + x.treMax + ' ngày' + (x.mocTre.length ? ': ' + x.mocTre.length + ' mốc quá hạn (' + x.mocTre.slice(0, 2).map(m => U.trunc(m.ten, 40)).join('; ') + (x.mocTre.length > 2 ? '…' : '') + ')' : ': quá thời gian thực hiện (' + U.fmtDate(d.ketThuc) + ')') + (d.nguyenNhanCham ? '; nguyên nhân: ' + U.trunc(d.nguyenNhanCham, 100) : '; chưa ghi nguyên nhân'), 'duan', d.id, { days: x.treMax });
       else if (x.nguyCo) add(2, 'danguyco', d.ten, d.trangThai === 'tamdung' ? 'Đang tạm dừng, vướng mắc' + (d.khoKhan ? ': ' + U.trunc(d.khoKhan, 110) : '') : 'Có mốc sắp đến hạn chưa bắt đầu: ' + x.mocSap.filter(m => m.trangThai === 'chua').map(m => U.trunc(m.ten, 40) + ' (' + U.fmtDate(m.ketThuc) + ')').join('; '), 'duan', d.id);
@@ -507,7 +524,7 @@
       if (U.num(o.v.nhuCauDC) !== 0) add(1, 'xinykien', ten, 'Có nhu cầu điều chỉnh vốn: ' + (o.v.nhuCauDC > 0 ? 'tăng ' : 'giảm ') + U.fmtMoney(Math.abs(o.v.nhuCauDC)) + ' đồng', 'von', o.v.id);
     });
     S.all('goithau').forEach(g => { const x = L.gt(g); if (x.over) add(3, 'dauthau', g.ten, x.note, 'goithau', g.id); else if (x.near) add(1, 'dauthau', g.ten, x.note, 'goithau', g.id); if (x.chuaHD) add(1, 'dauthau', g.ten, 'Đã có kết quả lựa chọn nhà thầu nhưng chưa nhập hợp đồng', 'goithau', g.id); });
-    S.all('hopdong').forEach(h => { const x = L.hd(h), ten = 'Hợp đồng ' + h.so + (h.ten ? ': ' + U.trunc(h.ten, 90) : ''); if (x.over) add(3, 'hopdong', ten, x.note + ' (' + U.fmtDate(h.ngayKT) + ')', 'hopdong', h.id); else if (x.near) add(1, 'hopdong', ten, x.note + ' (' + U.fmtDate(h.ngayKT) + ')', 'hopdong', h.id); else if (x.chuaThanhLy) add(1, 'hopdong', ten, x.note, 'hopdong', h.id); });
+    S.all('hopdong').forEach(h => { const x = L.hd(h), ten = 'Hợp đồng ' + h.so + (h.ten ? ': ' + U.trunc(h.ten, 90) : ''); if (x.over) add(3, 'hopdong', ten, x.note + ' (hạn ' + U.fmtDate(x.han) + (x.giaHan ? ', đã gia hạn' : '') + ')', 'hopdong', h.id); else if (x.near) add(2, 'hopdong', ten, x.note + ' (hạn ' + U.fmtDate(x.han) + ')', 'hopdong', h.id); else if (x.chuaThanhLy) add(1, 'hopdong', ten, x.note, 'hopdong', h.id); x.canhBao.forEach(c => add(c.sev, 'hopdong', ten, c.t, 'hopdong', h.id)); });
     // Tài sản nhà, đất: tổng hợp hồ sơ pháp lý, hiện trạng sử dụng
     const nd = S.all('taisan').filter(L.isNhaDat), ns = L.ndStats(nd);
     if (ns.khongDung) add(2, 'nhadat', ns.khongDung + ' cơ sở nhà, đất đang sử dụng không đúng mục đích', nd.filter(t => t.htSD === 'khongdung').slice(0, 4).map(t => L.ndDonVi(t) + ': ' + U.trunc(t.ten, 60)).join('; '), 'route', 'taisan');
@@ -519,11 +536,11 @@
     if (dmChua.length) add(2, 'dmchuapc', dmChua.length + ' đầu mục chức năng, nhiệm vụ chưa phân công cán bộ chủ trì', 'Trên tổng số ' + S.all('danhmuc').filter(d => d.loai !== 'noibo').length + ' đầu mục theo ' + A.Seed.QD + '. Mã: ' + dmChua.slice(0, 12).map(d => d.ma).join(', ') + (dmChua.length > 12 ? '…' : ''), 'route', 'canbo');
     return out.sort((a, b) => (b.sev - a.sev) || ((b.days || 0) - (a.days || 0)));
   };
-  L.ALERT_LABEL = { quahan: 'Quá hạn', tondong: 'Tồn đọng', saphan: 'Sắp đến hạn', nguyco: 'Nguy cơ', chuapc: 'Chưa phân công', xinykien: 'Xin ý kiến', dacham: 'Dự án chậm', danguyco: 'Dự án có nguy cơ', gnthap: 'Giải ngân thấp', dauthau: 'Đấu thầu', hopdong: 'Hợp đồng', quyettoan: 'Quyết toán', dmchuapc: 'Phân công', nhadat: 'Nhà, đất' };
+  L.ALERT_LABEL = { quahan: 'Quá hạn', tondong: 'Tồn đọng', saphan: 'Sắp đến hạn', nguyco: 'Nguy cơ', chuapc: 'Chưa phân công', xinykien: 'Xin ý kiến', dacham: 'Dự án chậm', danguyco: 'Dự án có nguy cơ', gnthap: 'Giải ngân thấp', dauthau: 'Đấu thầu', hopdong: 'Hợp đồng', quyettoan: 'Quyết toán', dmchuapc: 'Phân công', nhadat: 'Nhà, đất', ngoai: 'Phần mềm khác', giaingan: 'Giải ngân' };
 
   /* ================= TRỢ LÝ ĐIỀU HÀNH (theo luật, có căn cứ) ================= */
   L.assistant = y => {
-    const al = L.alerts(y), nvs = L.nvOfYear(y), pick = (...k) => al.filter(a => k.includes(a.loai));
+    const al = L.alerts(y), nvs = L.nvOfYear(y).filter(t => !t.ext), pick = (...k) => al.filter(a => k.includes(a.loai));   // nhiệm vụ đồng bộ từ phần mềm khác: xử lý tại phần mềm gốc
     const pri = L.priority(nvs).slice(0, 10);
     // Lĩnh vực tồn đọng
     const g = new Map();
@@ -536,7 +553,9 @@
     return {
       xuLyNgay: { items: pri, basis: 'Xếp theo điểm ưu tiên: quá hạn (+100, cộng thêm số ngày quá hạn), sắp đến hạn trong ' + A.nguong('sapHan') + ' ngày (+60), ưu tiên cao (+25), cần xin ý kiến (+20), chưa phân công (+15).' },
       duAnNguyCo: { items: pick('dacham', 'danguyco', 'gnthap'), basis: 'Dự án có mốc quá hạn hoặc quá thời gian thực hiện; có mốc đến hạn trong ' + A.nguong('sapHan') + ' ngày chưa bắt đầu; tỷ lệ giải ngân thấp hơn tỷ lệ thời gian đã qua của năm trên ' + A.nguong('gnLech') + ' điểm phần trăm.' },
-      chuaPhanCong: { items: pick('chuapc', 'dmchuapc'), basis: 'Nhiệm vụ chưa hoàn thành không có cán bộ chủ trì; đầu mục chức năng chưa gán cán bộ chủ trì.' },
+      chuaPhanCong: { items: pick('chuapc'), basis: 'Nhiệm vụ của Phòng (nhập trên phần mềm này) chưa hoàn thành, không có cán bộ chủ trì.' },
+      giaiNgan: { items: L.gnDeXuat ? L.gnDeXuat(yy, {}) : [], basis: 'So sánh tỷ lệ giải ngân lũy kế với mục tiêu Phòng đặt (hoặc tỷ lệ thời gian của năm); dự báo cuối năm theo tốc độ giải ngân từ đầu năm và khoảng 60 ngày gần nhất.' },
+      dauThau: { items: L.dtViec ? L.dtViec({}) : [], basis: 'Hạn lựa chọn nhà thầu, thời hạn hợp đồng sau gia hạn, hiệu lực bảo đảm thực hiện hợp đồng và bảo lãnh tạm ứng (cảnh báo trước ' + A.nguong('hdSapHet') + ' ngày), nghiệm thu chưa thanh toán, đã nghiệm thu chưa thanh lý.' },
       linhVuc: { items: linhVuc, basis: 'Đếm nhiệm vụ chưa hoàn thành và quá hạn theo 10 nhóm chức năng của QĐ 324.' },
       baoCaoLanhDao: { items: pick('xinykien', 'tondong').concat(al.filter(a => a.sev === 3 && ['dacham', 'gnthap', 'hopdong', 'dauthau'].includes(a.loai))), basis: 'Mục đã đánh dấu "cần xin ý kiến", kiến nghị của dự án, nhu cầu điều chỉnh vốn, việc tồn đọng quá ' + A.nguong('tonDong') + ' ngày và các cảnh báo mức cao về dự án, giải ngân, hợp đồng.' },
       chuDong: { items: dmTrong, quyetToan: pick('quyettoan'), nhaDat: pick('nhadat'), ts: L.tsCanXuLy(), basis: 'Đầu mục chức năng định kỳ chưa có nhiệm vụ nào trong năm ' + yy + '; dự án hoàn thành chưa quyết toán; tài sản ở tình trạng chờ xử lý; cơ sở nhà, đất chưa có GCN, chưa đăng ký biến động, thiếu hồ sơ hoặc sử dụng không đúng mục đích.' },

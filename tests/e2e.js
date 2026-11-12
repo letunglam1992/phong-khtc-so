@@ -145,7 +145,41 @@ ok(ns.tong===284859964239,'tổng được sử dụng = tổng các dòng chi t
 ok(ns.lech===4,'4 dòng tổng được gắn dấu ⚠ để rà soát');
 ok(await ev(()=>{const r=App.Store.all('ngansach').find(x=>/nhiệm vụ xử lý chất thải rắn sinh hoạt/.test(x.noiDung));return r.duToan===14490000000&&r.giaiNgan===7082000000}),'dòng "xử lý chất thải rắn": dự toán 14,49 tỷ, giải ngân 7,082 tỷ');
 ok(await ev(()=>{const r=App.Store.all('ngansach').find(x=>x.stt==='(18)');return r&&App.Schema.refName('canbo',r.canBoId)==='Tuấn'}),'cột "Kế toán thực hiện: Đ/c Tuấn" khớp cán bộ Tuấn');
-await p.screenshot({path:SHOTS+'/e_ngansach.png'});
+// Tổng quan giải ngân (thẻ mặc định sau khi nhập)
+ok(await p.$eval('[data-tab="tq"]',b=>b.classList.contains('on')),'sau khi nhập mở thẻ "Tổng quan giải ngân"');
+{const t=(await txt()).replace(/\s+/g,' ');ok(/số liệu đến ngày 20\/10\/2026/.test(t)&&/Dự báo giải ngân đến 31\/12/.test(t),'tổng quan: ngày số liệu 20/10/2026, có dự báo cuối năm');}
+const gn1=await ev(()=>{const g=App.L.giaiNgan(2026,{});return {gn:g.gn,tong:g.tong,asOf:g.asOf,thang10:g.thang[9],thang11:g.thang[10],nguyCo:g.nguyCo,duBao:g.duBao,hist:App.Store.all('ngansach').filter(r=>(r.gnHist||[]).length).length}});
+ok(gn1.gn===48983549974&&gn1.asOf==='2026-10-20'&&gn1.thang10===48983549974&&gn1.thang11===null,'chuỗi tháng: lũy kế T10 = 48.983.549.974, tháng sau để trống');
+ok(gn1.hist>50,'mỗi dòng chi tiết có mốc giải ngân đầu tiên trong lịch sử ('+gn1.hist+' dòng)');
+ok(gn1.nguyCo&&gn1.duBao<gn1.tong*0.95,'giải ngân 17,2% khi đã qua 80% thời gian → cảnh báo nguy cơ không giải ngân hết');
+ok(await ev(()=>App.L.gnDeXuat(2026,{}).some(x=>/Nguy cơ không giải ngân hết/.test(x.t))),'đề xuất: rà soát điều chỉnh, thu hồi');
+ok(await ev(()=>App.L.alerts(2026).some(a=>a.loai==='giaingan'&&a.sev===3)),'cảnh báo giải ngân mức cao trên bảng điều hành');
+await p.screenshot({path:SHOTS+'/e_giaingan_tq.png',fullPage:true});
+// Đặt mục tiêu giải ngân
+await p.click('[data-mt]');await p.waitForSelector('#mt9');await p.fill('#mt5','40');await p.fill('#mt9','70');await p.fill('#mt11','100');await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(300);
+ok(await ev(()=>{const m=App.L.gnMucTieu(2026);return m.tuDat&&m.vals[9]===70&&m.vals[7]===40&&m.vals[11]===100}),'lưu mục tiêu lũy kế (tháng trống lấy theo tháng trước) '+await ev(()=>JSON.stringify(App.Store.cfg.gnMucTieu)));
+// Cập nhật nhanh số giải ngân
+await p.click('[data-tab="cn"]');await p.waitForTimeout(250);
+await p.fill('#gn_d','2026-11-10');await p.dispatchEvent('#gn_d','change');
+const rid=await ev(()=>App.Store.all('ngansach').find(x=>/nhiệm vụ xử lý chất thải rắn sinh hoạt/.test(x.noiDung)).id);
+await p.evaluate(id=>window.__rid=id,rid);await p.fill('[data-gq]','chất thải rắn sinh hoạt');await p.waitForTimeout(300);
+await p.fill(`tr[data-r="${rid}"] [data-v]`,'9.500.000.000');await p.waitForTimeout(100);
+ok(/1 dòng có số mới, tăng thêm 2\.418\.000\.000/.test(await p.textContent('[data-cnt]')),'lưới cập nhật: tính số tăng thêm 2.418.000.000');
+await p.click('[data-save]');await p.waitForTimeout(400);
+ok(await ev(()=>{const r=App.Store.get('ngansach',window.__rid);return r.giaiNgan===9.5e9&&r.ngayGN==='2026-11-10'&&r.gnHist.length===2&&r.gnHist[0].giaiNgan===7082000000}),'lưu lũy kế mới, lịch sử 2 mốc (20/10 và 10/11)');
+ok(await ev(()=>{const g=App.L.giaiNgan(2026,{});return g.asOf==='2026-11-10'&&g.gn===48983549974+2418000000&&g.thang[9]===48983549974&&g.coLS}),'tổng quan cập nhật: số đến 10/11, tháng 10 giữ số cũ, có dự báo theo tốc độ gần đây');
+await p.click('[data-tab="ls"]');await p.waitForTimeout(200);ok(/10\/11\/2026/.test(await txt())&&/20\/10\/2026/.test(await txt()),'thẻ lịch sử: 2 mốc cập nhật');
+// Nhập lại biểu: giữ lịch sử, giữ mã dòng
+const nIdBefore=await ev(()=>App.Store.all('ngansach').map(r=>r.id).sort().join(','));
+await p.click('[data-tab="tq"]');await p.waitForTimeout(150);
+const [fc2]=await Promise.all([p.waitForEvent('filechooser'),(async()=>{await p.click('[data-imp]');await p.waitForSelector('[data-pick]');await p.click('[data-pick]')})()]);
+await fc2.setFiles(XLS);await p.waitForSelector('#ib_dv');await p.waitForTimeout(300);await p.fill('#ib_d','2026-11-12');
+await p.click('.modal-f .btn.primary');await p.waitForTimeout(400);
+ok(/88 dòng khớp/.test(await p.locator('.ov').last().textContent()),'hỏi xác nhận: 88 dòng khớp, cập nhật số mới');
+await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(800);
+ok(await ev(()=>App.Store.all('ngansach').map(r=>r.id).sort().join(','))===nIdBefore,'nhập lại biểu: giữ nguyên mã 88 dòng (không xóa tạo lại)');
+ok(await ev(()=>{const r=App.Store.get('ngansach',window.__rid);return r.gnHist.length===3&&r.gnHist[2].ngay==='2026-11-12'&&r.gnHist[2].giaiNgan===7082000000&&r.gnHist[2].nguon==='excel'}),'nhập lại: ghi thêm mốc 12/11 theo biểu, giữ 2 mốc trước');
+await p.click('[data-tab="ct"]');await p.waitForTimeout(200);
 const xf=await dl(()=>p.click('[data-xls]'));ok(fs.statSync(xf).size>5000,'xuất Excel cây dự toán: '+path.basename(xf));
 const X=require('xlsx');const wbo=X.readFile(xf),aoa=X.utils.sheet_to_json(wbo.Sheets[wbo.SheetNames[0]],{header:1});
 ok(aoa[aoa.length-1][11]===48983549974,'tệp Excel xuất ra: dòng tổng cột "Đã giải ngân" = 48.983.549.974');
@@ -162,6 +196,20 @@ ok(await ev(()=>{const x=App.L.hd(App.Store.all('hopdong')[0]);return x.thanhToa
 await ev(async()=>{const r=App.Schema.check('taisan',{ten:'x',loai:'Tài sản khác',nguyenGia:1,conLai:2});window.__c=r});
 ok(await ev(()=>window.__c.errors.some(e=>/còn lại lớn hơn nguyên giá/.test(e))),'chặn giá trị còn lại > nguyên giá');
 for(const r of ['taisan','dauthau']){await go(r);ok(!/gặp lỗi/.test(await txt()),'trang có dữ liệu hiển thị được: '+r)}
+// Hợp đồng: phụ lục, gia hạn, bảo lãnh, tạm ứng
+await ev(async()=>{const h=App.Store.all('hopdong')[0];await App.Store.save('hopdong',{id:h.id,phuLuc:[{so:'PL01',ngay:'2026-10-15',noiDung:'Bổ sung khối lượng',giaTriDC:5e8,giaHanDen:'2026-12-31'}],tamUngThuHoi:4e8,baoLanhTU:1e9,baoLanhTUHan:'2026-11-20',baoLanhTH:2e8,baoLanhTHHan:'2026-11-05',nghiemThu:[{ngay:'2026-10-20',noiDung:'Giai đoạn 1',giaTri:2e9}]})});
+ok(await ev(()=>{const x=App.L.hd(App.Store.all('hopdong')[0]);return x.giaTriHL===4.5e9&&x.han==='2026-12-31'&&x.giaHan&&!x.near&&x.tamUngCon===6e8&&x.ntChuaTT===5e8}),'phụ lục: giá trị 4,5 tỷ, gia hạn đến 31/12 (hết cảnh báo sắp hết hạn); tạm ứng còn 0,6 tỷ; nghiệm thu chưa thanh toán 0,5 tỷ');
+ok(await ev(()=>{const c=App.L.hd(App.Store.all('hopdong')[0]).canhBao.map(x=>x.sev+':'+x.t).join('|');return /3:Bảo đảm thực hiện hợp đồng đã hết hiệu lực 7 ngày/.test(c)&&/2:Bảo lãnh tạm ứng .*còn 8 ngày/.test(c)}),'cảnh báo bảo đảm thực hiện HĐ đã hết hiệu lực, bảo lãnh tạm ứng còn 8 ngày');
+ok(await ev(()=>App.Schema.check('hopdong',Object.assign({},App.Store.all('hopdong')[0],{thanhToan:[{ngay:'2026-11-01',soTien:4.4e9}]})).warnings.length===0),'thanh toán 4,4 tỷ không vượt giá trị sau phụ lục 4,5 tỷ');
+ok(await ev(()=>{const r={ten:'x',trangThai:'nhucau',qdKHSo:'1/QĐ'};App.Schema.C.goithau.normalize(r);const r2={ten:'y',trangThai:'danglcnt',nhaThau:'A',giaTrung:1};App.Schema.C.goithau.normalize(r2);return r.trangThai==='khlcnt'&&r2.trangThai==='cokq'}),'gói thầu tự nâng tình trạng khi có QĐ KHLCNT, có kết quả');
+await go('dauthau');await ev(()=>{App.vs.dtTab={t:'tq'};App.render()});await p.waitForTimeout(250);
+{const t=(await txt()).replace(/\s+/g,' ');ok(/Gói thầu theo bước/.test(t)&&/Việc cần xử lý \(\d+\)/.test(t)&&/Lịch hạn trong 60 ngày tới/.test(t)&&/Hết hiệu lực bảo lãnh tạm ứng/.test(t),'tổng quan đấu thầu: các bước, việc cần xử lý, lịch hạn (có hạn bảo lãnh)');}
+ok(await p.$$eval('.gantt .g-row',e=>e.length)>=2,'biểu đồ tiến độ hợp đồng');
+await p.screenshot({path:SHOTS+'/e_dauthau_tq.png',fullPage:true});
+await ev(()=>App.open('goithau',App.Store.all('goithau')[0].id));await p.waitForTimeout(250);ok(await p.$$eval('.stepper li',e=>e.length)===7&&await p.$eval('.stepper li.cur .lb',e=>e.textContent)==='Đang lựa chọn nhà thầu','chi tiết gói thầu: thanh 7 bước, đang ở "Đang lựa chọn nhà thầu"');
+await p.keyboard.press('Escape');await p.waitForTimeout(150);
+await ev(()=>{App.vs.dtTab={t:'hd'};App.render()});await p.waitForTimeout(200);ok(/4\.500\.000\.000/.test(await txt())&&/đã gia hạn/.test(await txt()),'danh sách hợp đồng: giá trị sau phụ lục, đánh dấu đã gia hạn');
+await ev(()=>{App.vs.dtTab={t:'tq'}});
 
 console.log('# 9b. Tài sản nhà, đất — Phụ biểu 0A.01-T.STC (tệp thật)');
 await go('taisan');
@@ -266,11 +314,13 @@ await ev(async()=>{await App.Store.removeMany(App.Store.all('taisan').filter(App
 console.log('# 10. Bảng điều hành và Trợ lý');
 await go('tongquan');await p.waitForTimeout(200);
 const k=await p.$$eval('.kpi',e=>e.map(x=>x.textContent.replace(/\s+/g,' ')));
-ok(k.some(x=>/Tổng số nhiệm vụ\s*19/.test(x)),'KPI tổng nhiệm vụ = 19');
+ok(k.some(x=>/Giải ngân dự toán\s*17,/.test(x))&&k.some(x=>/Gói thầu\s*1/.test(x))&&k.some(x=>/Văn bản đến chờ duyệt/.test(x)),'KPI quản lý chung: giải ngân dự toán, gói thầu, văn bản đến');
+ok(!k.some(x=>/Tổng số nhiệm vụ/.test(x))&&!/Phân tích nhiệm vụ|Công việc theo ngày, tuần, tháng|Ngưỡng: sắp đến hạn/.test(await txt()),'bỏ phân tích nhiệm vụ, tổng hợp ngày/tuần, ghi chú ngưỡng');
+ok(!/Chưa phân công\s*\d{2,}/.test(await txt())&&await ev(()=>!App.dashAlerts(2026).some(a=>a.loai==='dmchuapc')),'không đưa "đầu mục chưa phân công" lên bảng điều hành');
 ok(await ev(()=>{const s=App.L.nvStats(App.L.nvOfYear(2026));return s.tong===19&&s.hoanthanh===1&&s.dang===1&&s.chua===17&&s.hoanthanh+s.dang+s.chua+s.tamdung===s.tong}),'hoàn thành + đang + chưa + tạm dừng = tổng (không đếm trùng)');
 ok(await ev(()=>App.L.alerts(2026).filter(a=>a.loai==='dacham').length===1&&App.L.alerts(2026).some(a=>a.loai==='gnthap')&&App.L.alerts(2026).some(a=>a.loai==='dauthau')&&App.L.alerts(2026).some(a=>a.loai==='hopdong')&&App.L.alerts(2026).some(a=>a.loai==='chuapc')),'cảnh báo: dự án chậm, giải ngân thấp, đấu thầu, hợp đồng, chưa phân công');
 await p.screenshot({path:SHOTS+'/e_dash.png',fullPage:true});
-await go('troly');ok((await p.$$eval('details.qa',e=>e.length))===6,'Trợ lý: đủ 6 câu hỏi');
+await go('troly');ok((await p.$$eval('details.qa',e=>e.length))>=7&&/Tiến độ giải ngân dự toán có đạt mục tiêu/.test(await txt())&&/Gói thầu, hợp đồng nào cần xử lý/.test(await txt()),'Trợ lý: có câu hỏi về giải ngân, đấu thầu – hợp đồng');
 ok(/Căn cứ nhận định/.test(await txt()),'mỗi nhận định có căn cứ');
 await p.screenshot({path:SHOTS+'/e_troly.png',fullPage:true});
 await p.keyboard.press('Control+k');await p.waitForSelector('.cmd-res');await p.fill('.ov input','chat thai ran');await p.waitForTimeout(350);
@@ -279,7 +329,7 @@ await p.keyboard.press('Escape');
 
 console.log('# 11. Báo cáo');
 await go('baocao');
-for(const ty of ['ky','nhiemvu','duan','giaingan','ngansach','taisan','dauthau','canbo','dotxuat']){await p.selectOption('#bc_type',ty);await p.waitForTimeout(200);const h=await p.textContent('[data-paper]');ok(/BÁO CÁO/.test(h)&&!/Không dựng được/.test(h),'dựng báo cáo: '+ty)}
+for(const ty of ['ky','nhiemvu','duan','giaingan','gnns','ngansach','taisan','dauthau','canbo','dotxuat']){await p.selectOption('#bc_type',ty);await p.waitForTimeout(200);const h=await p.textContent('[data-paper]');ok(/BÁO CÁO/.test(h)&&!/Không dựng được/.test(h),'dựng báo cáo: '+ty)}
 await p.selectOption('#bc_type','giaingan');await p.waitForTimeout(150);
 ok(/6\.500\.000\.000/.test(await p.textContent('[data-paper]'))&&/đạt 13,7%/.test(await p.textContent('[data-paper]')),'báo cáo giải ngân: 1,3/9,5 tỷ = 13,7%');
 const rx=await dl(()=>p.click('[data-do="xlsx"]'));ok(X.readFile(rx).SheetNames.length===2,'xuất Excel báo cáo (2 bảng): '+X.readFile(rx).SheetNames.join('|'));
@@ -373,6 +423,47 @@ ok(/Dữ liệu trên máy chủ đã thay đổi/.test(await p.textContent('.ov
 await p.click('.modal-f .btn:not(.danger)');await p.click('[data-sync="pull"]');await p.waitForTimeout(1500);
 ok(await ev(()=>App.Store.all('nhiemvu').some(t=>t.ten==='Việc thêm ở máy 2')),'tải về và gộp: nhận việc thêm ở máy 2');
 await ctx2.close();
+
+console.log('# 15b. Văn bản đến: thư mục Drive (Code.gs thật trên bộ giả lập) và đọc trên máy');
+await ev(async()=>{await App.Store.setCfg({syncUrl:'http://localhost:8765/gas',syncKey:'KHOA'});App.VBD.state=null;App.VBD.err=''});
+await go('vanbanden');await p.waitForTimeout(900);
+ok(/KHTC_So_VAN_BAN_DEN/.test(await txt()),'kết nối máy chủ: tự tạo thư mục KHTC_So_VAN_BAN_DEN');
+const QDK='UBND TỈNH SƠN LA\nSỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG\nSố: 812/QĐ-SNNMT\nSơn La, ngày 05 tháng 11 năm 2026\nQUYẾT ĐỊNH\nPhê duyệt kế hoạch lựa chọn nhà thầu nhiệm vụ Đo đạc thử nghiệm\nĐiều 1. Phê duyệt kế hoạch lựa chọn nhà thầu như sau:\n- Tên gói thầu: Gói thầu số 01: Đo đạc, lập bản đồ địa chính thử\n- Giá gói thầu: 12.345.678.000 đồng\n- Hình thức lựa chọn nhà thầu: Đấu thầu rộng rãi trong nước\n- Loại hợp đồng: Trọn gói\n- Thời gian thực hiện hợp đồng: 360 ngày';
+fs.writeFileSync(SHOTS+'/qd812.txt',QDK);
+await p.setInputFiles('[data-up]',SHOTS+'/qd812.txt');await p.waitForTimeout(1200);
+ok(/1 chờ đọc/.test(await txt()),'gửi tệp lên thư mục: 1 văn bản chờ đọc');
+await p.click('[data-scan]');await p.waitForTimeout(1500);
+ok(/1 chờ duyệt/.test(await txt())&&/Quyết định phê duyệt kế hoạch lựa chọn nhà thầu/.test(await txt()),'quét và đọc: nhận dạng QĐ phê duyệt KHLCNT, chờ duyệt');
+ok(await ev(()=>document.querySelector('#nav-vbd').textContent)==='1','menu hiện 1 văn bản chờ duyệt');
+await p.click('[data-rv]');await p.waitForSelector('.vb-op');await p.waitForTimeout(200);
+{const t=(await p.locator('.ov').last().textContent()).replace(/\s+/g,' ');ok(/Thêm gói thầu 1\/1/.test(t)&&/Lưu vào danh mục văn bản/.test(t),'phương án: thêm gói thầu + lưu văn bản');}
+ok(await p.inputValue('.vb-op [data-p="0.f.giaGoiThau"]')==='12.345.678.000'&&await p.inputValue('.vb-op [data-p="0.f.qdKHSo"]')==='812/QĐ-SNNMT'&&await p.inputValue('.vb-op [data-p="0.f.hinhThuc"]')==='Đấu thầu rộng rãi','điền sẵn giá gói thầu, số QĐ KHLCNT, hình thức (khớp danh mục)');
+await p.fill('.vb-op [data-p="0.f.hanLCNT"]','2026-12-15');await p.dispatchEvent('.vb-op [data-p="0.f.hanLCNT"]','change');
+await p.screenshot({path:SHOTS+'/e_vbd_review.png'});
+await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(300);
+ok(/Thêm gói thầu, mua sắm/.test(await p.locator('.ov').last().textContent()),'xác nhận trước khi cập nhật, liệt kê thao tác');
+await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(1200);
+ok(await ev(()=>{const g=App.Store.all('goithau').find(x=>x.qdKHSo==='812/QĐ-SNNMT');return g&&g.giaGoiThau===12345678000&&g.trangThai==='khlcnt'&&g.hanLCNT==='2026-12-15'&&g.tienTrinh.length===1&&g.dinhKem[0].url&&g.loaiHD==='Trọn gói'}),'gói thầu được tạo: giá, tình trạng "Đã duyệt KHLCNT", hạn đã sửa, tiến trình, đính kèm tệp Drive');
+ok(await ev(()=>App.Store.all('vanban').some(v=>v.soKyHieu==='812/QĐ-SNNMT'&&v.ngayBanHanh==='2026-11-05')),'văn bản lưu vào danh mục văn bản');
+ok(await ev(()=>App.VBD.state.summary.cho_duyet===0&&App.VBD.state.items[0].status==='da_xu_ly'),'máy chủ đánh dấu đã xử lý');
+// Đọc trên máy: dán hợp đồng, AI (giả lập Worker) trích, khớp gói thầu theo tên
+await p.route('https://rasoatvanban.letunglam1992.workers.dev/**',r=>{const b=JSON.parse(r.request().postData()||'{}');const sys=(b.messages||[])[0]||{};const isVB=/Trả về DUY NHẤT một đối tượng JSON/.test(sys.content||'');r.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(isVB?{text:'{"loai":"hop_dong","so_van_ban":"15/2026/HĐ-TV","hop_dong":{"so_hop_dong":"15/2026/HĐ-TV","ngay_ky":"10/11/2026","ten":"Đo đạc, lập bản đồ địa chính thử","ten_goi_thau":"Gói thầu số 01: Đo đạc, lập bản đồ địa chính thử","nha_thau":"Công ty TNHH Đo đạc Thử","gia_tri":"12.000.000.000","thoi_gian_thuc_hien":"360 ngày"}}',model:'@cf/google/gemma-test'}:{text:'Giải ngân dự toán đạt **17,2%** [1]. Có nguy cơ không giải ngân hết [2].\n- Đề nghị rà soát điều chỉnh [2]',model:'@cf/google/gemma-test'})})});
+await go('vanbanden');await p.click('[data-paste]');await p.waitForSelector('#vb_x');await p.fill('#vb_x','HỢP ĐỒNG\nSố: 15/2026/HĐ-TV\nHôm nay, ngày 10 tháng 11 năm 2026\nBên B: Công ty TNHH Đo đạc Thử\nGiá hợp đồng: 12.000.000.000 đồng\nThời gian thực hiện hợp đồng: 360 ngày');
+await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForSelector('.vb-op');await p.waitForTimeout(300);
+{const t=(await p.locator('.ov').last().textContent()).replace(/\s+/g,' ');ok(/Thêm hợp đồng/.test(t)&&/AI Cloudflare \(gemma-test\)/.test(t)&&/Kèm theo: Chuyển gói thầu/.test(t),'dán hợp đồng: AI trích, đề xuất thêm hợp đồng và chuyển gói thầu sang "Đã ký hợp đồng"');}
+ok(await p.inputValue('.vb-op [data-p="0.f.ngayKT"]')==='2027-11-05','thời hạn tính từ ngày ký + 360 ngày (ghi chú để đối chiếu)');
+await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(300);await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(800);
+ok(await ev(()=>{const h=App.Store.all('hopdong').find(x=>x.so==='15/2026/HĐ-TV');const g=App.Store.get('goithau',h&&h.goiThauId);return h&&h.giaTri===12e9&&g&&g.qdKHSo==='812/QĐ-SNNMT'&&g.trangThai==='dakyhd'}),'hợp đồng tạo xong, gắn đúng gói thầu 812, gói thầu chuyển "Đã ký hợp đồng"');
+ok(await ev(()=>App.AI.hanMuc().da)===1,'tính 1 lượt AI trong hạn mức ngày');
+console.log('# 15c. Hộp chat Trợ lý AI');
+await p.click('.cb-fab');await p.waitForSelector('.cb-panel:not([hidden])');
+ok(/Còn 29\/30 lượt hỏi hôm nay/.test(await p.textContent('.cb-panel')),'hiển thị hạn mức 29/30');
+await p.click('.cb-sug button');await p.waitForSelector('.cb-row.ai .cite');await p.waitForTimeout(200);
+{const t=await p.textContent('.cb-panel');ok(/17,2%/.test(t)&&/Đoạn dữ liệu đã dùng/.test(t)&&/Còn 28\/30/.test(t),'trả lời có dẫn nguồn [n], đoạn dữ liệu đã dùng, trừ lượt');}
+ok(await ev(()=>{const d=App.chat.chon('tiến độ giải ngân dự toán',App.chat.doan());return /Tổng quan giải ngân dự toán/.test(d[0].tieuDe)}),'chọn đúng đoạn tổng quan giải ngân cho câu hỏi');
+await p.screenshot({path:SHOTS+'/e_chat.png'});
+await p.click('.cb-row.ai .cite');await p.waitForTimeout(300);ok(await ev(()=>App.route)==='ngansach','bấm [1] mở trang nguồn số liệu');
+await p.click('.cb-fab');await p.unroute('https://rasoatvanban.letunglam1992.workers.dev/**');
 
 console.log('# 16. Dữ liệu lớn');
 const perf=await ev(async()=>{const items=[];const cb=App.Store.all('canbo');for(let i=0;i<5000;i++)items.push({c:'nhiemvu',rec:{ten:'Nhiệm vụ khối lượng lớn số '+i,ma:'L'+i,nam:2026,nhom:String(i%9+1),chuTriId:cb[i%9].id,phoiHopIds:[],ngayGiao:'2026-0'+(i%9+1)+'-01',han:'2026-'+String(i%12+1).padStart(2,'0')+'-15',trangThai:i%3?'chua':'hoanthanh',ngayHT:i%3?'':'2026-'+String(i%12+1).padStart(2,'0')+'-14',tienDo:i%3?0:100}});

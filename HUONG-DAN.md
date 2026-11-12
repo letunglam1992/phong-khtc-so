@@ -15,31 +15,34 @@ Mã có hậu tố a, b, c (ví dụ 1.1a, 1.1b) là việc thành phần do ph�
 
 ## 2. Sơ đồ phân hệ và quan hệ dữ liệu
 
-```
-                         BẢNG ĐIỀU HÀNH  ←  TRỢ LÝ ĐIỀU HÀNH (cảnh báo, ưu tiên, 6 câu hỏi)
-                                ▲
-   ┌────────────────┬───────────┼─────────────┬───────────────┬──────────────┐
-Chức năng,      Nhiệm vụ,     Chương trình,  Kế hoạch vốn,   Tài chính,     Tài sản công
-nhiệm vụ   ──▶  công việc ◀─▶ dự án     ──▶  giải ngân       ngân sách
-(QĐ 324)         ▲   ▲          │  ▲          (theo dự án,   (cây dự toán   (theo đơn vị,
-   │             │   │          │  │           nguồn, năm)    theo đơn vị)   biến động)
-   │       Văn bản   Cán bộ     ▼  └── dòng dự toán liên quan
-   └─ phân công ─────┘       Gói thầu ──▶ Hợp đồng (tạm ứng, thanh toán, nghiệm thu, thanh lý)
+Phần mềm là công cụ **quản lý chung** của Phòng: tài chính – ngân sách – giải ngân, đấu thầu – hợp đồng do Sở làm chủ đầu tư, kế hoạch vốn đầu tư, tài sản công, báo cáo, dự báo. Nội dung xử lý chi tiết nhiệm vụ và dự án đầu tư nằm ở 2 phần mềm chuyên dụng; ở đây chỉ hiện thẻ tóm tắt và một dòng cảnh báo cho mỗi phần mềm, bấm "Mở phần mềm" để xử lý.
 
-Báo cáo, thống kê · Nhật ký cập nhật · Sao lưu/khôi phục · Kết nối 2 phần mềm sẵn có
+```
+       BẢNG ĐIỀU HÀNH ← TRỢ LÝ ĐIỀU HÀNH (luật cố định, có căn cứ)      HỘP CHAT TRỢ LÝ AI (Cloudflare, dẫn nguồn [n])
+              ▲
+   ┌──────────┼──────────────────┬──────────────────┬──────────────┐
+Tài chính,  Đấu thầu, hợp đồng   Kế hoạch vốn      Tài sản công   Tóm tắt 2 phần mềm chuyên dụng
+giải ngân   (gói thầu → HĐ →     đầu tư            (nhà đất,      (Điều hành nhiệm vụ,
+(dự toán,    phụ lục, bảo lãnh,                     kiểm kê)        Dự án đầu tư)
+ lịch sử,    tạm ứng, nghiệm thu,
+ dự báo)     thanh toán, thanh lý)
+     ▲               ▲
+     └── VĂN BẢN ĐẾN: thư mục Google Drive / đọc trên máy → AI trích thông tin → anh/chị duyệt, sửa → cập nhật
+
+Báo cáo (Word, Excel, PDF) · Nhật ký cập nhật · Sao lưu/khôi phục · Kết nối 2 phần mềm
 ```
 
-- Một văn bản ↔ nhiều nhiệm vụ; một nhiệm vụ ↔ nhiều văn bản, nhiều dự án.
-- Một dự án có nhiều nguồn vốn, nhiều mốc tự đặt, nhiều dòng kế hoạch vốn (mỗi dòng: dự án × nguồn × năm), nhiều gói thầu, hợp đồng.
-- Mọi bản ghi đều gắn được tệp hoặc liên kết, và có lịch sử chỉnh sửa (ai, lúc nào, giá trị cũ → mới).
+- Mọi bản ghi gắn được tệp hoặc liên kết, có lịch sử chỉnh sửa (ai, lúc nào, giá trị cũ → mới).
+- Mỗi dòng dự toán lưu **lịch sử lũy kế giải ngân theo ngày** để vẽ diễn biến và dự báo.
 
 ## 3. Bắt đầu trong 15 phút
 
 1. **Thiết lập, sao lưu** → nhập tên người sử dụng (được ghi vào nhật ký).
-2. **Chức năng, nhiệm vụ** → chọn cán bộ ở cột "Chủ trì" cho từng đầu mục; hoặc **Cán bộ, phân công → Bảng phân công chức năng** để phân công dạng ma trận (C = chủ trì, P = phối hợp) và xuất Excel.
-3. **Tài chính, ngân sách → Nhập biểu giải ngân** → chọn tệp Excel theo dõi giải ngân, chọn trang tính mới nhất. Phần mềm dựng lại cấp bậc dòng và chỉ ra chỗ số tổng khác tổng chi tiết.
-4. **Kết nối phần mềm** → dán link CSV của Sheet nhiệm vụ và địa chỉ, mã truy cập của phần mềm dự án (mục 6).
-5. **Chức năng, nhiệm vụ → Sinh nhiệm vụ định kỳ** → tạo nhiệm vụ theo tháng, quý, năm cho các đầu mục định kỳ. Ngày hạn do anh/chị đặt; để trống thì không gán hạn.
+2. **Tài chính, giải ngân → Nhập biểu Excel** → chọn tệp theo dõi giải ngân, chọn trang tính mới nhất. Mỗi lần nhập lại biểu, phần mềm ghép đúng dòng cũ (giữ cán bộ theo dõi, số quyết toán) và ghi thêm một mốc giải ngân.
+3. **Tài chính, giải ngân → Mục tiêu giải ngân** → nhập tỷ lệ lũy kế phải đạt cuối từng tháng theo chỉ đạo của tỉnh/Sở (không nhập thì so với tỷ lệ thời gian).
+4. **Đấu thầu, hợp đồng** → thêm gói thầu, hợp đồng; hoặc đưa văn bản vào **Văn bản đến** để phần mềm điền sẵn.
+5. **Kết nối phần mềm** → dán link CSV của Sheet nhiệm vụ và địa chỉ, mã truy cập của phần mềm dự án (mục 6).
+6. Bấm nút tròn góc phải dưới để hỏi **Trợ lý AI**.
 
 ## 4. Cách tính các con số (để đối chiếu)
 
@@ -50,6 +53,7 @@ Báo cáo, thống kê · Nhật ký cập nhật · Sao lưu/khôi phục · K�
 - **Kế hoạch vốn sau điều chỉnh** = giao đầu năm + kéo dài + điều chỉnh tăng − điều chỉnh giảm. **Giải ngân** = số lũy kế mới nhất đã nhập.
 - **Giải ngân thấp**: tỷ lệ giải ngân thấp hơn tỷ lệ thời gian đã qua của năm trên 20 điểm %, hoặc thấp hơn tiến độ dự án trên 20 điểm.
 - **Tổng kinh phí được sử dụng** = chuyển nguồn + dự toán đầu năm + bổ sung + tăng − giảm − thu hồi − tiết kiệm (đúng công thức cột 10 biểu của Phòng). Dòng có dòng con = tổng các dòng con.
+- **Giải ngân dự toán, dự báo, đấu thầu – hợp đồng**: xem mục 4d, 4e.
 - **Điểm ưu tiên** (Trợ lý): quá hạn +100 và cộng số ngày quá hạn; sắp đến hạn +60; ưu tiên cao +25; cần xin ý kiến +20; chưa phân công +15.
 
 Các ngưỡng 7, 30, 20 đổi được ở Thiết lập. Đây là ngưỡng nhắc việc nội bộ, không phải quy định pháp luật.
@@ -73,6 +77,60 @@ Mỗi tài sản loại **"Cơ sở nhà, đất"** (hoặc "Trụ sở, nhà l�
 - Nhập lại cùng mẫu, cùng kỳ: thay số liệu kỳ đó (có bản chụp). Kỳ khác: giữ lại, màn hình hiện cột "So kỳ trước".
 - Có bảng **đối chiếu đất, nhà** giữa kiểm kê 01c và hiện trạng 0A.01 (số khuôn viên/cơ sở, diện tích, nguyên giá, giá trị còn lại). Chỉ để rà soát; phần mềm không sửa số liệu.
 - Tài sản hỏng, không sử dụng, chưa ghi sổ, sử dụng không đúng mục đích được đưa vào cảnh báo và Trợ lý; báo cáo tài sản công có phần kết quả kiểm kê.
+
+## 4d. Theo dõi, dự báo giải ngân dự toán (Tài chính, giải ngân)
+
+- **Tổng quan giải ngân**: tỷ lệ đã giải ngân so với mục tiêu tháng (hoặc tỷ lệ thời gian), dự báo đến 31/12, số tiền cần giải ngân bình quân mỗi tháng còn lại, tiến độ theo đơn vị và theo cán bộ theo dõi, danh sách nội dung giải ngân chậm, **phương án, đề xuất chỉ đạo**. Lọc theo đơn vị, cán bộ.
+- **Cập nhật giải ngân**: lưới nhập nhanh **số lũy kế từ đầu năm** đến một ngày cho nhiều dòng; chỉ lưu dòng có thay đổi, cảnh báo khi số vượt kinh phí được sử dụng.
+- **Lịch sử giải ngân**: các mốc cập nhật, số tăng giữa hai mốc; trong chi tiết từng dòng có lịch sử riêng.
+- Cách tính:
+  - Lũy kế tại một ngày = cộng các dòng chi tiết, mỗi dòng lấy mốc gần nhất trước hoặc bằng ngày đó.
+  - **Dự báo 31/12** = bình quân của (a) tốc độ bình quân từ đầu năm × số ngày cả năm và (b) số hiện tại + tốc độ khoảng 60 ngày gần nhất × số ngày còn lại; không vượt tổng kế hoạch. Chỉ có một mốc thì dùng (a).
+  - **Nguy cơ không giải ngân hết**: dự báo dưới 95% kinh phí được sử dụng (năm hiện tại).
+  - **Nội dung giải ngân chậm**: tỷ lệ của dòng thấp hơn mốc so sánh từ 20 điểm % trở lên (ngưỡng đổi ở Thiết lập).
+  - Đề xuất chỉ dựa trên số liệu (rà soát điều chỉnh dự toán, đề xuất thu hồi, điều chuyển, giao cán bộ theo dõi…); quyết định thuộc thẩm quyền lãnh đạo và cơ quan tài chính.
+- Báo cáo: **Báo cáo, thống kê → Báo cáo tiến độ giải ngân dự toán ngân sách** (diễn biến tháng, theo đơn vị, cán bộ, nội dung chậm, đề xuất).
+
+## 4e. Đấu thầu, hợp đồng do Sở làm chủ đầu tư
+
+- **Tổng quan**: gói thầu theo bước (nhu cầu → dự toán → trình KHLCNT → duyệt KHLCNT → đang LCNT → có kết quả → ký HĐ), giá trị tiết kiệm qua đấu thầu, thanh toán hợp đồng, tạm ứng chưa thu hồi, **việc cần xử lý**, **lịch hạn 60 ngày**, biểu đồ tiến độ hợp đồng.
+- Gói thầu: thông tin KHLCNT (hình thức, phương thức, loại HĐ, thời gian bắt đầu LCNT, thời gian thực hiện HĐ), số TBMT, tiến trình từng bước, dòng dự toán nguồn kinh phí. Tình trạng tự nâng khi nhập số QĐ KHLCNT, số TBMT, kết quả.
+- Hợp đồng: phụ lục (giá trị tăng/giảm, gia hạn), bảo đảm thực hiện HĐ và bảo lãnh tạm ứng (số tiền, hiệu lực đến ngày), tạm ứng và thu hồi tạm ứng, nghiệm thu, thanh toán, quyết toán, thanh lý.
+- Cách tính: **Giá trị hợp đồng** = giá ký + tổng giá trị phụ lục; **thời hạn** = ngày gia hạn muộn nhất trong phụ lục (nếu có), không thì thời hạn ký. Cảnh báo trước 30 ngày (đổi ở Thiết lập) khi hợp đồng, bảo đảm thực hiện HĐ, bảo lãnh tạm ứng (còn số chưa thu hồi) sắp hết hạn; nghiệm thu chưa thanh toán; nghiệm thu chưa thanh lý.
+
+## 4f. Văn bản đến — tự động đọc và cập nhật
+
+Đưa văn bản vào thư mục, phần mềm đọc, nhận dạng loại văn bản và **lập phương án cập nhật**; anh/chị xem, sửa từng trường, bỏ chọn thao tác không cần, rồi mới bấm **Cập nhật vào phần mềm**. Không có gì được ghi khi chưa duyệt.
+
+| Loại văn bản | Phần mềm đề xuất |
+|---|---|
+| QĐ phê duyệt KHLCNT / tờ trình KHLCNT | Thêm hoặc cập nhật từng gói thầu trong bảng (giá, nguồn vốn, hình thức, phương thức, loại HĐ, thời gian), ghi số QĐ, bước tiến trình |
+| QĐ phê duyệt kết quả LCNT | Ghi nhà thầu trúng thầu, giá trúng thầu, số QĐ vào gói thầu tương ứng |
+| Hợp đồng | Thêm hợp đồng, gắn gói thầu (theo tên, nhà thầu), chuyển gói thầu sang "Đã ký hợp đồng" |
+| Phụ lục, biên bản nghiệm thu, thanh lý | Thêm dòng phụ lục / nghiệm thu; ghi thanh lý vào hợp đồng đã có |
+| QĐ giao, bổ sung, điều chỉnh, thu hồi dự toán | Cộng số tiền vào cột tương ứng của dòng dự toán được chọn |
+| Mọi văn bản | Lưu vào danh mục Văn bản kèm tệp gốc (bỏ chọn nếu không cần) |
+
+Hai cách đọc:
+1. **Đọc trên máy này** (không cần cài gì): PDF có lớp chữ, Word .docx, hoặc dán nội dung. AI gọi qua Worker Cloudflare (mục 4g); AI lỗi hoặc hết hạn mức thì vẫn có kết quả theo quy tắc.
+2. **Thư mục Google Drive (tự động)**: đọc cả PDF scan, ảnh chụp (nhận dạng chữ tiếng Việt của Google Drive). Cài đặt một lần:
+   1. script.google.com → Dự án mới → dán toàn bộ `gas/Code.gs` (bản 2, có trong thư mục `dist/`), đổi `MA_BI_MAT`.
+   2. Bên trái → **Dịch vụ** → thêm **Drive API**.
+   3. (Tùy chọn) Cài đặt dự án → Thuộc tính tập lệnh: `CF_WORKER_URL` (mặc định Worker rasoatvanban), hoặc `CF_ACCOUNT_ID` + `CF_API_TOKEN` (+ `CF_AI_MODEL`) để gọi thẳng Cloudflare Workers AI.
+   4. Triển khai → Triển khai mới → Ứng dụng web → Thực thi với tư cách: Tôi; Ai có quyền: Bất kỳ ai.
+   5. Chạy hàm **`caiDatVanBanDen`** một lần (cấp quyền, tạo thư mục `KHTC_So_VAN_BAN_DEN`, bật quét 15 phút).
+   6. Phần mềm → **Thiết lập → Đồng bộ qua Google Apps Script** → dán URL `.../exec` và mã bí mật.
+   
+   Mỗi lần sửa Code.gs: Triển khai → Quản lý triển khai → Sửa → **Phiên bản mới** (giữ nguyên URL). Tệp đã đọc chuyển vào thư mục con "Đã đọc". Đổi thư mục nhận văn bản ở trang Văn bản đến.
+
+Lưu ý: máy đọc có thể sai — luôn đối chiếu với văn bản gốc (có nút mở tệp gốc và phần nội dung đã đọc). Thời hạn hợp đồng ghi theo số ngày/tháng được ước tính theo cách tính thời hạn tại Điều 147, 148 Bộ luật Dân sự 2015 (ngày đầu không tính) và kèm ghi chú để đối chiếu điều khoản hiệu lực của hợp đồng.
+
+## 4g. Trợ lý AI (hộp chat)
+
+- Nút tròn góc phải dưới. Mỗi câu hỏi, phần mềm chọn các **đoạn số liệu liên quan** (giải ngân, dự toán chậm, gói thầu, hợp đồng, vốn đầu tư, tài sản, cảnh báo) và gửi kèm câu hỏi tới Worker Cloudflare Workers AI; câu trả lời dẫn nguồn [n], bấm [n] để mở bản ghi.
+- Mặc định dùng Worker `rasoatvanban.letunglam1992.workers.dev` (giao thức `{messages, max_tokens}` → `{text, model}`, như phần mềm Tra cứu TTHC đất đai). Đổi địa chỉ, giới hạn lượt ở biểu tượng bánh răng trong hộp chat.
+- Giới hạn **30 lượt/ngày** trên mỗi trình duyệt (đọc văn bản đến trên máy cũng tính lượt); Worker báo hết hạn mức thì tạm dừng đến hôm sau. Hội thoại chỉ lưu tạm trong thẻ trình duyệt.
+- Dữ liệu gửi đi: câu hỏi và các đoạn số liệu tổng hợp liên quan (không gửi tệp đính kèm, không gửi toàn bộ cơ sở dữ liệu).
 
 ## 5. Sao lưu, khôi phục
 
@@ -107,14 +165,15 @@ Bản ghi kéo về có nhãn nguồn và nút mở lại đúng phần mềm g�
 - **Đồng bộ nhiều máy (tùy chọn)** qua Google Apps Script (`gas/Code.gs`): đẩy lên – tải về toàn bộ dữ liệu, không kèm tệp đính kèm; hai người cùng sửa một bản ghi thì bản sửa sau cùng được giữ; có cảnh báo khi máy chủ đã có bản mới hơn.
 - Tệp đính kèm lưu trong trình duyệt, tối đa 15 MB mỗi tệp. Hồ sơ lớn nên dùng liên kết (iOffice, Drive).
 - Xuất PDF bằng lệnh In của trình duyệt → "Lưu dưới dạng PDF".
-- Trợ lý điều hành chạy theo luật cố định trên dữ liệu đã nhập, không dùng AI, không tự suy diễn.
+- Trợ lý điều hành chạy theo luật cố định trên dữ liệu đã nhập, không dùng AI. Hộp chat Trợ lý AI và Văn bản đến dùng AI Cloudflare: kết quả là gợi ý, cần đối chiếu.
+- Nhiệm vụ, dự án đồng bộ từ 2 phần mềm chuyên dụng chỉ dùng để tóm tắt; cảnh báo chi tiết và xử lý ở phần mềm gốc.
 
 ## 8. Nâng cấp
 
 - Bản mới chỉ cần thay tệp HTML ở **đúng vị trí cũ** (cùng đường dẫn, cùng trình duyệt) thì dữ liệu còn nguyên. Luôn sao lưu trước khi thay.
 - Mã nguồn tách mô-đun trong `src/`; `node build.js` ghép thành một tệp. Khai báo trường tập trung ở `src/js/20-schema.js`: thêm một trường là form, bảng, Excel, kiểm tra dữ liệu và lịch sử tự có.
 - Lớp lưu trữ (`src/js/10-store.js`) tách khỏi giao diện qua một adapter 8 hàm. Lên hệ thống nhiều người dùng chỉ cần viết adapter gọi máy chủ, không phải viết lại các phân hệ.
-- Kiểm thử: `node tests/mock-server.js &` rồi `node tests/e2e.js <thư mục ảnh> <tệp Excel giải ngân>`.
+- Kiểm thử: `node --test tests/gas.test.js tests/trich-van-ban.test.js`; `node tests/mock-server.js &` rồi `node tests/e2e.js <thư mục ảnh> <tệp Excel giải ngân> <tệp nhà đất> <các tệp kiểm kê>`.
 
 ## 9. Nội dung cần anh/chị xác nhận
 

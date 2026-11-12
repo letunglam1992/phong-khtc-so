@@ -2,7 +2,8 @@
 //  /da      — chạy ĐÚNG gas-backend/Code.gs của phần mềm Dự án đầu tư trên bộ giả lập Apps Script của kho đó, nạp 167 dự án từ data.js
 //  /nv.csv  — Sheet nhiệm vụ dạng CSV (dữ liệu THỬ, chỉ dùng trong kiểm thử)
 //  /nv-gas  — action "update" theo đúng luật của Code.gs phần mềm nhiệm vụ (khóa nhận diện + so giá trị gốc)
-//  /sync    — dịch vụ đồng bộ của chính phần mềm này (gas/Code.gs)
+//  /sync    — dịch vụ đồng bộ của chính phần mềm này (rút gọn)
+//  /gas     — chạy ĐÚNG gas/Code.gs của phần mềm này (đồng bộ + văn bản đến) trên tests/gas-env.js; AI giả lập trả JSON rỗng để phần quy tắc tự điền
 const http = require('http'), fs = require('fs'), path = require('path');
 const DA = process.env.DA_REPO || '/home/user/du-an-dau-tu-son-la';
 const { createGasEnv } = require(path.join(DA, 'tests/gas-mock.js'));
@@ -13,6 +14,8 @@ const folder = env.g.getDataFolder_();
 data.projects.forEach(p => folder.createFile('project_' + p.id + '.json', JSON.stringify(p)));
 folder.createFile('land_quota.json', JSON.stringify({ xa_names: [], codes: [] })); folder.createFile('meta.json', JSON.stringify({ data_version: 14 }));
 const p0 = data.projects[0].id;
+const G = require('./gas-env.js').env({ ai: () => ({ code: 200, json: { text: '{"loai":null}' } }) });
+global.__G = G;
 [{ id: 't_a1', tieu_de: 'Việc thử gắn dự án: rà soát hồ sơ đất đai', project_id: p0, han: '2026-11-20', uu_tien: 'cao', trang_thai: 'chua', created_at: '2026-11-01T02:00:00Z' }, { id: 't_a2', tieu_de: 'Việc thử đã xong', project_id: p0, han: '2026-10-10', trang_thai: 'xong', done_at: '2026-10-09T03:00:00Z', created_at: '2026-10-01T02:00:00Z' }].forEach(t => folder.createFile('task_' + t.id + '.json', JSON.stringify(t)));
 
 const H = ['STT', 'Số ký hiệu', 'Trích yếu', 'Loại văn bản', 'Cơ quan ban hành', 'Ngày tháng năm ban hành', 'Nội dung nhiệm vụ', 'Phòng, đơn vị chủ trì', 'Phòng, đơn vị phối hợp', 'Hạn hoàn thành', 'Số văn bản hoàn thành', 'Ngày tháng năm hoàn thành', 'Người tham mưu', 'Lý do chậm', 'Ghi chú', 'Vai trò phòng'];
@@ -51,7 +54,7 @@ http.createServer((q, s) => {
   if (q.url.startsWith('/poke')) { sheet[2][9] = '25/11/2026'; sheet[1][10] = '7000/SNNMT-KHTC'; sheet[1][11] = '04/11/2026'; s.writeHead(200, cors); return s.end('ok'); }
   if (q.url.startsWith('/sheet')) { s.writeHead(200, cors); return s.end(JSON.stringify(sheet)); }
   let b = ''; q.on('data', c => b += c); q.on('end', () => {
-    let out; try { const req = JSON.parse(b || '{}'); out = q.url.startsWith('/da') ? env.post(req) : q.url.startsWith('/nv-gas') ? nvUpdate(req) : q.url.startsWith('/sync') ? sync(req) : { error: 'no route' }; } catch (e) { out = { ok: false, error: String(e) }; }
+    let out; try { const req = JSON.parse(b || '{}'); out = q.url.startsWith('/da') ? env.post(req) : q.url.startsWith('/nv-gas') ? nvUpdate(req) : q.url.startsWith('/sync') ? sync(req) : q.url.startsWith('/gas') ? JSON.parse(G.g.doPost({ postData: { contents: JSON.stringify(req) } }).s) : { error: 'no route' }; } catch (e) { out = { ok: false, error: String(e) }; }
     s.writeHead(200, Object.assign({ 'Content-Type': 'application/json' }, cors)); s.end(JSON.stringify(out));
   });
 }).listen(8765, () => console.log('mock ready'));

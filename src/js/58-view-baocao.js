@@ -82,6 +82,23 @@
       d.h3('Chi tiết đến cấp 3');
       d.table('Chi tiet du toan', [{ t: 'Số TT', w: 8 }, { t: 'Nội dung', w: 70 }, N('Dự toán đầu năm'), N('Tổng được sử dụng'), N('Đã giải ngân'), N('Còn lại'), PC('Tỷ lệ')], tree.flat.filter(n => n.level <= 2).map(n => [n.r.stt || '', '  '.repeat(n.level) + n.r.noiDung, n.sum.duToan, n.sum.tong, n.sum.giaiNgan, n.sum.conLai, n.sum.tyLe === null ? '' : n.sum.tyLe]));
     },
+    gnns(d, P) {
+      const y = +P.to.slice(0, 4), f = { dv: P.dv || '', cb: P.cb || '' }, g = L.giaiNgan(y, f);
+      if (!g.tong) { d.p('Chưa có số liệu dự toán, giải ngân năm ' + y + ' trong phạm vi báo cáo.'); return; }
+      const chuan = g.mt.tuDat ? g.mtNay : g.tyLeTG;
+      d.p('Năm ' + y + (P.dv ? ', ' + S.get('donvi', P.dv).ten : ', các đơn vị dự toán đã nhập') + (P.cb ? ', nội dung do ' + cb(P.cb) + ' theo dõi' : '') + ': tổng kinh phí được sử dụng ' + U.fmtMoney(g.tong) + ' đồng; lũy kế giải ngân đến ngày ' + U.fmtDate(g.asOf) + ' đạt ' + U.fmtMoney(g.gn) + ' đồng, bằng ' + U.fmtPct(g.tyLe) + '; còn ' + U.fmtMoney(g.conLai) + ' đồng chưa giải ngân. ' + (g.mt.tuDat ? 'Mục tiêu lũy kế đến hết tháng ' + g.lastM + ' là ' + U.fmtPct(chuan) : 'Thời gian đã qua ' + U.fmtPct(chuan) + ' của năm') + '; tiến độ ' + (g.lech >= 0 ? 'vượt ' : 'thấp hơn ') + U.fmtNum(Math.abs(g.lech), 1) + ' điểm %.');
+      d.p('Dự báo: theo tốc độ giải ngân hiện tại, đến 31/12/' + y + ' giải ngân khoảng ' + U.fmtMoney(Math.round(g.duBao)) + ' đồng (' + U.fmtPct(U.pct(g.duBao, g.tong)) + ').' + (g.canMoiThang !== null && g.conLai > 0.5 ? ' Để giải ngân hết kế hoạch, bình quân mỗi tháng còn lại cần giải ngân khoảng ' + U.fmtMoney(Math.round(g.canMoiThang)) + ' đồng.' : ''));
+      d.h3('Diễn biến giải ngân lũy kế theo tháng');
+      d.table('Dien bien theo thang', [{ t: 'Tháng', w: 10 }, N('Lũy kế giải ngân'), PC('Tỷ lệ'), PC('Mục tiêu (%)')], g.thang.map((v, i) => v === null ? null : ['Tháng ' + (i + 1), v, U.pct(v, g.tong) || 0, g.mt.vals[i]]).filter(Boolean));
+      if (!P.dv) { d.h3('Theo đơn vị dự toán'); const r = L.gnNhom(y, 'dv'); d.table('GN theo don vi', [{ t: 'Đơn vị', w: 44 }, N('Được sử dụng'), N('Đã giải ngân'), N('Còn lại'), PC('Tỷ lệ'), N('Số nội dung chậm')], r.map(o => [o.ten, o.tong, o.gn, o.con, o.ty || 0, o.cham]), ['Cộng', U.sum(r, o => o.tong), U.sum(r, o => o.gn), U.sum(r, o => o.con), U.pct(U.sum(r, o => o.gn), U.sum(r, o => o.tong)) || 0, U.sum(r, o => o.cham)]); }
+      if (!P.cb) { d.h3('Theo cán bộ theo dõi'); const r = L.gnNhom(y, 'cb').filter(o => !P.dv || true); d.table('GN theo can bo', [{ t: 'Cán bộ', w: 30 }, N('Số nội dung'), N('Được sử dụng'), N('Đã giải ngân'), PC('Tỷ lệ'), N('Số nội dung chậm')], r.map(o => [o.ten, o.n, o.tong, o.gn, o.ty || 0, o.cham])); }
+      const rows = L.gnDong(y, f), cham = rows.filter(x => x.cham).sort((a, b) => b.con - a.con);
+      d.h3('Nội dung giải ngân chậm (' + cham.length + ')');
+      d.table('Noi dung cham', [{ t: 'Nội dung', w: 60 }, { t: 'Đơn vị', w: 20 }, N('Được sử dụng'), N('Đã giải ngân'), N('Còn lại'), PC('Tỷ lệ'), { t: 'Tiến độ, vướng mắc', w: 40 }, { t: 'Cán bộ', w: 16 }], cham.map(x => [(x.r.stt ? x.r.stt + ' ' : '') + x.r.noiDung, Sc.refName('donvi', x.r.donViId), x.tong, x.gn, x.con, x.ty, x.r.tienDo || '', cb(x.r.canBoId)]));
+      const dx = L.gnDeXuat(y, f);
+      d.h3('Đề xuất, kiến nghị');
+      if (dx.length) d.li(dx.map(x => x.t + '. ' + x.d)); else d.p('Tiến độ giải ngân đạt mục tiêu; tiếp tục theo dõi, đôn đốc thanh toán đúng tiến độ.');
+    },
     taisan(d, P) {
       const all = S.all('taisan').filter(t => !P.dv || t.donViId === P.dv);
       d.p((P.dv ? S.get('donvi', P.dv).ten : 'Các đơn vị đã nhập') + ' đang theo dõi ' + U.fmtNum(U.sum(all, t => U.num(t.soLuong) || 1), 0) + ' tài sản (' + all.length + ' dòng), tổng nguyên giá ' + U.fmtMoney(U.sum(all, t => t.nguyenGia)) + ' đồng, giá trị còn lại ' + U.fmtMoney(U.sum(all, t => t.conLai)) + ' đồng.');
@@ -114,12 +131,17 @@
       if (P.dv) { d.h3('Danh mục tài sản'); d.table('Danh muc tai san', [{ t: 'Mã', w: 14 }, { t: 'Tài sản', w: 40 }, { t: 'Loại', w: 26 }, { t: 'Năm SD', w: 8 }, N('Nguyên giá'), N('Giá trị còn lại'), { t: 'Tình trạng', w: 22 }], all.map(t => [t.ma || '', t.ten, t.loai || '', t.namSD || '', U.num(t.nguyenGia), U.num(t.conLai), t.tinhTrang || ''])); }
     },
     dauthau(d, P) {
-      const gts = S.all('goithau').filter(g => (!P.duan || g.duAnId === P.duan) && (!P.dv || g.donViId === P.dv)), hds = S.all('hopdong').filter(h => !P.duan || h.duAnId === P.duan);
-      d.p('Đang theo dõi ' + gts.length + ' gói thầu, nội dung mua sắm với tổng giá gói thầu ' + U.fmtMoney(U.sum(gts, g => g.giaGoiThau)) + ' đồng; ' + gts.filter(g => ['cokq', 'dakyhd'].includes(g.trangThai)).length + ' gói đã có kết quả lựa chọn nhà thầu với tổng giá trúng thầu ' + U.fmtMoney(U.sum(gts, g => g.giaTrung)) + ' đồng. Có ' + hds.length + ' hợp đồng, tổng giá trị ' + U.fmtMoney(U.sum(hds, h => h.giaTri)) + ' đồng, đã thanh toán ' + U.fmtMoney(U.sum(hds, h => L.hd(h).thanhToan)) + ' đồng.');
-      d.h3('Gói thầu, mua sắm');
-      d.table('Goi thau', [{ t: 'Gói thầu', w: 60 }, { t: 'Loại', w: 16 }, N('Giá gói thầu'), { t: 'Hình thức LCNT', w: 22 }, { t: 'QĐ phê duyệt KHLCNT', w: 24 }, { t: 'Nhà thầu trúng thầu', w: 30 }, N('Giá trúng thầu'), { t: 'Tình trạng', w: 22 }], gts.map(g => [g.ten, g.loai || '', U.num(g.giaGoiThau), g.hinhThuc || '', [g.qdKHSo, U.fmtDate(g.qdKHNgay)].filter(Boolean).join(' ngày '), g.nhaThau || '', U.num(g.giaTrung) || '', L.gt(g).label + (L.gt(g).note ? ' — ' + L.gt(g).note : '')]), ['Cộng', '', U.sum(gts, g => g.giaGoiThau), '', '', '', U.sum(gts, g => g.giaTrung), '']);
-      d.h3('Hợp đồng');
-      d.table('Hop dong', [{ t: 'Số hợp đồng', w: 20 }, { t: 'Nội dung', w: 50 }, { t: 'Nhà thầu', w: 30 }, N('Giá trị'), N('Tạm ứng'), N('Đã thanh toán'), N('Còn lại'), { t: 'Hạn hoàn thành', w: 14 }, { t: 'Tình trạng', w: 26 }], hds.map(h => { const x = L.hd(h); return [h.so, h.ten || '', h.nhaThau || '', U.num(h.giaTri), U.num(h.tamUng), x.thanhToan, x.conLai, U.fmtDate(h.ngayKT), x.label + (x.note ? ' — ' + x.note : '')]; }), ['Cộng', '', '', U.sum(hds, h => h.giaTri), U.sum(hds, h => h.tamUng), U.sum(hds, h => L.hd(h).thanhToan), U.sum(hds, h => L.hd(h).conLai), '', '']);
+      const t = L.dtTong({ duan: P.duan, cb: P.cb }), viec = L.dtViec({ duan: P.duan, cb: P.cb });
+      d.p('Sở đang theo dõi ' + t.soGT + ' gói thầu, nội dung mua sắm với tổng giá gói thầu ' + U.fmtMoney(t.giaGT) + ' đồng; trong đó ' + t.soChuaTC + ' gói chưa tổ chức lựa chọn nhà thầu, ' + t.soDangLC + ' gói đang lựa chọn nhà thầu, ' + t.soCoKQ + ' gói đã có kết quả với tổng giá trúng thầu ' + U.fmtMoney(t.giaTrung) + ' đồng' + (t.tietKiem ? ', giá trị tiết kiệm ' + U.fmtMoney(t.tietKiem) + ' đồng (' + U.fmtPct(t.tyLeTK) + ')' : '') + '.');
+      d.p('Có ' + t.soHD + ' hợp đồng (' + t.soHDDang + ' đang thực hiện), tổng giá trị sau điều chỉnh ' + U.fmtMoney(t.giaHD) + ' đồng; đã nghiệm thu ' + U.fmtMoney(t.daNT) + ' đồng; đã thanh toán ' + U.fmtMoney(t.daTT) + ' đồng (' + U.fmtPct(t.tyLeTT) + '); tạm ứng chưa thu hồi ' + U.fmtMoney(t.tamUngCon) + ' đồng.' + (t.quaHanLC || t.quaHanHD ? ' Có ' + t.quaHanLC + ' gói thầu quá thời hạn lựa chọn nhà thầu và ' + t.quaHanHD + ' hợp đồng quá thời hạn thực hiện.' : ''));
+      d.h3('Tình hình theo bước lựa chọn nhà thầu');
+      d.table('Goi thau theo buoc', [{ t: 'Bước', w: 36 }, N('Số gói'), N('Giá gói thầu')], t.byTT.filter(o => o.n).map(o => [o.ten, o.n, o.gia]), ['Cộng', t.soGT, t.giaGT]);
+      d.h3('Danh mục gói thầu, mua sắm');
+      d.table('Goi thau', [{ t: 'Gói thầu', w: 60 }, { t: 'Loại', w: 16 }, N('Giá gói thầu'), { t: 'Hình thức, phương thức LCNT', w: 26 }, { t: 'QĐ phê duyệt KHLCNT', w: 24 }, { t: 'Nhà thầu trúng thầu', w: 30 }, N('Giá trúng thầu'), N('Tiết kiệm'), { t: 'Tình trạng', w: 26 }, { t: 'Cán bộ', w: 16 }], t.gts.map(g => { const x = L.gt(g); return [g.ten, g.loai || '', U.num(g.giaGoiThau), [g.hinhThuc, g.phuongThuc].filter(Boolean).join('; '), [g.qdKHSo, U.fmtDate(g.qdKHNgay)].filter(Boolean).join(' ngày '), g.nhaThau || '', U.num(g.giaTrung) || '', x.tietKiem === null ? '' : x.tietKiem, x.label + (x.note ? ' — ' + x.note : ''), cb(g.canBoId)]; }), ['Cộng', '', t.giaGT, '', '', '', t.giaTrung, t.tietKiem, '', '']);
+      d.h3('Tình hình thực hiện hợp đồng');
+      d.table('Hop dong', [{ t: 'Số hợp đồng', w: 20 }, { t: 'Nội dung', w: 46 }, { t: 'Nhà thầu', w: 28 }, N('Giá trị sau phụ lục'), N('Đã nghiệm thu'), N('Đã thanh toán'), PC('Tỷ lệ TT'), N('Tạm ứng chưa thu hồi'), { t: 'Thời hạn', w: 14 }, { t: 'Tình trạng', w: 30 }], t.hx.map(({ h, x }) => [h.so, h.ten || '', h.nhaThau || '', x.giaTriHL, x.nghiemThu, x.thanhToan, x.tyLeTT === null ? '' : x.tyLeTT, x.tamUngCon, U.fmtDate(x.han) + (x.giaHan ? ' (đã gia hạn)' : ''), x.label + (x.note ? ' — ' + x.note : '')]), ['Cộng', '', '', t.giaHD, t.daNT, t.daTT, t.tyLeTT === null ? '' : t.tyLeTT, t.tamUngCon, '', '']);
+      d.h3('Tồn tại, việc cần xử lý (' + viec.length + ')');
+      if (viec.length) d.li(viec.map(v => v.title + ': ' + v.detail + '.')); else d.p('Không có gói thầu, hợp đồng quá hạn hoặc cần xử lý.');
     },
     canbo(d, P) {
       const y = +P.to.slice(0, 4), nvs = L.nvOfYear(y), rows = L.canBoStats(nvs).filter(r => !P.cb || r.c.id === P.cb), dms = S.all('danhmuc');
@@ -166,6 +188,7 @@
     ['nhiemvu', 'Báo cáo tổng hợp nhiệm vụ của Phòng', 'Tổng hợp tình hình thực hiện nhiệm vụ'],
     ['duan', 'Báo cáo tình hình thực hiện chương trình, dự án', 'Tình hình thực hiện chương trình, dự án'],
     ['giaingan', 'Báo cáo giải ngân vốn', 'Tình hình giải ngân vốn'],
+    ['gnns', 'Báo cáo tiến độ giải ngân dự toán ngân sách', 'Tiến độ giải ngân dự toán ngân sách nhà nước'],
     ['ngansach', 'Báo cáo tài chính, ngân sách', 'Tình hình thực hiện dự toán ngân sách'],
     ['taisan', 'Báo cáo quản lý tài sản công', 'Tình hình quản lý, sử dụng tài sản công'],
     ['dauthau', 'Báo cáo tình hình mua sắm, đấu thầu', 'Tình hình mua sắm, đấu thầu, thực hiện hợp đồng'],

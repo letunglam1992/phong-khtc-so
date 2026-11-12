@@ -2,7 +2,18 @@
 const fs = require('fs'), path = require('path');
 const R = p => fs.readFileSync(path.join(__dirname, p), 'utf8');
 const jsDir = path.join(__dirname, 'src/js');
-const js = fs.readdirSync(jsDir).filter(f => f.endsWith('.js')).sort().map(f => '/* ===== ' + f + ' ===== */\n' + R('src/js/' + f)).join('\n');
+// Mô-đun dùng chung trình duyệt + Apps Script: chép vào vùng @@BEGIN/@@END của gas/Code.gs
+const shared = fs.readdirSync(path.join(__dirname, 'src/shared')).filter(f => f.endsWith('.js')).sort();
+let gas = R('gas/Code.gs');
+shared.forEach(f => {
+  const name = f.replace(/\.js$/, ''), body = R('src/shared/' + f).replace(/\nif \(typeof module[^\n]*\n?$/, '\n');
+  const re = new RegExp('// @@BEGIN ' + name + '\\n[\\s\\S]*?// @@END ' + name);
+  if (!re.test(gas)) throw new Error('Thiếu vùng @@BEGIN ' + name + ' trong gas/Code.gs');
+  gas = gas.replace(re, () => '// @@BEGIN ' + name + '\n' + body.trimEnd() + '\n// @@END ' + name);
+});
+fs.writeFileSync(path.join(__dirname, 'gas/Code.gs'), gas);
+const sharedJs = shared.map(f => '/* ===== shared/' + f + ' ===== */\n' + R('src/shared/' + f)).join('\n');
+const js = sharedJs + '\n' + fs.readdirSync(jsDir).filter(f => f.endsWith('.js')).sort().map(f => '/* ===== ' + f + ' ===== */\n' + R('src/js/' + f)).join('\n');
 const safe = s => s.replace(/<\/script/gi, '<\\/script');
 const html = `<!DOCTYPE html>
 <html lang="vi" data-theme="light">

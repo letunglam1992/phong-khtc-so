@@ -18,20 +18,23 @@
     { t: 'Cơ sở nhà, đất (theo Phụ biểu 0A.01-T.STC)', key: 'nhadat', keys: ['donViGiao', 'ndNgay', 'dtNha', 'dtDat', 'htSD', 'gcnTT', 'gcnSo', 'gcnNgay', 'hsDayDu', 'hsThieu', 'chuaDKBD', 'nguyenNhanHS', 'ghiChuBieu'] },
     { t: 'Biến động và hồ sơ', keys: ['bienDong', 'dinhKem', 'ghiChu'] }];
   Sc.C.goithau.sections = [
-    { t: 'Gói thầu, nhu cầu mua sắm', keys: ['ten', 'duAnId', 'donViId', 'loai', 'nguonVon', 'duToan', 'giaGoiThau', 'hinhThuc'] },
-    { t: 'Kế hoạch lựa chọn nhà thầu', keys: ['qdKHSo', 'qdKHNgay', 'hanLCNT', 'trangThai'] },
-    { t: 'Kết quả', keys: ['nhaThau', 'giaTrung', 'qdKQSo', 'qdKQNgay'] },
+    { t: 'Gói thầu, nhu cầu mua sắm', keys: ['ten', 'duAnId', 'donViId', 'loai', 'nguonVon', 'nsId', 'duToan', 'giaGoiThau'] },
+    { t: 'Kế hoạch lựa chọn nhà thầu', keys: ['hinhThuc', 'phuongThuc', 'loaiHD', 'tgBatDauLCNT', 'tgThucHienHD', 'qdKHSo', 'qdKHNgay', 'hanLCNT'] },
+    { t: 'Tổ chức lựa chọn nhà thầu', keys: ['soTBMT', 'tienTrinh', 'trangThai'] },
+    { t: 'Kết quả lựa chọn nhà thầu', keys: ['nhaThau', 'giaTrung', 'qdKQSo', 'qdKQNgay'] },
     { t: 'Theo dõi', keys: ['canBoId', 'dinhKem', 'ghiChu'] }];
   Sc.C.hopdong.sections = [
-    { t: 'Hợp đồng', keys: ['so', 'ngayKy', 'ten', 'goiThauId', 'duAnId', 'nhaThau', 'loaiHD', 'giaTri', 'ngayBD', 'ngayKT'] },
-    { t: 'Tạm ứng, thanh toán, nghiệm thu', keys: ['tamUng', 'thanhToan', 'nghiemThu'] },
-    { t: 'Thanh lý, theo dõi', keys: ['trangThai', 'thanhLyNgay', 'thanhLySo', 'canBoId', 'dinhKem', 'ghiChu'] }];
+    { t: 'Hợp đồng', keys: ['so', 'ngayKy', 'ten', 'goiThauId', 'duAnId', 'nhaThau', 'loaiHD', 'giaTri', 'nsId', 'ngayBD', 'ngayKT'] },
+    { t: 'Bảo lãnh, tạm ứng', keys: ['baoLanhTH', 'baoLanhTHHan', 'tamUng', 'baoLanhTU', 'baoLanhTUHan', 'tamUngThuHoi'] },
+    { t: 'Phụ lục, điều chỉnh hợp đồng', keys: ['phuLuc'] },
+    { t: 'Thực hiện, nghiệm thu, thanh toán', keys: ['tienDoKL', 'nghiemThu', 'thanhToan'] },
+    { t: 'Thanh lý, quyết toán, theo dõi', keys: ['trangThai', 'thanhLyNgay', 'thanhLySo', 'quyetToanHD', 'canBoId', 'dinhKem', 'ghiChu'] }];
 
   /* ================= TÀI CHÍNH, NGÂN SÁCH ================= */
   const NS_COLS = [['chuyenNguon', 'Chuyển nguồn'], ['duToan', 'Dự toán đầu năm'], ['boSung', 'Bổ sung'], ['dcTang', 'ĐC tăng'], ['dcGiam', 'ĐC giảm'], ['thuHoi', 'Thu hồi'], ['tietKiem', 'Tiết kiệm'], ['tong', 'Tổng được sử dụng'], ['giaiNgan', 'Đã giải ngân'], ['conLai', 'Còn lại']];
   A.openers.ngansach = id => UI.detail({
     coll: 'ngansach', id,
-    head: r => { const kids = S.all('ngansach').filter(x => x.parentId === r.id); return '<div class="kpis mb"><div class="kpi acc static"><span class="k-l">Tổng kinh phí được sử dụng</span><span class="k-v"><small>' + U.fmtMoney(L.nsTong(r)) + '</small></span><span class="k-s">= chuyển nguồn + dự toán + bổ sung + tăng − giảm − thu hồi − tiết kiệm</span></div><div class="kpi ok static"><span class="k-l">Đã giải ngân</span><span class="k-v">' + U.fmtPct(U.pct(U.num(r.giaiNgan), L.nsTong(r))) + '</span><span class="k-s">' + U.fmtMoney(U.num(r.giaiNgan)) + ' đồng</span></div></div>' + (kids.length ? '<div class="note warn mb">Dòng này có ' + kids.length + ' dòng con. Trên bảng, số của dòng được tính bằng tổng các dòng con; số nhập trực tiếp ở dòng này không được cộng.</div>' : ''); }
+    head: r => { const kids = S.all('ngansach').filter(x => x.parentId === r.id); return '<div class="kpis mb"><div class="kpi acc static"><span class="k-l">Tổng kinh phí được sử dụng</span><span class="k-v"><small>' + U.fmtMoney(L.nsTong(r)) + '</small></span><span class="k-s">= chuyển nguồn + dự toán + bổ sung + tăng − giảm − thu hồi − tiết kiệm</span></div><div class="kpi ok static"><span class="k-l">Đã giải ngân</span><span class="k-v">' + U.fmtPct(U.pct(U.num(r.giaiNgan), L.nsTong(r))) + '</span><span class="k-s">' + U.fmtMoney(U.num(r.giaiNgan)) + ' đồng</span></div></div>' + (kids.length ? '<div class="note warn mb">Dòng này có ' + kids.length + ' dòng con. Trên bảng, số của dòng được tính bằng tổng các dòng con; số nhập trực tiếp ở dòng này không được cộng.</div>' : A.gnHistHtml(r)); }
   });
 
   async function importBudget() {
@@ -62,23 +65,32 @@
       if (!dvId) { UI.toast('Chưa có đơn vị dự toán. Thêm đơn vị ở trang Cán bộ và phân công.', 'bad'); return; }
       if (!(nam >= 2000 && nam <= 2100)) { UI.toast('Năm ngân sách không hợp lệ.', 'bad'); return; }
       const old = S.all('ngansach').filter(r => r.donViId === dvId && +r.nam === nam);
-      if (old.length && !await UI.confirm({ title: 'Thay thế dự toán đang có?', msg: 'Đơn vị "' + Sc.refName('donvi', dvId) + '" năm ' + nam + ' đã có ' + old.length + ' dòng dự toán. Nhập biểu mới sẽ thay toàn bộ các dòng đó.\n\nPhần mềm tự lưu một bản chụp dữ liệu trước khi thay (khôi phục tại Thiết lập).', ok: 'Thay thế', danger: true })) return;
+      // Ghép với dòng cũ theo số thứ tự + nội dung: giữ mã dòng, lịch sử giải ngân, cán bộ theo dõi, số quyết toán
+      const key = r => U.norm(r.stt) + '|' + U.norm(r.noiDung), byKey = new Map(), byND = new Map();
+      old.forEach(r => { if (!byKey.has(key(r))) byKey.set(key(r), r); const k2 = U.norm(r.noiDung); if (!byND.has(k2)) byND.set(k2, r); });
+      const used = new Set(), match = parsed.items.map(it => { let r = byKey.get(key(it)); if (!r || used.has(r.id)) r = byND.get(U.norm(it.noiDung)); if (r && used.has(r.id)) r = null; if (r) used.add(r.id); return r || null; });
+      const bo = old.filter(r => !used.has(r.id));
+      if (old.length && !await UI.confirm({ title: 'Cập nhật số liệu giải ngân?', msg: 'Đơn vị "' + Sc.refName('donvi', dvId) + '" năm ' + nam + ' đã có ' + old.length + ' dòng dự toán.\n\n• ' + used.size + ' dòng khớp: cập nhật số mới, ghi thêm mốc giải ngân ngày ' + (U.fmtDate(ngay) || 'hôm nay') + ' vào lịch sử, giữ cán bộ theo dõi.\n• ' + (parsed.items.length - used.size) + ' dòng mới được thêm.' + (bo.length ? '\n• ' + bo.length + ' dòng cũ không còn trên biểu sẽ bị xóa.' : '') + '\n\nPhần mềm tự lưu một bản chụp dữ liệu trước khi cập nhật (khôi phục tại Thiết lập).', ok: 'Cập nhật' })) return;
       try {
-        if (old.length) { await S.snapshot('Trước khi nhập lại biểu dự toán ' + nam); await S.removeMany(old.map(r => ['ngansach', r.id]), 'Xóa ' + old.length + ' dòng dự toán cũ của ' + Sc.refName('donvi', dvId) + ' năm ' + nam + ' để nhập lại'); }
-        const ids = parsed.items.map(() => U.uid('ns')), cbs = S.all('canbo');
+        if (old.length) await S.snapshot('Trước khi nhập lại biểu dự toán ' + nam);
+        if (bo.length) await S.removeMany(bo.map(r => ['ngansach', r.id]), 'Xóa ' + bo.length + ' dòng dự toán không còn trên biểu mới của ' + Sc.refName('donvi', dvId) + ' năm ' + nam);
+        const ids = parsed.items.map((_, i) => match[i] ? match[i].id : U.uid('ns')), cbs = S.all('canbo'), ngayHS = U.isISO(ngay) ? ngay : U.today();
         const items = parsed.items.map((it, i) => {
           const n = U.norm(it.noiDung), kt = U.norm(it.keToan).replace(/^d\/c\s*/, '');
           const cb = kt ? cbs.find(c => U.norm(c.tenGoi) === kt || U.norm(c.hoTen) === kt) : null;
-          const rec = { id: ids[i], nam, donViId: dvId, parentId: it.parent >= 0 ? ids[it.parent] : '', stt: it.stt, noiDung: it.noiDung, thuTu: i, quyetDinh: it.quyetDinh, tienDo: it.tienDo, canBoId: cb ? cb.id : '', ghiChu: it.keToan && !cb ? 'Người thực hiện ghi trên biểu: ' + it.keToan : '', ngayGN: ngay, nhomKP: '', createdAt: U.nowStamp() };
+          const cu = match[i];
+          const rec = { id: ids[i], nam, donViId: dvId, parentId: it.parent >= 0 ? ids[it.parent] : '', stt: it.stt, noiDung: it.noiDung, thuTu: i, quyetDinh: it.quyetDinh, tienDo: it.tienDo, canBoId: cb ? cb.id : (cu && cu.canBoId) || '', ghiChu: it.keToan && !cb ? 'Người thực hiện ghi trên biểu: ' + it.keToan : (cu && cu.ghiChu) || '', ngayGN: ngay, nhomKP: (cu && cu.nhomKP) || '' };
+          if (!cu) rec.createdAt = U.nowStamp();
+          if (!it.isGroup) rec.gnHist = L.gnPush(cu ? (cu.gnHist && cu.gnHist.length ? cu.gnHist : L.gnHistOf(cu)) : [], ngayHS, it.giaiNgan, 'excel');
           ['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi', 'tietKiem', 'giaiNgan'].forEach(k => { rec[k] = it[k]; });
-          if (it.level <= 1) rec.nhomKP = n.includes('khong tu chu') ? 'Kinh phí không thường xuyên (không tự chủ)' : (n.includes('tu chu') || n.includes('tien thuong') || n.includes('tien luong')) ? 'Kinh phí thường xuyên (tự chủ)' : n.includes('chuong trinh') ? 'Kinh phí chương trình, đề án' : '';
+          if (it.level <= 1 && !rec.nhomKP) rec.nhomKP = n.includes('khong tu chu') ? 'Kinh phí không thường xuyên (không tự chủ)' : (n.includes('tu chu') || n.includes('tien thuong') || n.includes('tien luong')) ? 'Kinh phí thường xuyên (tự chủ)' : n.includes('chuong trinh') ? 'Kinh phí chương trình, đề án' : '';
           if (it.isGroup) { rec.goc = { tong: it.tongGoc }; ['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi', 'tietKiem', 'giaiNgan'].forEach(k => { rec.goc[k] = it[k]; }); }
           const m2 = it.noiDung.match(/Ch[ưu]ơng\s*\d+[;,\s-]*(Kho[ảa]n|Lo[ạa]i)\s*\d+/i); if (m2) rec.chuongKhoan = m2[0];
           return { c: 'ngansach', rec };
         });
         await S.saveMany(items, { note: 'Nhập ' + items.length + ' dòng dự toán năm ' + nam + ' của ' + Sc.refName('donvi', dvId) + ' từ tệp ' + fname });
         if (!A.Store.cfg.nam || A.Store.cfg.nam !== nam) await S.setCfg({ nam });
-        A.vs.nsSel = { dv: dvId, lv: 9, tab: 'ct' };
+        A.vs.nsSel = { dv: dvId, lv: 9, tab: 'tq' };
         m.close(); UI.toast('Đã nhập ' + items.length + ' dòng dự toán.', 'ok');
       } catch (er) { UI.fail(er); }
     };
@@ -97,27 +109,28 @@
   A.views.ngansach = {
     title: 'Tài chính, ngân sách', sub: 'Dự toán, phân bổ, điều chỉnh, giải ngân thanh toán và quyết toán kinh phí của các đơn vị dự toán thuộc Sở',
     render(root) {
-      const y = A.year() || +U.today().slice(0, 4), Sel = A.vs.nsSel || (A.vs.nsSel = { dv: '', lv: 9, tab: 'ct' });
+      const y = A.year() || +U.today().slice(0, 4), Sel = A.vs.nsSel || (A.vs.nsSel = { dv: '', lv: 9, tab: 'tq' });
       const dvs = S.all('donvi'); if (Sel.dv && !S.get('donvi', Sel.dv)) Sel.dv = '';
       const tree = L.nsTree(y, Sel.dv || null), T = tree.total, has = tree.count > 0;
       const nLech = tree.flat.filter(n => n.lech.length).length;
       const years = Array.from(new Set(S.all('ngansach').map(r => +r.nam))).sort();
       let h = (!A.year() ? '<div class="note mb">Đang chọn "Tất cả các năm" — dự toán luôn xem theo từng năm, nên trang này hiển thị năm ' + y + '.' + (years.length ? ' Các năm có dữ liệu: ' + years.join(', ') + '.' : '') + '</div>' : '') +
         '<div class="kpis mb"><div class="kpi static"><span class="k-l">Dự toán giao đầu năm ' + y + '</span><span class="k-v"><small>' + (has ? U.fmtShort(T.duToan) : '—') + '</small></span><span class="k-s">' + (has ? 'Chuyển nguồn ' + U.fmtShort(T.chuyenNguon) : '') + '</span></div><div class="kpi static"><span class="k-l">Điều chỉnh, bổ sung trong năm</span><span class="k-v"><small>' + (has ? U.fmtShort(T.boSung + T.dcTang - T.dcGiam - T.thuHoi) : '—') + '</small></span><span class="k-s">' + (has ? 'Bổ sung ' + U.fmtShort(T.boSung) + ' · thu hồi ' + U.fmtShort(T.thuHoi) : '') + '</span></div><div class="kpi acc static"><span class="k-l">Tổng kinh phí được sử dụng</span><span class="k-v"><small>' + (has ? U.fmtShort(T.tong) : '—') + '</small></span><span class="k-s">' + (has ? 'Tiết kiệm ' + U.fmtShort(T.tietKiem) : '') + '</span></div><div class="kpi ok static"><span class="k-l">Đã giải ngân, thanh toán</span><span class="k-v">' + (has ? U.fmtPct(T.tyLe) : '—') + '</span><span class="k-s">' + (has ? U.fmtShort(T.giaiNgan) : '') + '</span></div><div class="kpi warn static"><span class="k-l">Kinh phí còn lại</span><span class="k-v"><small>' + (has ? U.fmtShort(T.conLai) : '—') + '</small></span></div><div class="kpi teal static"><span class="k-l">Đã quyết toán</span><span class="k-v"><small>' + (has && T.quyetToan ? U.fmtShort(T.quyetToan) : '—') + '</small></span><span class="k-s">' + (has && T.quyetToan ? U.fmtPct(U.pct(T.quyetToan, T.tong)) + ' so với được sử dụng' : 'Chưa nhập số quyết toán') + '</span></div></div>' +
-        '<div class="tabs" role="tablist">' + [['ct', 'Chi tiết dự toán'], ['dv', 'Tổng hợp theo đơn vị'], ['nhom', 'Dự toán – thực hiện – quyết toán']].map(t => '<button role="tab" data-tab="' + t[0] + '" class="' + (Sel.tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</div>';
+        '<div class="tabs" role="tablist">' + [['tq', 'Tổng quan giải ngân'], ['cn', 'Cập nhật giải ngân'], ['ct', 'Chi tiết dự toán'], ['dv', 'Theo đơn vị'], ['nhom', 'Dự toán – thực hiện – quyết toán'], ['ls', 'Lịch sử giải ngân']].map(t => '<button role="tab" data-tab="' + t[0] + '" class="' + (Sel.tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</div>';
       if (Sel.tab === 'ct') {
         h += '<div class="toolbar"><select class="sel" data-dv aria-label="Đơn vị dự toán"><option value="">Tất cả đơn vị</option>' + dvs.map(d => '<option value="' + d.id + '"' + (d.id === Sel.dv ? ' selected' : '') + '>' + e(d.ten) + '</option>').join('') + '</select><div class="seg" aria-label="Mức chi tiết">' + [[0, 'Cấp 1'], [1, 'Cấp 2'], [2, 'Cấp 3'], [9, 'Tất cả']].map(s => '<button data-lv="' + s[0] + '" class="' + (Sel.lv === s[0] ? 'on' : '') + '">' + s[1] + '</button>').join('') + '</div><div class="search" style="max-width:260px">' + ic('search', 16) + '<input class="inp" type="search" data-q placeholder="Tìm nội dung…" aria-label="Tìm nội dung"></div><span class="sp"></span><button class="btn" data-xls>' + ic('download', 16) + 'Xuất Excel</button><button class="btn" data-imp>' + ic('upload', 16) + 'Nhập biểu giải ngân</button><button class="btn primary" data-add>' + ic('plus', 16) + 'Thêm dòng dự toán</button></div>' +
           (nLech ? '<div class="note warn mb"><b>' + nLech + ' dòng tổng có số nhập từ Excel khác tổng các dòng chi tiết</b> (đánh dấu ⚠). Phần mềm hiển thị tổng các dòng chi tiết; số gốc trên biểu xem khi rê chuột vào dấu ⚠. Cần rà soát lại biểu gốc.</div>' : '') + '<div data-tree></div>';
       } else if (Sel.tab === 'dv') {
         const rows = L.nsByDonVi(y);
         h += rows.length ? '<div class="grid-21"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Đơn vị dự toán</th><th class="num">Dự toán đầu năm</th><th class="num">Tổng được sử dụng</th><th class="num">Đã giải ngân</th><th class="num">Còn lại</th><th class="num">Quyết toán</th><th>Tỷ lệ giải ngân</th></tr></thead><tbody>' + rows.map(x => '<tr class="click" data-pick="' + x.dv.id + '"><td><b>' + e(x.dv.ten) + '</b></td><td class="num">' + U.fmtMoney(x.total.duToan) + '</td><td class="num">' + U.fmtMoney(x.total.tong) + '</td><td class="num">' + U.fmtMoney(x.total.giaiNgan) + '</td><td class="num">' + U.fmtMoney(x.total.conLai) + '</td><td class="num">' + U.fmtMoney(x.total.quyetToan) + '</td><td style="min-width:130px">' + UI.pbar(x.total.tyLe || 0) + '</td></tr>').join('') + '</tbody><tfoot><tr><td>Toàn ngành (' + rows.length + ' đơn vị có dữ liệu)</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.duToan)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.tong)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.giaiNgan)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.conLai)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.quyetToan)) + '</td><td>' + U.fmtPct(U.pct(U.sum(rows, x => x.total.giaiNgan), U.sum(rows, x => x.total.tong))) + '</td></tr></tfoot></table></div><div class="card"><div class="card-h"><h3>Đơn vị chưa có dự toán năm ' + y + '</h3></div><div class="card-b">' + (dvs.filter(d => !rows.some(x => x.dv.id === d.id)).map(d => '<div class="small">' + e(d.ten) + '</div>').join('') || '<div class="small muted">Mọi đơn vị đều đã có dữ liệu.</div>') + '</div></div></div>' : '<div class="card">' + UI.empty('Chưa có dự toán năm ' + y, 'Nhập biểu giải ngân từ Excel hoặc thêm từng dòng ở thẻ "Chi tiết dự toán".') + '</div>';
-      } else {
+      } else if (Sel.tab === 'nhom') {
         const g = L.nsByNhom(y), ty = v => U.fmtNum(v / 1e9, v >= 1e10 ? 0 : 1);
         h += g.length ? '<div class="grid2"><div class="card"><div class="card-h"><h3>So sánh dự toán, thực hiện, quyết toán</h3><div class="sub">Tỷ đồng — theo nhóm kinh phí, năm ' + y + '</div></div><div class="card-b">' + UI.bars({ cats: g.map(x => U.trunc(x.k.replace('Kinh phí ', ''), 22)), fmt: ty, labels: true, series: [{ name: 'Được sử dụng', color: 'var(--violet)', vals: g.map(x => x.tong) }, { name: 'Đã giải ngân', color: 'var(--accent)', vals: g.map(x => x.giaiNgan) }, { name: 'Quyết toán', color: 'var(--teal)', vals: g.map(x => x.quyetToan) }] }) + '</div></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nhóm kinh phí</th><th class="num">Dự toán đầu năm</th><th class="num">Được sử dụng</th><th class="num">Đã giải ngân</th><th class="num">Quyết toán</th><th class="num">Giải ngân − quyết toán</th></tr></thead><tbody>' + g.map(x => '<tr><td>' + e(x.k) + '</td><td class="num">' + U.fmtMoney(x.duToan) + '</td><td class="num">' + U.fmtMoney(x.tong) + '</td><td class="num">' + U.fmtMoney(x.giaiNgan) + '</td><td class="num">' + U.fmtMoney(x.quyetToan) + '</td><td class="num">' + (x.quyetToan ? U.fmtMoney(x.giaiNgan - x.quyetToan) : '—') + '</td></tr>').join('') + '</tbody><tfoot><tr><td>Cộng</td><td class="num">' + U.fmtMoney(U.sum(g, x => x.duToan)) + '</td><td class="num">' + U.fmtMoney(U.sum(g, x => x.tong)) + '</td><td class="num">' + U.fmtMoney(U.sum(g, x => x.giaiNgan)) + '</td><td class="num">' + U.fmtMoney(U.sum(g, x => x.quyetToan)) + '</td><td></td></tr></tfoot></table></div></div><div class="note mt">Nhóm kinh phí lấy theo trường "Nhóm kinh phí" của dòng hoặc của dòng cấp trên gần nhất. Dòng chưa phân nhóm được gộp vào "(chưa phân nhóm)".</div>' : '<div class="card">' + UI.empty('Chưa có dự toán năm ' + y, '') + '</div>';
-      }
+      } else h += '<div data-gn></div>';
       root.innerHTML = h;
       $$('[data-tab]', root).forEach(b => b.onclick = () => { Sel.tab = b.dataset.tab; A.render(); });
       $$('[data-pick]', root).forEach(tr => tr.onclick = () => { Sel.dv = tr.dataset.pick; Sel.tab = 'ct'; A.render(); });
+      if ($('[data-gn]', root)) { A.gnPane(Sel.tab, $('[data-gn]', root), y, Sel, { importBudget }); return; }
       if (Sel.tab !== 'ct') return;
       const box = $('[data-tree]', root);
       const draw = q => {
@@ -353,12 +366,19 @@
   }
   A.openers.goithau = id => UI.detail({
     coll: 'goithau', id,
-    head: g => { const x = L.gt(g), hd = S.all('hopdong').filter(h => h.goiThauId === g.id); return '<div class="gap mb">' + UI.chip(x.st, x.label) + (x.note ? '<span class="chip plain ' + (x.over ? 'quahan' : 'saphan') + '">' + e(x.note) + '</span>' : '') + (x.chuaHD ? '<span class="chip plain saphan">Đã có kết quả, chưa nhập hợp đồng</span>' : '') + (U.num(g.giaTrung) && U.num(g.giaGoiThau) ? '<span class="tag">Chênh lệch so với giá gói thầu: ' + U.fmtMoney(U.num(g.giaGoiThau) - U.num(g.giaTrung)) + ' đồng (' + U.fmtPct(U.pct(U.num(g.giaGoiThau) - U.num(g.giaTrung), U.num(g.giaGoiThau))) + ')</span>' : '') + '</div>' + (hd.length ? '<div class="note mb">Hợp đồng: ' + hd.map(h => '<a href="#" data-open="hopdong:' + h.id + '">' + e(h.so) + '</a>').join(', ') + '</div>' : ''); },
+    head: g => { const x = L.gt(g), hd = S.all('hopdong').filter(h => h.goiThauId === g.id); return '<div class="gap mb">' + UI.chip(x.st, x.label) + (x.note ? '<span class="chip plain ' + (x.over ? 'quahan' : 'saphan') + '">' + e(x.note) + '</span>' : '') + (x.chuaHD ? '<span class="chip plain saphan">Đã có kết quả, chưa nhập hợp đồng</span>' : '') + (U.num(g.giaTrung) && U.num(g.giaGoiThau) ? '<span class="tag">Chênh lệch so với giá gói thầu: ' + U.fmtMoney(U.num(g.giaGoiThau) - U.num(g.giaTrung)) + ' đồng (' + U.fmtPct(U.pct(U.num(g.giaGoiThau) - U.num(g.giaTrung), U.num(g.giaGoiThau))) + ')</span>' : '') + '</div>' + A.gtStepper(g) + (hd.length ? '<div class="note mb">Hợp đồng: ' + hd.map(h => '<a href="#" data-open="hopdong:' + h.id + '">' + e(h.so) + '</a>').join(', ') + '</div>' : ''); },
     actions: [{ label: 'Tạo hợp đồng', icon: 'plus', on: (g, a) => { a.close(true); UI.form({ coll: 'hopdong', rec: { goiThauId: g.id, duAnId: g.duAnId, nhaThau: g.nhaThau, giaTri: g.giaTrung || '', ten: g.ten, canBoId: g.canBoId }, onSaved: async h => { if (g.trangThai !== 'dakyhd') await S.save('goithau', { id: g.id, trangThai: 'dakyhd' }); A.open('hopdong', h.id); } }); } }]
   });
   A.openers.hopdong = id => UI.detail({
     coll: 'hopdong', id,
-    head: h => { const x = L.hd(h); return '<div class="gap mb">' + UI.chip(x.st, x.label) + (x.note ? '<span class="chip plain ' + (x.over ? 'quahan' : 'saphan') + '">' + e(x.note) + '</span>' : '') + (x.tamUngCao ? '<span class="chip plain saphan">Tạm ứng lớn hơn số đã thanh toán</span>' : '') + '</div><div class="kpis mb"><div class="kpi acc static"><span class="k-l">Giá trị hợp đồng</span><span class="k-v"><small>' + U.fmtShort(h.giaTri) + '</small></span></div><div class="kpi static"><span class="k-l">Đã tạm ứng</span><span class="k-v"><small>' + U.fmtShort(h.tamUng) + '</small></span></div><div class="kpi teal static"><span class="k-l">Đã nghiệm thu</span><span class="k-v"><small>' + U.fmtShort(x.nghiemThu) + '</small></span><span class="k-s">' + (h.nghiemThu || []).length + ' lần</span></div><div class="kpi ok static"><span class="k-l">Đã thanh toán</span><span class="k-v">' + U.fmtPct(x.tyLeTT) + '</span><span class="k-s">' + U.fmtShort(x.thanhToan) + ' · còn ' + U.fmtShort(x.conLai) + '</span></div></div>'; },
+    head: h => { const x = L.hd(h), K = (c, l, v, sub) => '<div class="kpi ' + c + ' static"><span class="k-l">' + l + '</span><span class="k-v">' + v + '</span><span class="k-s">' + (sub || '&nbsp;') + '</span></div>';
+      return '<div class="gap mb">' + UI.chip(x.st, x.label) + (x.note ? '<span class="chip plain ' + (x.over ? 'quahan' : 'saphan') + '">' + e(x.note) + '</span>' : '') + (x.giaHan ? '<span class="chip plain">Đã gia hạn đến ' + U.fmtDate(x.han) + '</span>' : '') + (x.tamUngCao ? '<span class="chip plain saphan">Tạm ứng lớn hơn số đã thanh toán</span>' : '') + '</div>' +
+        (x.canhBao.length ? '<div class="mb">' + x.canhBao.map(c => '<div class="issue s' + c.sev + '" style="cursor:default"><span class="lv"></span><span><span class="t">' + e(c.t) + '</span></span></div>').join('') + '</div>' : '') +
+        '<div class="kpis mb">' + K('acc', 'Giá trị hợp đồng' + ((h.phuLuc || []).length ? ' sau ' + h.phuLuc.length + ' phụ lục' : ''), '<small>' + U.fmtShort(x.giaTriHL) + '</small>', (h.phuLuc || []).length ? 'Ký ban đầu ' + U.fmtShort(h.giaTri) : (h.loaiHD || '')) +
+        K('', 'Tạm ứng còn phải thu hồi', '<small>' + U.fmtShort(x.tamUngCon) + '</small>', 'Đã tạm ứng ' + U.fmtShort(h.tamUng)) +
+        K('teal', 'Đã nghiệm thu', '<small>' + U.fmtShort(x.nghiemThu) + '</small>', (h.nghiemThu || []).length + ' lần' + (x.ntChuaTT > 0.5 ? ' · chưa thanh toán ' + U.fmtShort(x.ntChuaTT) : '')) +
+        K('ok', 'Đã thanh toán', U.fmtPct(x.tyLeTT), U.fmtShort(x.thanhToan) + ' · còn ' + U.fmtShort(x.conLai)) +
+        K(x.over ? 'bad' : x.near ? 'warn' : 'info', 'Thời hạn hợp đồng', x.han ? '<small>' + U.fmtDate(x.han) + '</small>' : '—', h.tienDoKL ? 'Khối lượng thực hiện ' + U.fmtPct(h.tienDoKL, 0) : '') + '</div>'; },
     actions: [{ label: 'Ghi nghiệm thu', icon: 'check', on: (h, a, reopen) => payDialog(h, reopen, 'nt') }, { label: 'Ghi thanh toán', icon: 'coins', on: (h, a, reopen) => payDialog(h, reopen, 'tt') }]
   });
   A.views.dauthau = {
@@ -381,7 +401,7 @@
         cols: [
           { k: 'ten', label: 'Gói thầu', cls: 'wrap', html: g => '<div class="t1">' + e(g.ten) + '</div><div class="t2">' + e([Sc.refName('duan', g.duAnId), g.loai].filter(Boolean).join(' · ')) + '</div>' },
           { k: 'giaGoiThau', label: 'Giá gói thầu', cls: 'num', val: g => U.num(g.giaGoiThau), html: g => U.fmtMoney(g.giaGoiThau) },
-          { k: 'hinhThuc', label: 'Hình thức LCNT' },
+          { k: 'hinhThuc', label: 'Hình thức LCNT', html: g => e(g.hinhThuc || '') + (g.qdKHSo ? '<div class="t2">KHLCNT: ' + e(g.qdKHSo) + '</div>' : '') },
           { k: 'hanLCNT', label: 'Hạn LCNT', cls: 'nowrap', html: g => U.fmtDate(g.hanLCNT) || '<span class="muted">—</span>' },
           { k: 'nhaThau', label: 'Nhà thầu trúng thầu', html: g => g.nhaThau ? e(g.nhaThau) + (U.num(g.giaTrung) ? '<div class="t2">' + U.fmtMoney(g.giaTrung) + ' đồng</div>' : '') : '<span class="muted">—</span>' },
           { k: 'canBoId', label: 'Cán bộ', val: g => Sc.refName('canbo', g.canBoId), html: g => UI.who(g.canBoId) },
@@ -393,19 +413,19 @@
         key: 'hopdong', coll: 'hopdong', rows: () => S.all('hopdong'), addLabel: 'Thêm hợp đồng',
         empty: { t: 'Chưa có hợp đồng nào', p: 'Thêm hợp đồng trực tiếp hoặc tạo từ gói thầu đã có kết quả lựa chọn nhà thầu.' },
         filters: [
-          { k: 'tt', label: 'Tình trạng', opts: () => [['quahan', 'Quá hạn hợp đồng'], ['saphet', 'Sắp hết hạn'], ['chuatl', 'Nghiệm thu, chưa thanh lý']].concat(A.OPT.ttHD), test: (r, v) => { const x = L.hd(r); return v === 'quahan' ? !!x.over : v === 'saphet' ? !!x.near : v === 'chuatl' ? !!x.chuaThanhLy : (r.trangThai || 'dang') === v; } },
+          { k: 'tt', label: 'Tình trạng', opts: () => [['quahan', 'Quá hạn hợp đồng'], ['saphet', 'Sắp hết hạn'], ['chuatl', 'Nghiệm thu, chưa thanh lý'], ['baolanh', 'Bảo lãnh sắp, đã hết hiệu lực'], ['tamung', 'Còn tạm ứng chưa thu hồi']].concat(A.OPT.ttHD), test: (r, v) => { const x = L.hd(r); return v === 'quahan' ? !!x.over : v === 'saphet' ? !!x.near : v === 'chuatl' ? !!x.chuaThanhLy : v === 'baolanh' ? x.canhBao.some(c => /Bảo/.test(c.t)) : v === 'tamung' ? x.tamUngCon > 0.5 : (r.trangThai || 'dang') === v; } },
           { k: 'cb', label: 'Cán bộ', opts: cbOpts, test: (r, v) => v === '__none' ? !r.canBoId : r.canBoId === v }],
         sort: { k: 'ngayKT', dir: 1 },
         cols: [
           { k: 'so', label: 'Số hợp đồng', cls: 'nowrap', html: h => '<b>' + e(h.so) + '</b><div class="t2">' + U.fmtDate(h.ngayKy) + '</div>' },
           { k: 'ten', label: 'Nội dung', cls: 'wrap', html: h => '<div>' + e(h.ten || '') + '</div><div class="t2">' + e(h.nhaThau || '') + '</div>' },
-          { k: 'giaTri', label: 'Giá trị', cls: 'num', val: h => U.num(h.giaTri), html: h => U.fmtMoney(h.giaTri) },
+          { k: 'giaTri', label: 'Giá trị', cls: 'num', val: h => L.hdGiaTri(h), html: h => U.fmtMoney(L.hdGiaTri(h)) + ((h.phuLuc || []).length ? '<div class="t2">' + h.phuLuc.length + ' phụ lục</div>' : '') },
           { k: '_tt', label: 'Đã thanh toán', val: h => L.hd(h).tyLeTT || 0, html: h => { const x = L.hd(h); return '<div style="min-width:120px">' + UI.pbar(x.tyLeTT || 0) + '</div><div class="t2">' + U.fmtMoney(x.thanhToan) + '</div>'; } },
-          { k: 'ngayKT', label: 'Hạn hoàn thành', cls: 'nowrap', html: h => U.fmtDate(h.ngayKT) || '<span class="muted">—</span>' },
+          { k: 'ngayKT', label: 'Hạn hoàn thành', cls: 'nowrap', val: h => L.hdHan(h), html: h => { const x = L.hd(h); return (U.fmtDate(x.han) || '<span class="muted">—</span>') + (x.giaHan ? '<div class="t2">đã gia hạn</div>' : '') + (x.canhBao.length ? '<div class="t2 lech">' + x.canhBao.length + ' cảnh báo</div>' : ''); } },
           { k: 'canBoId', label: 'Cán bộ', val: h => Sc.refName('canbo', h.canBoId), html: h => UI.who(h.canBoId) },
           { k: 'trangThai', label: 'Tình trạng', val: h => L.hd(h).st, html: h => { const x = L.hd(h); return UI.chip(x.st, x.label) + (x.note ? '<div class="t2 ' + (x.over ? 'lech' : '') + '">' + e(x.note) + '</div>' : ''); } }],
         onRow: h => A.open('hopdong', h.id),
-        foot: rs => '<tr><td colspan="2">Cộng ' + rs.length + ' hợp đồng</td><td class="num">' + U.fmtMoney(U.sum(rs, h => h.giaTri)) + '</td><td class="num">' + U.fmtMoney(U.sum(rs, h => L.hd(h).thanhToan)) + '</td><td colspan="3"></td></tr>'
+        foot: rs => '<tr><td colspan="2">Cộng ' + rs.length + ' hợp đồng</td><td class="num">' + U.fmtMoney(U.sum(rs, h => L.hdGiaTri(h))) + '</td><td class="num">' + U.fmtMoney(U.sum(rs, h => L.hd(h).thanhToan)) + '</td><td colspan="3"></td></tr>'
       });
     }
   };

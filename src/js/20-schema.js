@@ -22,6 +22,7 @@
     loaiGoiThau: ['Tư vấn', 'Phi tư vấn', 'Mua sắm hàng hóa', 'Xây lắp', 'Hỗn hợp'],
     hinhThucLCNT: ['Đấu thầu rộng rãi', 'Đấu thầu hạn chế', 'Chào hàng cạnh tranh', 'Chỉ định thầu', 'Mua sắm trực tiếp', 'Tự thực hiện', 'Đặt hàng, giao nhiệm vụ', 'Hình thức khác'],
     loaiHopDong: ['Trọn gói', 'Theo đơn giá cố định', 'Theo đơn giá điều chỉnh', 'Theo thời gian', 'Loại khác'],
+    buocLCNT: ['Trình thẩm định kế hoạch lựa chọn nhà thầu', 'Phê duyệt kế hoạch lựa chọn nhà thầu', 'Phát hành hồ sơ mời thầu, hồ sơ yêu cầu', 'Đóng thầu, mở thầu', 'Phê duyệt danh sách nhà thầu đáp ứng yêu cầu kỹ thuật', 'Phê duyệt kết quả lựa chọn nhà thầu', 'Đăng tải kết quả lựa chọn nhà thầu', 'Thương thảo, hoàn thiện, ký hợp đồng'],
     nhomMoc: ['Quy hoạch', 'Chuẩn bị đầu tư', 'Chủ trương đầu tư', 'Quyết định đầu tư, phê duyệt dự toán', 'Đánh giá tác động môi trường', 'Đất đai, giải phóng mặt bằng', 'Thủ tục xây dựng', 'Lựa chọn nhà thầu', 'Thi công, triển khai thực hiện', 'Nghiệm thu', 'Bàn giao', 'Quyết toán', 'Khác']
   };
   A.DEFAULT_CFG = {
@@ -45,7 +46,7 @@
     ttDA: [['chuanbi', 'Chuẩn bị'], ['dangth', 'Đang thực hiện'], ['tamdung', 'Tạm dừng, vướng mắc'], ['hoanthanh', 'Đã hoàn thành'], ['quyettoan', 'Đã quyết toán']],
     ttQT: [['', '—'], ['chuaden', 'Chưa đến kỳ quyết toán'], ['chualap', 'Chưa lập hồ sơ'], ['datrinh', 'Đã trình thẩm tra'], ['daduyet', 'Đã phê duyệt quyết toán']],
     ttMoc: [['chua', 'Chưa thực hiện'], ['dang', 'Đang thực hiện'], ['hoanthanh', 'Đã hoàn thành'], ['khongad', 'Không áp dụng']],
-    ttGT: [['nhucau', 'Nhu cầu mua sắm'], ['dutoan', 'Đã duyệt dự toán'], ['khlcnt', 'Đã duyệt KHLCNT'], ['danglcnt', 'Đang lựa chọn nhà thầu'], ['cokq', 'Đã có kết quả LCNT'], ['dakyhd', 'Đã ký hợp đồng'], ['huy', 'Hủy, không thực hiện']],
+    ttGT: [['nhucau', 'Nhu cầu mua sắm'], ['dutoan', 'Đã duyệt dự toán'], ['trinhkh', 'Đã trình thẩm định KHLCNT'], ['khlcnt', 'Đã duyệt KHLCNT'], ['danglcnt', 'Đang lựa chọn nhà thầu'], ['cokq', 'Đã có kết quả LCNT'], ['dakyhd', 'Đã ký hợp đồng'], ['huy', 'Hủy, không thực hiện']],
     ttHD: [['dang', 'Đang thực hiện'], ['nghiemthu', 'Đã nghiệm thu'], ['thanhly', 'Đã thanh lý'], ['tamdung', 'Tạm dừng'], ['chamdut', 'Chấm dứt trước hạn']],
     ttCB: [['danglam', 'Đang công tác'], ['nghi', 'Nghỉ, chuyển công tác']],
     // Theo Phụ biểu 0A.01-T.STC "Tổng hợp hiện trạng tài sản nhà, đất"
@@ -374,8 +375,15 @@
       F('duToan', 'Dự toán mua sắm (đồng)', 'money'),
       F('giaGoiThau', 'Giá gói thầu (đồng)', 'money', { table: true }),
       F('hinhThuc', 'Hình thức lựa chọn nhà thầu', 'select', { list: 'hinhThucLCNT', table: true }),
+      F('phuongThuc', 'Phương thức lựa chọn nhà thầu'),
+      F('loaiHD', 'Loại hợp đồng', 'select', { list: 'loaiHopDong' }),
+      F('tgBatDauLCNT', 'Thời gian bắt đầu tổ chức LCNT (theo KHLCNT)', 'text', { help: 'Ghi như kế hoạch được duyệt, ví dụ: Quý IV/2026' }),
+      F('tgThucHienHD', 'Thời gian thực hiện hợp đồng (theo KHLCNT)'),
+      F('nsId', 'Dòng dự toán nguồn kinh phí', 'ref', { ref: 'ngansach' }),
       F('qdKHSo', 'Quyết định phê duyệt KHLCNT — số'), F('qdKHNgay', 'Quyết định KHLCNT — ngày', 'date'),
-      F('hanLCNT', 'Thời hạn phải hoàn thành lựa chọn nhà thầu', 'date', { help: 'Theo kế hoạch lựa chọn nhà thầu được duyệt' }),
+      F('hanLCNT', 'Thời hạn phải hoàn thành lựa chọn nhà thầu', 'date', { help: 'Do Phòng đặt để theo dõi (theo kế hoạch lựa chọn nhà thầu được duyệt)' }),
+      F('soTBMT', 'Số thông báo mời thầu (E-TBMT)'),
+      F('tienTrinh', 'Tiến trình lựa chọn nhà thầu', 'rows', { cols: [F('buoc', 'Bước', 'select', { list: 'buocLCNT', required: true }), F('ngay', 'Ngày', 'date'), F('soVB', 'Số văn bản'), F('ghiChu', 'Ghi chú')] }),
       F('trangThai', 'Tình trạng', 'select', { opt: 'ttGT', def: 'nhucau', table: true }),
       F('nhaThau', 'Nhà thầu trúng thầu'),
       F('qdKQSo', 'Quyết định phê duyệt kết quả LCNT — số'), F('qdKQNgay', 'Quyết định kết quả — ngày', 'date'),
@@ -385,6 +393,17 @@
       F('ghiChu', 'Ghi chú', 'textarea')
     ],
     validate(r) { const e = []; if (U.num(r.giaTrung) > 0 && U.num(r.giaGoiThau) > 0 && U.num(r.giaTrung) > U.num(r.giaGoiThau)) e.push('Giá trúng thầu lớn hơn giá gói thầu.'); return e; },
+    // Tự nâng tình trạng theo hồ sơ đã nhập (không hạ tình trạng người dùng đã chọn)
+    normalize(r) {
+      (r.tienTrinh || []).sort((a, b) => (a.ngay || '9') < (b.ngay || '9') ? -1 : 1);
+      const ord = ['nhucau', 'dutoan', 'trinhkh', 'khlcnt', 'danglcnt', 'cokq', 'dakyhd'], cur = ord.indexOf(r.trangThai || 'nhucau');
+      if (cur < 0) return;
+      let need = cur;
+      if (r.qdKHSo || r.qdKHNgay) need = Math.max(need, 3);
+      if (r.soTBMT) need = Math.max(need, 4);
+      if (r.qdKQSo || r.nhaThau && U.num(r.giaTrung) > 0) need = Math.max(need, 5);
+      if (need > cur) r.trangThai = ord[need];
+    },
     warnOnly: true
   };
   C.hopdong = {
@@ -401,8 +420,17 @@
       F('ngayBD', 'Ngày bắt đầu thực hiện', 'date'),
       F('ngayKT', 'Thời hạn hoàn thành hợp đồng', 'date', { table: true, help: 'Nếu có phụ lục gia hạn, nhập hạn mới và ghi chú phụ lục' }),
       F('tamUng', 'Đã tạm ứng (đồng)', 'money'),
+      F('tamUngThuHoi', 'Đã thu hồi tạm ứng (đồng)', 'money'),
+      F('baoLanhTU', 'Bảo lãnh tạm ứng (đồng)', 'money'),
+      F('baoLanhTUHan', 'Bảo lãnh tạm ứng có hiệu lực đến', 'date'),
+      F('baoLanhTH', 'Bảo đảm thực hiện hợp đồng (đồng)', 'money'),
+      F('baoLanhTHHan', 'Bảo đảm thực hiện hợp đồng có hiệu lực đến', 'date'),
       F('thanhToan', 'Các lần thanh toán', 'rows', { cols: [F('ngay', 'Ngày', 'date', { required: true }), F('soTien', 'Số tiền (đồng)', 'money', { required: true }), F('noiDung', 'Nội dung')] }),
       F('nghiemThu', 'Các lần nghiệm thu', 'rows', { cols: [F('ngay', 'Ngày', 'date', { required: true }), F('noiDung', 'Nội dung, khối lượng'), F('giaTri', 'Giá trị nghiệm thu (đồng)', 'money')] }),
+      F('phuLuc', 'Phụ lục hợp đồng', 'rows', { cols: [F('so', 'Số phụ lục', 'text', { required: true }), F('ngay', 'Ngày ký', 'date'), F('noiDung', 'Nội dung'), F('giaTriDC', 'Giá trị tăng (+) / giảm (−) (đồng)', 'money', { signed: true }), F('giaHanDen', 'Gia hạn đến', 'date')] }),
+      F('tienDoKL', 'Tiến độ khối lượng thực hiện (%)', 'percent'),
+      F('quyetToanHD', 'Giá trị quyết toán hợp đồng (đồng)', 'money'),
+      F('nsId', 'Dòng dự toán nguồn kinh phí', 'ref', { ref: 'ngansach' }),
       F('trangThai', 'Tình trạng', 'select', { opt: 'ttHD', def: 'dang', table: true }),
       F('thanhLyNgay', 'Ngày thanh lý', 'date'), F('thanhLySo', 'Số biên bản thanh lý'),
       F('canBoId', 'Cán bộ theo dõi', 'ref', { ref: 'canbo', table: true }),
@@ -413,9 +441,13 @@
       const e = [];
       if (r.ngayKT && r.ngayBD && r.ngayKT < r.ngayBD) e.push('Thời hạn hoàn thành trước ngày bắt đầu.');
       const tt = U.sum(r.thanhToan || [], x => x.soTien);
-      if (U.num(r.giaTri) > 0 && tt > U.num(r.giaTri) + 0.5) e.push('Tổng thanh toán (' + U.fmtMoney(tt) + ') vượt giá trị hợp đồng (' + U.fmtMoney(r.giaTri) + ').');
+      const gt = U.num(r.giaTri) + U.sum(r.phuLuc || [], x => x.giaTriDC);
+      if (gt > 0 && tt > gt + 0.5) e.push('Tổng thanh toán (' + U.fmtMoney(tt) + ') vượt giá trị hợp đồng' + ((r.phuLuc || []).length ? ' sau phụ lục' : '') + ' (' + U.fmtMoney(gt) + ').');
+      if (U.num(r.tamUngThuHoi) > U.num(r.tamUng) + 0.5) e.push('Số đã thu hồi tạm ứng lớn hơn số đã tạm ứng.');
+      if (r.trangThai === 'thanhly' && !r.thanhLyNgay) e.push('Hợp đồng đã thanh lý nhưng chưa ghi ngày thanh lý.');
       return e;
     },
+    normalize(r) { (r.thanhToan || []).sort((a, b) => a.ngay < b.ngay ? -1 : 1); (r.nghiemThu || []).sort((a, b) => a.ngay < b.ngay ? -1 : 1); if (r.thanhLyNgay && (!r.trangThai || r.trangThai === 'dang' || r.trangThai === 'nghiemthu')) r.trangThai = 'thanhly'; },
     warnOnly: true
   };
 
@@ -486,7 +518,7 @@
           const cv = row[cf.k], ce = cv === undefined || cv === null || cv === '';
           if (cf.required && ce) errors.push(f.label + ' — dòng ' + (i + 1) + ': chưa nhập "' + cf.label + '".');
           if (!ce && cf.type === 'date' && !U.isISO(cv)) errors.push(f.label + ' — dòng ' + (i + 1) + ': "' + cf.label + '" không phải ngày hợp lệ.');
-          if (!ce && cf.type === 'money' && (typeof cv !== 'number' || isNaN(cv) || cv < 0)) errors.push(f.label + ' — dòng ' + (i + 1) + ': "' + cf.label + '" phải là số không âm.');
+          if (!ce && cf.type === 'money' && (typeof cv !== 'number' || isNaN(cv) || (cv < 0 && !cf.signed))) errors.push(f.label + ' — dòng ' + (i + 1) + ': "' + cf.label + '" phải là số' + (cf.signed ? '' : ' không âm') + '.');
         }));
       });
       if (sc.validate && !errors.length) (sc.warnOnly ? warnings : errors).push(...sc.validate(r));
