@@ -1,0 +1,474 @@
+/* ============================================================
+   30-logic.js — Nghiệp vụ: trạng thái, tổng hợp, cảnh báo, trợ lý điều hành
+   Tất cả là phép tính trên dữ liệu đã nhập; không sửa số liệu gốc, không suy diễn ngoài dữ liệu.
+   ============================================================ */
+'use strict';
+(function (A) {
+  const U = A.U, S = A.Store;
+  const L = A.L = {};
+
+  /* ================= NHIỆM VỤ ================= */
+  L.nv = t => {
+    const today = U.today(), o = { st: t.trangThai || 'chua', late: 0, left: null, treHan: false };
+    if (t.trangThai === 'hoanthanh') { o.treHan = !!(t.han && t.ngayHT && t.ngayHT > t.han); o.late = o.treHan ? U.diffDays(t.ngayHT, t.han) : 0; o.label = o.treHan ? 'Hoàn thành trễ hạn' : 'Đã hoàn thành'; o.st = 'hoanthanh'; return o; }
+    if (t.trangThai === 'tamdung') { o.label = 'Tạm dừng'; return o; }
+    if (U.isISO(t.han)) {
+      o.left = U.diffDays(t.han, today);
+      if (o.left < 0) { o.st = 'quahan'; o.late = -o.left; o.label = 'Quá hạn ' + o.late + ' ngày'; return o; }
+      if (o.left <= A.nguong('sapHan')) { o.st = 'saphan'; o.label = o.left === 0 ? 'Đến hạn hôm nay' : 'Còn ' + o.left + ' ngày'; o.base = t.trangThai || 'chua'; return o; }
+    }
+    o.label = t.trangThai === 'dang' ? 'Đang thực hiện' : 'Chưa triển khai';
+    return o;
+  };
+  L.open = t => t.trangThai !== 'hoanthanh';
+  // Nhiệm vụ thuộc năm đang xem: của năm đó, hoặc việc năm trước chưa xong (tồn chuyển sang)
+  L.nvOfYear = y => {
+    const all = S.all('nhiemvu'); if (!y) return all;
+    return all.filter(t => +t.nam === y || (+t.nam < y && L.open(t) && t.trangThai !== 'tamdung' && y <= +U.today().slice(0, 4)));
+  };
+  L.nvStats = list => {
+    const s = { tong: list.length, hoanthanh: 0, treHan: 0, dang: 0, chua: 0, quahan: 0, saphan: 0, tamdung: 0, khongHan: 0, chuaPC: 0 };
+    list.forEach(t => {
+      const v = L.nv(t);
+      if (v.st === 'hoanthanh') { s.hoanthanh++; if (v.treHan) s.treHan++; return; }
+      if (v.st === 'tamdung') { s.tamdung++; return; }
+      if (v.st === 'quahan') s.quahan++; else if (v.st === 'saphan') s.saphan++;
+      if (t.trangThai === 'dang') s.dang++; else s.chua++;
+      if (!t.han) s.khongHan++;
+      if (!t.chuTriId) s.chuaPC++;
+    });
+    s.tyLeHT = s.tong ? s.hoanthanh / s.tong * 100 : null;
+    return s;
+  };
+  // Tồn đọng kéo dài: quá hạn vượt ngưỡng, hoặc việc không hạn chưa xong và lâu không cập nhật
+  L.tonDong = t => {
+    if (!L.open(t) || t.trangThai === 'tamdung') return null;
+    const n = A.nguong('tonDong'), v = L.nv(t), today = U.today();
+    if (v.st === 'quahan' && v.late > n) return { days: v.late, why: 'quá hạn ' + v.late + ' ngày (ngưỡng ' + n + ' ngày)' };
+    if (!t.han && t.loaiTG !== 'thuongxuyen') {
+      const last = (t.updatedAt || t.createdAt || '').slice(0, 10);
+      if (U.isISO(last)) { const d = U.diffDays(today, last); if (d > n) return { days: d, why: 'không có hạn, ' + d + ' ngày chưa cập nhật (ngưỡng ' + n + ' ngày)' }; }
+    }
+    return null;
+  };
+  // Nguy cơ không hoàn thành: sắp đến hạn mà tiến độ dưới 50%, hoặc đã ghi nhận khó khăn
+  L.nguyCo = t => {
+    if (!L.open(t) || t.trangThai === 'tamdung') return null;
+    const v = L.nv(t);
+    if (v.st === 'saphan' && U.num(t.tienDo) < 50) return 'còn ' + v.left + ' ngày nhưng tiến độ mới ' + U.num(t.tienDo) + '%';
+    if (v.st !== 'quahan' && (t.nguyenNhanCham || '').trim() && t.han) return 'đã ghi nhận khó khăn: ' + U.trunc(t.nguyenNhanCham, 90);
+    return null;
+  };
+  // Điểm ưu tiên xử lý (minh bạch, hiển thị kèm lý do)
+  L.priority = list => list.filter(t => L.open(t) && t.trangThai !== 'tamdung').map(t => {
+    const v = L.nv(t); let score = 0; const why = [];
+    if (v.st === 'quahan') { score += 100 + Math.min(v.late, 60); why.push('quá hạn ' + v.late + ' ngày'); }
+    else if (v.st === 'saphan') { score += 60 + (A.nguong('sapHan') - v.left) * 4; why.push(v.left === 0 ? 'đến hạn hôm nay' : 'còn ' + v.left + ' ngày'); }
+    if (t.uuTien === 'cao') { score += 25; why.push('ưu tiên cao'); }
+    if (t.xinYKien) { score += 20; why.push('cần xin ý kiến lãnh đạo'); }
+    if (!t.chuTriId) { score += 15; why.push('chưa phân công'); }
+    if (L.nguyCo(t) && v.st === 'saphan') score += 10;
+    return { t, v, score, why };
+  }).filter(x => x.score > 0).sort((a, b) => b.score - a.score);
+
+  L.byMonth = (list, y) => {
+    const m = Array.from({ length: 12 }, () => ({ giao: 0, denHan: 0, hoanThanh: 0 }));
+    list.forEach(t => {
+      if (U.yearOf(t.ngayGiao) === y) m[+t.ngayGiao.slice(5, 7) - 1].giao++;
+      if (U.yearOf(t.han) === y) m[+t.han.slice(5, 7) - 1].denHan++;
+      if (t.trangThai === 'hoanthanh' && U.yearOf(t.ngayHT) === y) m[+t.ngayHT.slice(5, 7) - 1].hoanThanh++;
+    });
+    return m;
+  };
+  L.canBoStats = list => {
+    const cbs = S.all('canbo').filter(c => c.trangThai !== 'nghi');
+    const rows = cbs.map(c => {
+      const mine = list.filter(t => t.chuTriId === c.id), ph = list.filter(t => (t.phoiHopIds || []).includes(c.id));
+      const s = L.nvStats(mine);
+      const done = mine.filter(t => t.trangThai === 'hoanthanh' && t.han);
+      const dung = done.filter(t => !L.nv(t).treHan).length;
+      return { c, s, phoiHop: ph.length, tyLeDungHan: done.length ? dung / done.length * 100 : null, dangMo: s.dang + s.chua };
+    });
+    return rows;
+  };
+
+  /* Sinh nhiệm vụ theo kỳ từ danh mục chức năng */
+  L.kyList = (ky, y) => {
+    const R = ['I', 'II', 'III', 'IV'];
+    if (ky === 'thang') return Array.from({ length: 12 }, (_, i) => ({ key: y + '-T' + U.pad(i + 1), nhan: 'Tháng ' + (i + 1) + '/' + y, endM: i + 1 }));
+    if (ky === 'quy') return R.map((r, i) => ({ key: y + '-Q' + (i + 1), nhan: 'Quý ' + r + '/' + y, endM: (i + 1) * 3 }));
+    if (ky === '6thang') return [{ key: y + '-6T', nhan: '6 tháng đầu năm ' + y, endM: 6 }];
+    if (ky === '9thang') return [{ key: y + '-9T', nhan: '9 tháng năm ' + y, endM: 9 }];
+    if (ky === 'nam') return [{ key: y + '-N', nhan: 'Năm ' + y, endM: 12 }];
+    return [];
+  };
+  // rule: {ngay: 1..31 | '', lechThang: 0|1}  — hạn do người dùng đặt; để trống thì không gán hạn
+  L.kyHan = (p, y, rule) => {
+    if (!rule || !rule.ngay) return '';
+    let m = p.endM + (+rule.lechThang || 0), yy = y;
+    while (m > 12) { m -= 12; yy++; }
+    const d = Math.min(+rule.ngay, U.lastDayOfMonth(yy, m));
+    return yy + '-' + U.pad(m) + '-' + U.pad(d);
+  };
+  L.genKy = (dm, y, kyTypes, rules) => {
+    const have = new Set(S.all('nhiemvu').filter(t => t.dmId === dm.id).map(t => t.kyKey));
+    const out = [];
+    kyTypes.forEach(k => L.kyList(k, y).forEach(p => {
+      out.push({
+        dup: have.has(p.key),
+        rec: {
+          ten: dm.ten + ' — ' + p.nhan, dmId: dm.id, nhom: dm.nhom, canCu: dm.canCu, sanPham: dm.sanPham, nguon: 'Chức năng, nhiệm vụ của Phòng',
+          loaiTG: 'dinhky', kyNhan: p.nhan, kyKey: p.key, vaiTro: 'chutri', chuTriId: dm.chuTriId || '', phoiHopIds: dm.phoiHopIds || [],
+          han: L.kyHan(p, y, rules[k]), nam: y, trangThai: 'chua', tienDo: 0, uuTien: 'thuong'
+        }
+      });
+    }));
+    return out;
+  };
+
+  /* ================= VĂN BẢN ================= */
+  L.vbTasks = vbId => S.all('nhiemvu').filter(t => (t.vanBanIds || []).includes(vbId));
+  L.vb = v => {
+    const tasks = L.vbTasks(v.id), today = U.today(), o = { tasks, st: v.trangThai || 'chua', late: 0, left: null };
+    if (tasks.length) { // tình trạng suy ra từ các nhiệm vụ liên kết
+      const done = tasks.filter(t => t.trangThai === 'hoanthanh').length;
+      o.derived = true; o.done = done;
+      o.st = done === tasks.length ? 'hoanthanh' : (done > 0 || tasks.some(t => t.trangThai === 'dang')) ? 'dang' : 'chua';
+    }
+    if (o.st === 'hoanthanh' || o.st === 'khongyc') { o.label = A.optLabel('ttVB', o.st); return o; }
+    if (U.isISO(v.han)) {
+      o.left = U.diffDays(v.han, today);
+      if (o.left < 0) { o.over = true; o.late = -o.left; o.label = 'Quá hạn ' + o.late + ' ngày'; return o; }
+      if (o.left <= A.nguong('sapHan')) { o.near = true; o.label = o.left === 0 ? 'Đến hạn hôm nay' : 'Còn ' + o.left + ' ngày'; return o; }
+    }
+    o.label = A.optLabel('ttVB', o.st); return o;
+  };
+
+  /* ================= DỰ ÁN ================= */
+  L.daOfYear = y => {
+    const all = S.all('duan'); if (!y) return all;
+    return all.filter(d => {
+      const a = U.yearOf(d.batDau), b = U.yearOf(d.ketThuc);
+      if (a && a > y) return false;
+      if (b && b < y && (d.trangThai === 'hoanthanh' || d.trangThai === 'quyettoan')) return false;
+      return true;
+    });
+  };
+  L.da = d => {
+    const today = U.today(), near = A.nguong('sapHan');
+    const moc = (d.moc || []).filter(m => m.trangThai !== 'khongad');
+    const mocTre = moc.filter(m => m.trangThai !== 'hoanthanh' && U.isISO(m.ketThuc) && m.ketThuc < today);
+    const mocSap = moc.filter(m => m.trangThai !== 'hoanthanh' && U.isISO(m.ketThuc) && m.ketThuc >= today && U.diffDays(m.ketThuc, today) <= near);
+    const mocXong = moc.filter(m => m.trangThai === 'hoanthanh').length;
+    const xong = d.trangThai === 'hoanthanh' || d.trangThai === 'quyettoan';
+    const quaHanDA = !xong && U.isISO(d.ketThuc) && d.ketThuc < today;
+    const o = { moc, mocTre, mocSap, mocXong, mocPct: moc.length ? mocXong / moc.length * 100 : null, xong, quaHanDA, cham: !xong && (mocTre.length > 0 || quaHanDA) };
+    o.treMax = mocTre.reduce((mx, m) => Math.max(mx, U.diffDays(today, m.ketThuc)), quaHanDA ? U.diffDays(today, d.ketThuc) : 0);
+    o.nguyCo = !xong && !o.cham && (mocSap.some(m => m.trangThai === 'chua') || d.trangThai === 'tamdung');
+    o.next = moc.filter(m => m.trangThai !== 'hoanthanh' && U.isISO(m.ketThuc)).sort((a, b) => a.ketThuc < b.ketThuc ? -1 : 1)[0] || null;
+    // Vốn của dự án (mọi năm)
+    const vs = S.all('von').filter(v => v.duAnId === d.id).map(L.von);
+    o.khVon = U.sum(vs, v => v.kh); o.giaiNgan = U.sum(vs, v => v.gn); o.tyLeGN = U.pct(o.giaiNgan, o.khVon);
+    o.label = xong ? A.optLabel('ttDA', d.trangThai) : o.cham ? 'Chậm tiến độ' : o.nguyCo ? 'Có nguy cơ chậm' : A.optLabel('ttDA', d.trangThai || 'chuanbi');
+    o.st = xong ? 'hoanthanh' : o.cham ? 'quahan' : o.nguyCo ? 'saphan' : (d.trangThai === 'dangth' ? 'dang' : d.trangThai === 'tamdung' ? 'tamdung' : 'chua');
+    return o;
+  };
+
+  /* ================= KẾ HOẠCH VỐN ================= */
+  // Tỷ lệ thời gian đã qua của năm ngân sách (để so tương đối; không phải quy định pháp lý)
+  L.yearElapsed = y => {
+    const t = U.today(), ty = +t.slice(0, 4);
+    if (y < ty) return 100; if (y > ty) return 0;
+    const days = U.diffDays(t, y + '-01-01') + 1, total = U.diffDays((y + 1) + '-01-01', y + '-01-01');
+    return days / total * 100;
+  };
+  L.von = v => {
+    const rows = (v.capNhat || []).filter(r => U.isISO(r.ngay)).slice().sort((a, b) => a.ngay < b.ngay ? -1 : 1);
+    const last = rows[rows.length - 1] || null;
+    const kh = U.num(v.khGiao) + U.num(v.keoDai) + U.num(v.dcTang) - U.num(v.dcGiam);
+    const gn = last ? U.num(last.luyKe) : 0;
+    const o = { v, rows, kh, gn, ngayGN: last ? last.ngay : '', conLai: kh - gn, tyLe: U.pct(gn, kh), khDauNam: U.num(v.khGiao) };
+    const el = L.yearElapsed(+v.nam), lech = A.nguong('gnLech');
+    o.tgNam = el;
+    o.thap = kh > 0 && (o.tyLe === null ? 0 : o.tyLe) < el - lech;
+    const d = S.get('duan', v.duAnId);
+    o.thapSoTienDo = !!(d && kh > 0 && U.num(d.tienDo) - (o.tyLe || 0) > lech);
+    return o;
+  };
+  L.vonOfYear = y => S.all('von').filter(v => !y || +v.nam === y).map(L.von);
+  L.vonGroup = (list, keyFn) => {
+    const m = new Map();
+    list.forEach(o => {
+      const k = keyFn(o) || '(chưa xác định)';
+      const g = m.get(k) || { k, kh: 0, khDauNam: 0, gn: 0, n: 0 };
+      g.kh += o.kh; g.khDauNam += o.khDauNam; g.gn += o.gn; g.n++; m.set(k, g);
+    });
+    return Array.from(m.values()).map(g => Object.assign(g, { conLai: g.kh - g.gn, tyLe: U.pct(g.gn, g.kh) })).sort((a, b) => b.kh - a.kh);
+  };
+  // Giải ngân lũy kế theo tháng (lấy số lũy kế mới nhất tính đến cuối mỗi tháng)
+  L.vonByMonth = (list, y) => {
+    const out = [], t = U.today(), lastM = +t.slice(0, 4) === y ? +t.slice(5, 7) : (+t.slice(0, 4) > y ? 12 : 0);
+    for (let m = 1; m <= 12; m++) {
+      if (m > lastM) { out.push(null); continue; }
+      const end = y + '-' + U.pad(m) + '-' + U.pad(U.lastDayOfMonth(y, m));
+      let s = 0, has = false;
+      list.forEach(o => { const r = o.rows.filter(x => x.ngay <= end).pop(); if (r) { s += U.num(r.luyKe); has = true; } });
+      out.push(has ? s : 0);
+    }
+    return out;
+  };
+
+  /* ================= NGÂN SÁCH ================= */
+  L.NS_F = ['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi', 'tietKiem', 'giaiNgan', 'quyetToan'];
+  L.nsTong = x => U.num(x.chuyenNguon) + U.num(x.duToan) + U.num(x.boSung) + U.num(x.dcTang) - U.num(x.dcGiam) - U.num(x.thuHoi) - U.num(x.tietKiem);
+  // Cây dự toán của 1 đơn vị / năm. Dòng có con: số = tổng các con (không cộng trùng).
+  L.nsTree = (nam, donViId) => {
+    const rows = S.all('ngansach').filter(r => (!nam || +r.nam === nam) && (!donViId || r.donViId === donViId));
+    const byId = new Map(rows.map(r => [r.id, { r, children: [], sum: {}, level: 0 }]));
+    const roots = [];
+    byId.forEach(n => { const p = n.r.parentId && byId.get(n.r.parentId); if (p && p !== n) p.children.push(n); else roots.push(n); });
+    const ord = (a, b) => (U.num(a.r.thuTu) - U.num(b.r.thuTu)) || U.cmp(a.r.stt, b.r.stt);
+    const seen = new Set();
+    const calc = (n, lv) => {
+      if (seen.has(n)) return; seen.add(n);
+      n.level = lv; n.children.sort(ord);
+      n.children.forEach(c => calc(c, lv + 1));
+      L.NS_F.forEach(f => { n.sum[f] = n.children.length ? U.sum(n.children, c => c.sum[f]) : U.num(n.r[f]); });
+      n.sum.tong = L.nsTong(n.sum); n.sum.conLai = n.sum.tong - n.sum.giaiNgan; n.sum.tyLe = U.pct(n.sum.giaiNgan, n.sum.tong);
+      // Đối chiếu: số tổng nhập từ Excel (nếu có) khác tổng các dòng con
+      n.lech = [];
+      if (n.children.length && n.r.goc) L.NS_F.concat(['tong']).forEach(f => {
+        if (n.r.goc[f] !== undefined && n.r.goc[f] !== null && Math.abs(U.num(n.r.goc[f]) - n.sum[f]) > 0.5) n.lech.push({ f, goc: U.num(n.r.goc[f]), tinh: n.sum[f] });
+      });
+    };
+    roots.sort(ord).forEach(r => calc(r, 0));
+    const flat = []; const walk = n => { flat.push(n); n.children.forEach(walk); }; roots.forEach(walk);
+    const total = {}; L.NS_F.forEach(f => { total[f] = U.sum(roots, r => r.sum[f]); });
+    total.tong = L.nsTong(total); total.conLai = total.tong - total.giaiNgan; total.tyLe = U.pct(total.giaiNgan, total.tong);
+    return { roots, flat, total, count: rows.length };
+  };
+  L.nsByDonVi = nam => S.all('donvi').map(dv => { const t = L.nsTree(nam, dv.id); return { dv, total: t.total, count: t.count }; }).filter(x => x.count);
+  L.nsByNhom = nam => {
+    const t = L.nsTree(nam, null), m = new Map();
+    const leafs = t.flat.filter(n => !n.children.length);
+    const nhomOf = n => { let cur = n, guard = 0; const byId = new Map(t.flat.map(x => [x.r.id, x])); while (cur && guard++ < 20) { if (cur.r.nhomKP) return cur.r.nhomKP; cur = byId.get(cur.r.parentId); } return '(chưa phân nhóm)'; };
+    leafs.forEach(n => { const k = nhomOf(n); const g = m.get(k) || { k, tong: 0, giaiNgan: 0, quyetToan: 0, duToan: 0 }; g.tong += n.sum.tong; g.giaiNgan += n.sum.giaiNgan; g.quyetToan += n.sum.quyetToan; g.duToan += n.sum.duToan; m.set(k, g); });
+    return Array.from(m.values());
+  };
+
+  /* Đọc biểu "Báo cáo tình hình thực hiện giải ngân thanh toán NSNN" (mẫu Phòng đang dùng).
+     rows: mảng 2 chiều giá trị thô; fmt: mảng 2 chiều chuỗi hiển thị (để lấy STT đúng như trên biểu). */
+  L.parseBudget = (rows, fmt) => {
+    const nrm = v => U.norm(v), out = { items: [], warnings: [], headerRow: -1, title: '' };
+    let hr = -1;
+    for (let i = 0; i < Math.min(rows.length, 40); i++) {
+      const r = (rows[i] || []).map(nrm);
+      if (r.some(c => c === 'noi dung') && r.some(c => c.includes('du toan giao'))) { hr = i; break; }
+    }
+    if (hr < 0) { out.warnings.push('Không tìm thấy dòng tiêu đề có cột "Nội dung" và "Dự toán giao đầu năm". Biểu không đúng mẫu.'); return out; }
+    out.headerRow = hr;
+    for (let i = 0; i < hr; i++) { const t = (rows[i] || []).find(c => typeof c === 'string' && nrm(c).includes('bao cao')); if (t) { out.title = String(t).trim(); break; } }
+    const col = {}, H = (rows[hr] || []).map(nrm);
+    const find = (key, test) => { const i = H.findIndex(test); if (i >= 0 && col[key] === undefined) col[key] = i; };
+    find('stt', c => c === 'tt' || c === 'stt'); find('noiDung', c => c === 'noi dung');
+    find('quyetDinh', c => c.startsWith('quyet dinh')); find('chuyenNguon', c => c.includes('chuyen nguon'));
+    find('duToan', c => c.includes('du toan giao')); find('boSung', c => c.startsWith('bo sung'));
+    find('thuHoi', c => c.includes('thu hoi')); find('tietKiem', c => c.includes('tiet kiem'));
+    find('tong', c => c.includes('tong kinh phi')); find('giaiNgan', c => c.includes('da giai ngan'));
+    find('conLai', c => c.includes('kinh phi con lai')); find('tienDo', c => c.includes('tien do'));
+    find('keToan', c => c.includes('ke toan') || c === 'thuc hien');
+    for (let i = hr + 1; i <= hr + 3 && i < rows.length; i++) (rows[i] || []).forEach((c, j) => { const t = nrm(c); if (t === 'tang' && col.dcTang === undefined) col.dcTang = j; if (t === 'giam' && col.dcGiam === undefined) col.dcGiam = j; });
+    const dc = H.findIndex(c => c === 'dieu chinh');
+    if (col.dcTang === undefined && dc >= 0) { col.dcTang = dc; col.dcGiam = dc + 1; }
+    ['noiDung', 'duToan', 'giaiNgan'].forEach(k => { if (col[k] === undefined) out.warnings.push('Thiếu cột bắt buộc: ' + k); });
+    if (col.noiDung === undefined) return out;
+    out.cols = col;
+    // dòng bắt đầu dữ liệu: sau dòng đánh số cột (1,2,3…)
+    let start = hr + 1;
+    for (let i = hr + 1; i <= hr + 4 && i < rows.length; i++) { const r = rows[i] || []; if (String(r[col.noiDung]).trim() === '2' && String(r[col.stt === undefined ? 0 : col.stt]).trim() === '1') { start = i + 1; break; } if ((r || []).some(c => ['tang', 'giam'].includes(nrm(c)))) start = i + 1; }
+    const money = v => { if (typeof v === 'number') return v; const n = U.parseNum(v); return (n === null || n === '') ? 0 : n; };
+    const stack = []; // [{level, idx}]
+    let lastNumLevel = 0, dashLevel = null, blankLevel = null, prevLevel = 0;
+    for (let i = start; i < rows.length; i++) {
+      const r = rows[i] || [], nd = r[col.noiDung];
+      if (nd === null || nd === undefined || String(nd).trim() === '') continue;
+      const rawS = col.stt === undefined ? '' : r[col.stt];
+      let sttTxt = (fmt && fmt[i] && col.stt !== undefined && fmt[i][col.stt] !== undefined && fmt[i][col.stt] !== null) ? String(fmt[i][col.stt]).trim() : (rawS === null || rawS === undefined ? '' : String(rawS).trim());
+      if (typeof rawS === 'number' && rawS < 0 && Number.isInteger(rawS)) sttTxt = '(' + (-rawS) + ')';  // Excel hiểu "(1)" là -1
+      let level, kind;
+      const s = sttTxt.replace(/\s/g, '');
+      if (/^[IVXLC]+$/.test(s)) { level = 0; kind = 'num'; }
+      else if (/^\d+$/.test(s)) { level = 1; kind = 'num'; }
+      else if (/^\d+\.\d+$/.test(s)) { level = 2; kind = 'num'; }
+      else if (/^\(\d+\)$/.test(s) || /^-\d+$/.test(s)) { level = Math.max(3, lastNumLevel >= 2 ? 3 : lastNumLevel + 1); kind = 'num'; }
+      else if (s === '-' || s === '+') { kind = 'dash'; level = dashLevel !== null ? dashLevel : prevLevel + 1; dashLevel = level; blankLevel = null; }
+      else if (s === '') { kind = 'blank'; level = blankLevel !== null ? blankLevel : prevLevel + 1; blankLevel = level; }
+      else { kind = 'num'; level = Math.min(prevLevel + 1, 3); }
+      if (kind === 'num') { lastNumLevel = level; dashLevel = null; blankLevel = null; }
+      if (!stack.length && level > 0) level = 0;
+      while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+      const parent = stack.length ? stack[stack.length - 1].idx : -1;
+      const it = { row: i + 1, stt: sttTxt, noiDung: String(nd).trim().replace(/\s+/g, ' '), level, parent };
+      ['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi', 'tietKiem', 'giaiNgan'].forEach(k => { it[k] = col[k] === undefined ? 0 : money(r[col[k]]); });
+      it.tongGoc = col.tong === undefined ? null : money(r[col.tong]);
+      it.quyetDinh = col.quyetDinh === undefined || r[col.quyetDinh] == null ? '' : String(r[col.quyetDinh]).trim();
+      it.tienDo = col.tienDo === undefined || r[col.tienDo] == null ? '' : String(r[col.tienDo]).trim();
+      it.keToan = col.keToan === undefined || r[col.keToan] == null ? '' : String(r[col.keToan]).trim();
+      if (/^[0.]+$/.test(it.tienDo)) it.tienDo = '';
+      out.items.push(it); stack.push({ level, idx: out.items.length - 1 }); prevLevel = level;
+    }
+    // Đối chiếu số học ngay trên biểu
+    const kids = out.items.map(() => []); out.items.forEach((it, i) => { if (it.parent >= 0) kids[it.parent].push(i); });
+    out.items.forEach((it, i) => {
+      it.isGroup = kids[i].length > 0;
+      if (!it.isGroup && it.tongGoc !== null && Math.abs(L.nsTong(it) - it.tongGoc) > 0.5)
+        out.warnings.push('Dòng ' + it.row + ' "' + U.trunc(it.noiDung, 50) + '": cột Tổng kinh phí trên biểu (' + U.fmtMoney(it.tongGoc) + ') khác kết quả tính từ các cột thành phần (' + U.fmtMoney(L.nsTong(it)) + ').');
+    });
+    const sumKids = (i, k) => kids[i].length ? U.sum(kids[i], j => sumKids(j, k)) : out.items[i][k];
+    out.items.forEach((it, i) => {
+      if (!it.isGroup) return;
+      const NM = { chuyenNguon: 'Chuyển nguồn', duToan: 'Dự toán đầu năm', boSung: 'Bổ sung', thuHoi: 'Thu hồi', giaiNgan: 'Giải ngân' };
+      const bad = Object.keys(NM).filter(k => Math.abs(sumKids(i, k) - it[k]) > 0.5);
+      if (bad.length) out.warnings.push('Dòng ' + it.row + ' "' + U.trunc(it.noiDung, 50) + '": số trên dòng tổng khác tổng các dòng chi tiết (' + bad.map(k => NM[k] + ': ' + U.fmtMoney(it[k]) + ' ≠ ' + U.fmtMoney(sumKids(i, k))).join('; ') + ').');
+    });
+    return out;
+  };
+
+  /* ================= TÀI SẢN ================= */
+  L.tsGroup = (list, keyFn) => {
+    const m = new Map();
+    list.forEach(t => { const k = keyFn(t) || '(chưa xác định)'; const g = m.get(k) || { k, n: 0, nguyenGia: 0, conLai: 0 }; g.n += U.num(t.soLuong) || 1; g.nguyenGia += U.num(t.nguyenGia); g.conLai += U.num(t.conLai); m.set(k, g); });
+    return Array.from(m.values()).sort((a, b) => b.nguyenGia - a.nguyenGia);
+  };
+  L.tsCanXuLy = () => S.all('taisan').filter(t => ['Hư hỏng, chờ sửa chữa', 'Không còn nhu cầu sử dụng', 'Chờ điều chuyển', 'Chờ thanh lý'].includes(t.tinhTrang));
+
+  /* ================= ĐẤU THẦU, HỢP ĐỒNG ================= */
+  L.gt = g => {
+    const today = U.today(), o = { st: 'chua', label: A.optLabel('ttGT', g.trangThai || 'nhucau') };
+    const truocKQ = ['nhucau', 'dutoan', 'khlcnt', 'danglcnt'].includes(g.trangThai || 'nhucau');
+    if (g.trangThai === 'dakyhd') o.st = 'hoanthanh'; else if (g.trangThai === 'huy') o.st = 'tamdung'; else if (g.trangThai === 'danglcnt' || g.trangThai === 'cokq') o.st = 'dang';
+    if (truocKQ && U.isISO(g.hanLCNT)) {
+      const left = U.diffDays(g.hanLCNT, today);
+      if (left < 0) { o.over = true; o.st = 'quahan'; o.note = 'Quá thời hạn lựa chọn nhà thầu ' + (-left) + ' ngày'; }
+      else if (left <= A.nguong('sapHan')) { o.near = true; o.st = 'saphan'; o.note = 'Còn ' + left + ' ngày đến hạn lựa chọn nhà thầu'; }
+    }
+    if (g.trangThai === 'cokq' && !S.all('hopdong').some(h => h.goiThauId === g.id)) o.chuaHD = true;
+    return o;
+  };
+  L.hd = h => {
+    const today = U.today(), tt = U.sum(h.thanhToan || [], x => x.soTien), nt = U.sum(h.nghiemThu || [], x => x.giaTri);
+    const o = { thanhToan: tt, nghiemThu: nt, conLai: U.num(h.giaTri) - tt, tyLeTT: U.pct(tt, U.num(h.giaTri)), st: 'dang', label: A.optLabel('ttHD', h.trangThai || 'dang') };
+    if (h.trangThai === 'thanhly') o.st = 'hoanthanh'; else if (h.trangThai === 'tamdung' || h.trangThai === 'chamdut') o.st = 'tamdung';
+    if ((h.trangThai || 'dang') === 'dang' && U.isISO(h.ngayKT)) {
+      const left = U.diffDays(h.ngayKT, today);
+      if (left < 0) { o.over = true; o.st = 'quahan'; o.note = 'Quá hạn hợp đồng ' + (-left) + ' ngày'; }
+      else if (left <= A.nguong('hdSapHet')) { o.near = true; o.st = 'saphan'; o.note = 'Còn ' + left + ' ngày hết hạn hợp đồng'; }
+    }
+    if (h.trangThai === 'nghiemthu') { o.chuaThanhLy = true; o.note = 'Đã nghiệm thu, chưa thanh lý'; if (o.conLai > 0.5) o.note += '; còn ' + U.fmtMoney(o.conLai) + ' đồng chưa thanh toán'; }
+    if (U.num(h.tamUng) > tt + 0.5 && (h.trangThai || 'dang') === 'dang') o.tamUngCao = true;
+    return o;
+  };
+
+  /* ================= CẢNH BÁO TỔNG HỢP ================= */
+  // sev: 3 = cần xử lý ngay, 2 = cần quan tâm, 1 = lưu ý
+  L.alerts = y => {
+    const out = [], add = (sev, loai, title, detail, coll, id, extra) => out.push(Object.assign({ sev, loai, title, detail, coll, id }, extra || {}));
+    const nvs = L.nvOfYear(y);
+    nvs.forEach(t => {
+      const v = L.nv(t); if (!L.open(t) || t.trangThai === 'tamdung') return;
+      const who = t.chuTriId ? A.Schema.refName('canbo', t.chuTriId) : 'chưa phân công';
+      if (v.st === 'quahan') { const td = L.tonDong(t); add(3, td ? 'tondong' : 'quahan', t.ten, (td ? 'Tồn đọng kéo dài — ' : '') + 'quá hạn ' + v.late + ' ngày (hạn ' + U.fmtDate(t.han) + '); chủ trì: ' + who + (t.nguyenNhanCham ? '; nguyên nhân: ' + U.trunc(t.nguyenNhanCham, 100) : '; chưa ghi nguyên nhân'), 'nhiemvu', t.id, { days: v.late }); }
+      else {
+        const td = L.tonDong(t); if (td) add(2, 'tondong', t.ten, 'Tồn đọng: ' + td.why + '; chủ trì: ' + who, 'nhiemvu', t.id, { days: td.days });
+        const nc = L.nguyCo(t); if (nc) add(2, 'nguyco', t.ten, 'Nguy cơ không hoàn thành: ' + nc + '; chủ trì: ' + who, 'nhiemvu', t.id);
+        else if (v.st === 'saphan') add(1, 'saphan', t.ten, (v.left === 0 ? 'Đến hạn hôm nay' : 'Còn ' + v.left + ' ngày') + ' (hạn ' + U.fmtDate(t.han) + '); chủ trì: ' + who, 'nhiemvu', t.id, { days: v.left });
+      }
+      if (!t.chuTriId) add(2, 'chuapc', t.ten, 'Nhiệm vụ chưa có cán bộ chủ trì' + (t.han ? ' (hạn ' + U.fmtDate(t.han) + ')' : ''), 'nhiemvu', t.id);
+      if (t.xinYKien) add(2, 'xinykien', t.ten, 'Cần xin ý kiến lãnh đạo: ' + (U.trunc(t.ndXinYKien, 140) || '(chưa ghi nội dung)'), 'nhiemvu', t.id);
+    });
+    S.all('vanban').forEach(v => {
+      if (y && U.yearOf(v.ngayBanHanh) && U.yearOf(v.ngayBanHanh) !== y && !(U.yearOf(v.han) === y)) return;
+      const x = L.vb(v); if (x.derived) return;      // đã theo dõi qua nhiệm vụ liên kết
+      if (x.over) add(3, 'quahan', 'Văn bản ' + v.soKyHieu + ': ' + U.trunc(v.trichYeu, 110), 'Quá hạn ' + x.late + ' ngày, chưa tạo nhiệm vụ theo dõi', 'vanban', v.id, { days: x.late });
+      else if (x.near) add(1, 'saphan', 'Văn bản ' + v.soKyHieu + ': ' + U.trunc(v.trichYeu, 110), x.label + ', chưa tạo nhiệm vụ theo dõi', 'vanban', v.id);
+    });
+    L.daOfYear(y).forEach(d => {
+      const x = L.da(d);
+      if (x.cham) add(3, 'dacham', d.ten, 'Chậm tiến độ ' + x.treMax + ' ngày' + (x.mocTre.length ? ': ' + x.mocTre.length + ' mốc quá hạn (' + x.mocTre.slice(0, 2).map(m => U.trunc(m.ten, 40)).join('; ') + (x.mocTre.length > 2 ? '…' : '') + ')' : ': quá thời gian thực hiện (' + U.fmtDate(d.ketThuc) + ')') + (d.nguyenNhanCham ? '; nguyên nhân: ' + U.trunc(d.nguyenNhanCham, 100) : '; chưa ghi nguyên nhân'), 'duan', d.id, { days: x.treMax });
+      else if (x.nguyCo) add(2, 'danguyco', d.ten, d.trangThai === 'tamdung' ? 'Đang tạm dừng, vướng mắc' + (d.khoKhan ? ': ' + U.trunc(d.khoKhan, 110) : '') : 'Có mốc sắp đến hạn chưa bắt đầu: ' + x.mocSap.filter(m => m.trangThai === 'chua').map(m => U.trunc(m.ten, 40) + ' (' + U.fmtDate(m.ketThuc) + ')').join('; '), 'duan', d.id);
+      if (!x.xong && (d.kienNghi || '').trim()) add(2, 'xinykien', d.ten, 'Có kiến nghị, đề xuất cần xem xét: ' + U.trunc(d.kienNghi, 140), 'duan', d.id);
+      if (d.trangThai === 'hoanthanh' && (!d.qtTrangThai || d.qtTrangThai === 'chualap')) add(1, 'quyettoan', d.ten, 'Đã hoàn thành nhưng chưa lập hồ sơ quyết toán', 'duan', d.id);
+    });
+    L.vonOfYear(y).forEach(o => {
+      const d = S.get('duan', o.v.duAnId), ten = (d ? d.ten : '(chưa gắn dự án)') + ' — ' + o.v.nguonVon + ' ' + o.v.nam;
+      if (o.thap) add(o.tyLe !== null && o.tyLe < o.tgNam - 2 * A.nguong('gnLech') ? 3 : 2, 'gnthap', ten, 'Giải ngân ' + U.fmtPct(o.tyLe || 0) + ' (' + U.fmtShort(o.gn) + '/' + U.fmtShort(o.kh) + ')' + (o.ngayGN ? ' đến ' + U.fmtDate(o.ngayGN) : ', chưa có số giải ngân') + '; thời gian năm đã qua ' + U.fmtPct(o.tgNam, 0) + (o.v.nguyenNhan ? '; nguyên nhân: ' + U.trunc(o.v.nguyenNhan, 100) : '; chưa ghi nguyên nhân'), 'von', o.v.id);
+      else if (o.thapSoTienDo) add(2, 'gnthap', ten, 'Giải ngân ' + U.fmtPct(o.tyLe || 0) + ' thấp hơn tiến độ thực hiện dự án (' + U.num(d.tienDo) + '%)', 'von', o.v.id);
+      if (U.num(o.v.nhuCauDC) !== 0) add(1, 'xinykien', ten, 'Có nhu cầu điều chỉnh vốn: ' + (o.v.nhuCauDC > 0 ? 'tăng ' : 'giảm ') + U.fmtMoney(Math.abs(o.v.nhuCauDC)) + ' đồng', 'von', o.v.id);
+    });
+    S.all('goithau').forEach(g => { const x = L.gt(g); if (x.over) add(3, 'dauthau', g.ten, x.note, 'goithau', g.id); else if (x.near) add(1, 'dauthau', g.ten, x.note, 'goithau', g.id); if (x.chuaHD) add(1, 'dauthau', g.ten, 'Đã có kết quả lựa chọn nhà thầu nhưng chưa nhập hợp đồng', 'goithau', g.id); });
+    S.all('hopdong').forEach(h => { const x = L.hd(h), ten = 'Hợp đồng ' + h.so + (h.ten ? ': ' + U.trunc(h.ten, 90) : ''); if (x.over) add(3, 'hopdong', ten, x.note + ' (' + U.fmtDate(h.ngayKT) + ')', 'hopdong', h.id); else if (x.near) add(1, 'hopdong', ten, x.note + ' (' + U.fmtDate(h.ngayKT) + ')', 'hopdong', h.id); else if (x.chuaThanhLy) add(1, 'hopdong', ten, x.note, 'hopdong', h.id); });
+    // Bao phủ chức năng: đầu mục chính thức chưa có người chủ trì
+    const dmChua = S.all('danhmuc').filter(d => d.loai !== 'noibo' && !d.chuTriId);
+    if (dmChua.length) add(2, 'dmchuapc', dmChua.length + ' đầu mục chức năng, nhiệm vụ chưa phân công cán bộ chủ trì', 'Trên tổng số ' + S.all('danhmuc').filter(d => d.loai !== 'noibo').length + ' đầu mục theo ' + A.Seed.QD + '. Mã: ' + dmChua.slice(0, 12).map(d => d.ma).join(', ') + (dmChua.length > 12 ? '…' : ''), 'route', 'canbo');
+    return out.sort((a, b) => (b.sev - a.sev) || ((b.days || 0) - (a.days || 0)));
+  };
+  L.ALERT_LABEL = { quahan: 'Quá hạn', tondong: 'Tồn đọng', saphan: 'Sắp đến hạn', nguyco: 'Nguy cơ', chuapc: 'Chưa phân công', xinykien: 'Xin ý kiến', dacham: 'Dự án chậm', danguyco: 'Dự án có nguy cơ', gnthap: 'Giải ngân thấp', dauthau: 'Đấu thầu', hopdong: 'Hợp đồng', quyettoan: 'Quyết toán', dmchuapc: 'Phân công' };
+
+  /* ================= TRỢ LÝ ĐIỀU HÀNH (theo luật, có căn cứ) ================= */
+  L.assistant = y => {
+    const al = L.alerts(y), nvs = L.nvOfYear(y), pick = (...k) => al.filter(a => k.includes(a.loai));
+    const pri = L.priority(nvs).slice(0, 10);
+    // Lĩnh vực tồn đọng
+    const g = new Map();
+    nvs.filter(t => L.open(t) && t.trangThai !== 'tamdung').forEach(t => { const k = t.nhom || '?'; const x = g.get(k) || { k, mo: 0, quahan: 0 }; x.mo++; if (L.nv(t).st === 'quahan') x.quahan++; g.set(k, x); });
+    const linhVuc = Array.from(g.values()).sort((a, b) => (b.quahan - a.quahan) || (b.mo - a.mo));
+    // Chức năng chưa có việc trong năm (định kỳ) → gợi ý chủ động tham mưu
+    const yy = y || +U.today().slice(0, 4);
+    const coViec = new Set(S.all('nhiemvu').filter(t => +t.nam === yy).map(t => t.dmId).filter(Boolean));
+    const dmTrong = S.all('danhmuc').filter(d => d.loai !== 'noibo' && d.tinhChat === 'dinhky' && !coViec.has(d.id)).sort((a, b) => U.num(a.thuTu) - U.num(b.thuTu));
+    return {
+      xuLyNgay: { items: pri, basis: 'Xếp theo điểm ưu tiên: quá hạn (+100, cộng thêm số ngày quá hạn), sắp đến hạn trong ' + A.nguong('sapHan') + ' ngày (+60), ưu tiên cao (+25), cần xin ý kiến (+20), chưa phân công (+15).' },
+      duAnNguyCo: { items: pick('dacham', 'danguyco', 'gnthap'), basis: 'Dự án có mốc quá hạn hoặc quá thời gian thực hiện; có mốc đến hạn trong ' + A.nguong('sapHan') + ' ngày chưa bắt đầu; tỷ lệ giải ngân thấp hơn tỷ lệ thời gian đã qua của năm trên ' + A.nguong('gnLech') + ' điểm phần trăm.' },
+      chuaPhanCong: { items: pick('chuapc', 'dmchuapc'), basis: 'Nhiệm vụ chưa hoàn thành không có cán bộ chủ trì; đầu mục chức năng chưa gán cán bộ chủ trì.' },
+      linhVuc: { items: linhVuc, basis: 'Đếm nhiệm vụ chưa hoàn thành và quá hạn theo 10 nhóm chức năng của QĐ 324.' },
+      baoCaoLanhDao: { items: pick('xinykien', 'tondong').concat(al.filter(a => a.sev === 3 && ['dacham', 'gnthap', 'hopdong', 'dauthau'].includes(a.loai))), basis: 'Mục đã đánh dấu "cần xin ý kiến", kiến nghị của dự án, nhu cầu điều chỉnh vốn, việc tồn đọng quá ' + A.nguong('tonDong') + ' ngày và các cảnh báo mức cao về dự án, giải ngân, hợp đồng.' },
+      chuDong: { items: dmTrong, quyetToan: pick('quyettoan'), ts: L.tsCanXuLy(), basis: 'Đầu mục chức năng định kỳ chưa có nhiệm vụ nào trong năm ' + yy + '; dự án hoàn thành chưa quyết toán; tài sản ở tình trạng chờ xử lý.' },
+      counts: { al: al.length, cao: al.filter(a => a.sev === 3).length }
+    };
+  };
+
+  /* ================= TỔNG HỢP THEO THỜI GIAN ================= */
+  L.inRange = (d, a, b) => U.isISO(d) && d >= a && d <= b;
+  L.digest = (from, to) => {
+    const nvs = S.all('nhiemvu');
+    return {
+      from, to,
+      giao: nvs.filter(t => L.inRange(t.ngayGiao, from, to)),
+      hoanThanh: nvs.filter(t => t.trangThai === 'hoanthanh' && L.inRange(t.ngayHT, from, to)),
+      denHan: nvs.filter(t => L.open(t) && L.inRange(t.han, from, to)),
+      quaHan: nvs.filter(t => L.open(t) && t.trangThai !== 'tamdung' && U.isISO(t.han) && t.han < from)
+    };
+  };
+  L.period = (kind, y, n) => { // trả [from, to, nhãn]
+    const ld = m => U.pad(U.lastDayOfMonth(y, m));
+    if (kind === 'thang') return [y + '-' + U.pad(n) + '-01', y + '-' + U.pad(n) + '-' + ld(n), 'tháng ' + n + ' năm ' + y];
+    if (kind === 'quy') return [y + '-' + U.pad(n * 3 - 2) + '-01', y + '-' + U.pad(n * 3) + '-' + ld(n * 3), 'quý ' + U.roman(n) + ' năm ' + y];
+    if (kind === '6thang') return [y + '-01-01', y + '-06-30', '6 tháng đầu năm ' + y];
+    if (kind === '9thang') return [y + '-01-01', y + '-09-30', '9 tháng năm ' + y];
+    return [y + '-01-01', y + '-12-31', 'năm ' + y];
+  };
+
+  /* ================= TÌM KIẾM TOÀN CỤC ================= */
+  L.search = (q, limit) => {
+    const nq = U.norm(q); if (nq.length < 2) return [];
+    const words = nq.split(' '), res = [];
+    A.Schema.TRACKED.forEach(c => {
+      const sc = A.Schema.get(c);
+      S.all(c).forEach(r => {
+        const hay = U.norm(sc.fields.filter(f => ['text', 'textarea', 'select', 'ref'].includes(f.type)).map(f => A.Schema.text(f, r[f.k])).join(' | '));
+        if (words.every(w => hay.includes(w))) res.push({ c, r, title: sc.title(r), label: sc.label, hit: U.norm(sc.title(r)).includes(nq) ? 2 : 1 });
+      });
+    });
+    return res.sort((a, b) => b.hit - a.hit).slice(0, limit || 40);
+  };
+})(App);

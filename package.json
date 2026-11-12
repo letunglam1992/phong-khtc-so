@@ -1,0 +1,17 @@
+{
+  "name": "phong-khtc-so",
+  "version": "1.0.0",
+  "description": "Phần mềm điều hành Phòng Kế hoạch - Tài chính, Sở Nông nghiệp và Môi trường tỉnh Sơn La",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "node build.js",
+    "test": "node tests/mock-server.js & sleep 1.5; node tests/e2e.js /tmp \"$XLS\"; kill %1"
+  },
+  "license": "ISC",
+  "private": true,
+  "devDependencies": {
+    "xlsx": "^0.18.5"
+  }
+}
