@@ -32,8 +32,8 @@ function doPost(e) {
   try {
     var req = JSON.parse(e.postData.contents);
     if (req.app !== APP_ID) return out_({ ok: false, error: 'Sai ứng dụng' });
-    if (MA_BI_MAT === 'DOI-MA-NAY-TRUOC-KHI-DUNG') return out_({ ok: false, error: 'Chưa đổi MA_BI_MAT trong Code.gs' });
-    if (req.key !== MA_BI_MAT) return out_({ ok: false, error: 'Sai mã bí mật' });
+    if (MA_BI_MAT === 'DOI-MA-' + 'NAY-TRUOC-KHI-DUNG') return out_({ ok: false, error: 'Chưa đổi MA_BI_MAT trong Code.gs' });   // ghép chuỗi để lệnh "Thay thế tất cả" không sửa nhầm dòng này
+    if (req.key !== MA_BI_MAT) return out_({ ok: false, error: 'Sai mã bí mật — mã ở Thiết lập phải trùng MA_BI_MAT trong Code.gs, và Code.gs phải được Triển khai phiên bản mới sau khi sửa' });
     lock.waitLock(25000);
     var a = req.action || 'info';
     if (a === 'info') return out_(info_());
