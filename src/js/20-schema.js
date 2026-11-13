@@ -22,7 +22,7 @@
     loaiGoiThau: ['Tư vấn', 'Phi tư vấn', 'Mua sắm hàng hóa', 'Xây lắp', 'Hỗn hợp'],
     hinhThucLCNT: ['Đấu thầu rộng rãi', 'Đấu thầu hạn chế', 'Chào hàng cạnh tranh', 'Chỉ định thầu', 'Mua sắm trực tiếp', 'Tự thực hiện', 'Đặt hàng, giao nhiệm vụ', 'Hình thức khác'],
     loaiHopDong: ['Trọn gói', 'Theo đơn giá cố định', 'Theo đơn giá điều chỉnh', 'Theo thời gian', 'Loại khác'],
-    buocLCNT: ['Trình thẩm định kế hoạch lựa chọn nhà thầu', 'Phê duyệt kế hoạch lựa chọn nhà thầu', 'Phát hành hồ sơ mời thầu, hồ sơ yêu cầu', 'Đóng thầu, mở thầu', 'Phê duyệt danh sách nhà thầu đáp ứng yêu cầu kỹ thuật', 'Phê duyệt kết quả lựa chọn nhà thầu', 'Đăng tải kết quả lựa chọn nhà thầu', 'Thương thảo, hoàn thiện, ký hợp đồng'],
+    buocLCNT: ['Trình thẩm định kế hoạch lựa chọn nhà thầu', 'Phê duyệt kế hoạch lựa chọn nhà thầu', 'Thành lập tổ chuyên gia, tổ thẩm định', 'Phê duyệt hồ sơ mời thầu, hồ sơ yêu cầu', 'Phát hành hồ sơ mời thầu, hồ sơ yêu cầu', 'Phê duyệt danh sách ngắn', 'Đóng thầu, mở thầu', 'Phê duyệt danh sách nhà thầu đáp ứng yêu cầu kỹ thuật', 'Phê duyệt kết quả lựa chọn nhà thầu', 'Đăng tải kết quả lựa chọn nhà thầu', 'Thương thảo, hoàn thiện, ký hợp đồng'],
     nhomMoc: ['Quy hoạch', 'Chuẩn bị đầu tư', 'Chủ trương đầu tư', 'Quyết định đầu tư, phê duyệt dự toán', 'Đánh giá tác động môi trường', 'Đất đai, giải phóng mặt bằng', 'Thủ tục xây dựng', 'Lựa chọn nhà thầu', 'Thi công, triển khai thực hiện', 'Nghiệm thu', 'Bàn giao', 'Quyết toán', 'Khác']
   };
   A.DEFAULT_CFG = {

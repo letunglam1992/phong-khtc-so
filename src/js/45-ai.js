@@ -31,21 +31,22 @@
       const quaMayChu = async ly => {   // dự phòng: gọi AI qua máy chủ Apps Script (không bị chặn CORS)
         const j = await A.VBD.gas({ action: 'aiChat', messages, max_tokens: o.max_tokens || 1200 }).catch(er => { throw new Error(ly + ' Gọi qua máy chủ Apps Script cũng lỗi: ' + er.message); });
         AI.duongDi = 'gas'; if (o.tinh !== false) { const v = docHM(); v.so++; ghiHM(v); }
-        return { text: String(j.text || '').trim(), model: j.model || '', tenMoHinh: (/^@cf\//.test(j.model || '') ? String(j.model).replace(/^@cf\/[^/]+\//, '') + ' · ' : '') + 'qua máy chủ Apps Script' };
+        return { text: AiTI.layNoiDung(j.text), model: j.model || '', tenMoHinh: (/^@cf\//.test(j.model || '') ? String(j.model).replace(/^@cf\/[^/]+\//, '') + ' · ' : '') + 'qua máy chủ Apps Script' };
       };
       const coMC = A.VBD && A.VBD.coMayChu && A.VBD.coMayChu();
       if (AI.duongDi === 'gas' && coMC) return quaMayChu('');
       // Thử lần lượt các mô hình Worker cho phép khi mô hình trước lỗi máy chủ (vd. 3030) hoặc không trả nội dung
-      const dsMH = c.model ? [c.model] : ['', '@cf/zai-org/glm-4.7-flash', '@cf/google/gemma-4-26b-a4b-it'], loiMH = [];
+      const dsMH = c.model ? [c.model] : AiTI.MO_HINH_WORKER, loiMH = [], msgs2 = AiTI.gopHeThong(messages);
       try {
         for (const mh of dsMH) {
-          const b2 = Object.assign({}, body); if (mh) b2.model = mh; else delete b2.model;
+          const b2 = { messages: msgs2, max_tokens: AiTI.soToken(mh, body.max_tokens) }; if (mh) b2.model = mh;
           r = await fetch(c.url, Object.assign({}, op, { body: JSON.stringify(b2) })); d = await r.json().catch(() => ({}));
-          if (r.ok && String(d.text || '').trim()) break;
+          d.text = AiTI.layNoiDung(d.text); if (r.ok && d.text) break;
+          if (r.ok) d.error = 'chỉ trả phần suy luận, chưa có câu trả lời (hết token)';
           if (r.status === 429 || r.status === 401 || r.status === 403 || r.status === 400) break;
           loiMH.push((mh || 'mặc định').replace(/^@cf\/[^/]+\//, '') + ': ' + (d.error ? String(d.error).slice(0, 100) : 'HTTP ' + r.status));
         }
-        if (!(r.ok && String(d.text || '').trim()) && loiMH.length > 1) d = Object.assign({}, d, { error: loiMH.join(' | ') });
+        if (!(r.ok && d.text) && loiMH.length > 1) d = Object.assign({}, d, { error: loiMH.join(' | ') });
       }
       catch (er) {
         if (er && er.name === 'TimeoutError') throw new Error('AI không phản hồi kịp (quá thời gian chờ).');

@@ -10,7 +10,7 @@
  *  2. Bên trái → Dịch vụ (Services) → thêm "Drive API" (để nhận dạng chữ PDF scan, ảnh chụp).
  *  3. Cài đặt dự án → Thuộc tính tập lệnh (Script properties), tùy chọn:
  *       CF_WORKER_URL  — địa chỉ Worker AI dùng chung (mặc định Worker rasoatvanban của anh/chị)
- *       CF_WORKER_MODELS — thứ tự mô hình thử qua Worker, cách nhau bằng |, để trống phần đầu = mô hình mặc định của Worker
+ *       CF_WORKER_MODELS — thứ tự mô hình thử qua Worker, cách nhau bằng | (để trống phần đầu = mô hình mặc định của Worker)
  *       hoặc gọi thẳng Cloudflare: CF_ACCOUNT_ID, CF_API_TOKEN (quyền Workers AI: Read), CF_AI_MODEL
  *  4. Triển khai → Triển khai mới → Ứng dụng web → Thực thi với tư cách: Tôi; Ai có quyền: Bất kỳ ai.
  *  5. Chạy hàm caiDatVanBanDen một lần (cấp quyền, bật quét tự động 15 phút).
@@ -35,19 +35,19 @@ function doPost(e) {
     if (req.app !== APP_ID) return out_({ ok: false, error: 'Sai ứng dụng' });
     if (MA_BI_MAT === 'DOI-MA-' + 'NAY-TRUOC-KHI-DUNG') return out_({ ok: false, error: 'Chưa đổi MA_BI_MAT trong Code.gs' });   // ghép chuỗi để lệnh "Thay thế tất cả" không sửa nhầm dòng này
     if (req.key !== MA_BI_MAT) return out_({ ok: false, error: 'Sai mã bí mật — mã ở Thiết lập phải trùng MA_BI_MAT trong Code.gs, và Code.gs phải được Triển khai phiên bản mới sau khi sửa' });
-    lock.waitLock(25000);
     var a = req.action || 'info';
+    if (a === 'inboxProcess') return out_(xuLy_({ max: Math.min(+req.max || TOI_DA_MOI_LAN, TOI_DA_MOI_LAN), id: req.id || '' }));
+    if (a === 'inboxRetry') return out_(thuLai_(req.id));
+    if (a === 'aiChat') return out_(troChuyen_(req));
+    lock.waitLock(25000);
     if (a === 'info') return out_(info_());
     if (a === 'pull' || a === 'push') return out_(dongBo_(req));
     if (a === 'inboxGet') return out_(hangDoi_());
     if (a === 'inboxSetFolder') return out_(datThuMuc_(req.folder));
     if (a === 'inboxSetAuto') return out_({ ok: true, msg: caiDatTrigger_(!!req.on), state: hangDoi_() });
     if (a === 'inboxUpload') return out_(taiLen_(req));
-    if (a === 'inboxProcess') return out_(xuLy_({ max: Math.min(+req.max || TOI_DA_MOI_LAN, TOI_DA_MOI_LAN), id: req.id || '' }));
-    if (a === 'inboxRetry') return out_(thuLai_(req.id));
     if (a === 'inboxResolve') return out_(danhDau_(req));
     if (a === 'aiTest') return out_(thuAI_());
-    if (a === 'aiChat') return out_(troChuyen_(req));
     return out_({ ok: false, error: 'Không rõ thao tác' });
   } catch (err) {
     return out_({ ok: false, error: String(err && err.message || err) });
@@ -182,13 +182,14 @@ function goiAITin_(msgs, maxTok) {
     text = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message.content : '';
   } else {
     // Worker: thử lần lượt các mô hình Worker cho phép khi mô hình trước lỗi máy chủ (vd. 3030 Internal Server Error) hoặc không trả nội dung
-    var dsMoHinh = (p.getProperty('CF_WORKER_MODELS') || '|@cf/zai-org/glm-4.7-flash|@cf/google/gemma-4-26b-a4b-it').split('|'), loi = [];
+    var dsMoHinh = p.getProperty('CF_WORKER_MODELS') ? p.getProperty('CF_WORKER_MODELS').split('|') : AiTI.MO_HINH_WORKER, loi = [], msgs2 = AiTI.gopHeThong(msgs);
     for (var i = 0; i < dsMoHinh.length; i++) {
-      var body = { messages: msgs, max_tokens: maxTok || 3000 }; if (dsMoHinh[i]) body.model = dsMoHinh[i];
+      var body = { messages: msgs2, max_tokens: AiTI.soToken(dsMoHinh[i], maxTok || 3000) }; if (dsMoHinh[i]) body.model = dsMoHinh[i];
       r = UrlFetchApp.fetch(p.getProperty('CF_WORKER_URL') || CF_WORKER_MAC_DINH, { method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: JSON.stringify(body) });
       try { j = JSON.parse(r.getContentText() || '{}'); } catch (x) { j = {}; }
-      text = String(j.text || '').trim();
+      text = AiTI.layNoiDung(j.text);
       if (r.getResponseCode() < 300 && text) { MO_HINH_VUA_DUNG = j.model || dsMoHinh[i] || ''; break; }
+      if (r.getResponseCode() < 300 && !text) j.error = 'chỉ trả phần suy luận, chưa có câu trả lời (hết token)';
       if (r.getResponseCode() === 429 || r.getResponseCode() === 401) break;
       loi.push((dsMoHinh[i] || 'mặc định').replace(/^@cf\/[^/]+\//, '') + ': ' + (j.error ? String(j.error).slice(0, 120) : 'HTTP ' + r.getResponseCode()));
     }
@@ -223,8 +224,17 @@ function docMot_(it) {
   kq.ai_loi = aiLoi; kq.cach_doc = c.cach; kq.van_ban = text.slice(0, 8000); kq.van_ban_cat = text.length > 8000;
   return { kq: kq, file: f };
 }
+/** Chạy fn dưới khóa ngắn (đọc/ghi hàng đợi). */
+function voiKhoa_(fn) { var l = LockService.getScriptLock(); l.waitLock(30000); try { return fn(); } finally { l.releaseLock(); } }
 function xuLy_(opts) {
-  var q = docHangDoi_(); quet_(q);
+  // Chống hai lần đọc chạy chồng nhau (trigger 15 phút và nút "Quét và đọc ngay")
+  var p = props_(), dang = Number(p.getProperty('DANG_DOC_DEN') || 0);
+  if (dang && Date.now() - dang < 6 * 60000) { var s0 = voiKhoa_(hangDoi_); s0.processed = 0; s0.busy = true; return s0; }
+  p.setProperty('DANG_DOC_DEN', String(Date.now()));
+  try { return xuLyTrong_(opts); } finally { p.deleteProperty('DANG_DOC_DEN'); }
+}
+function xuLyTrong_(opts) {
+  var q = voiKhoa_(function () { var q0 = docHangDoi_(); if (quet_(q0)) ghiHangDoi_(q0); return q0; });
   var now = new Date().toISOString(), cho = q.items.filter(function (x) { return x.status === 'cho_doc' && (!x.retry_at || x.retry_at <= now) && (!opts.id || x.id === opts.id); }).slice(0, opts.max || TOI_DA_MOI_LAN);
   var daDoc = thuMucDaDoc_(thuMucVB_()), n = 0, hoan = false;
   cho.forEach(function (it) {
@@ -238,13 +248,22 @@ function xuLy_(opts) {
     it.processed_at = new Date().toISOString();
     try { if (f) f.moveTo(daDoc); } catch (e3) {}
   });
-  ghiHangDoi_(q);
-  var s = hangDoi_(); s.processed = n; s.deferred = hoan; return s;
+  // Ghi kết quả: đọc lại hàng đợi mới nhất (trong lúc đọc, cán bộ có thể đã duyệt/bỏ qua văn bản khác) rồi chỉ cập nhật các mục vừa đọc
+  return voiKhoa_(function () {
+    var q2 = docHangDoi_(), byId = {};
+    cho.forEach(function (it) { byId[it.id] = it; });
+    q2.items = q2.items.map(function (x) { return byId[x.id] && x.status === 'cho_doc' ? byId[x.id] : x; });
+    ghiHangDoi_(q2);
+    var s = hangDoi_(); s.processed = n; s.deferred = hoan; return s;
+  });
 }
 function thuLai_(id) {
-  var q = docHangDoi_(), it = q.items.filter(function (x) { return x.id === id; })[0];
-  if (!it) return { ok: false, error: 'Không tìm thấy văn bản trong hàng đợi.' };
-  it.status = 'cho_doc'; delete it.error; delete it.result; delete it.retry_at; ghiHangDoi_(q);
+  var co = voiKhoa_(function () {
+    var q = docHangDoi_(), it = q.items.filter(function (x) { return x.id === id; })[0];
+    if (!it) return false;
+    it.status = 'cho_doc'; delete it.error; delete it.result; delete it.retry_at; ghiHangDoi_(q); return true;
+  });
+  if (!co) return { ok: false, error: 'Không tìm thấy văn bản trong hàng đợi.' };
   return xuLy_({ max: 1, id: id });
 }
 function danhDau_(req) {
@@ -270,12 +289,49 @@ function caiDatTrigger_(on) {
 function caiDatVanBanDen() { thuMucVB_(); Logger.log(caiDatTrigger_(true)); Logger.log(JSON.stringify(thuAI_())); }
 /** Trigger gọi định kỳ. */
 function xuLyVanBanDen() {
-  var lock = LockService.getScriptLock(); lock.waitLock(30000);
-  try { var r = xuLy_({ max: TOI_DA_MOI_LAN }); Logger.log('Đã đọc ' + r.processed + ' văn bản; chờ duyệt ' + r.summary.cho_duyet + ', lỗi ' + r.summary.loi + '.'); }
-  finally { lock.releaseLock(); }
+  var r = xuLy_({ max: TOI_DA_MOI_LAN });
+  Logger.log(r.busy ? 'Đang có lượt đọc khác chạy, bỏ qua lượt này.' : 'Đã đọc ' + r.processed + ' văn bản; chờ duyệt ' + r.summary.cho_duyet + ', lỗi ' + r.summary.loi + '.');
 }
 
 /* ======================= Mô-đun dùng chung (chép tự động khi build — không sửa tay) ======================= */
+// @@BEGIN ai-tien-ich
+/* ============================================================
+   ai-tien-ich.js — Tiện ích gọi AI Cloudflare qua Worker, dùng chung trình duyệt và Code.gs (UMD: var AiTI)
+   - Worker trả {text, model}; với mô hình có "suy luận" (GLM, Gemma 4) mà hết token trước khi trả lời,
+     Worker trả nguyên khối JSON chatcmpl có content = null → coi như không có câu trả lời, thử mô hình kế tiếp.
+   - Một số mô hình Gemma lỗi khi có vai "system": gộp chỉ dẫn vào tin nhắn người dùng đầu tiên.
+   ============================================================ */
+var AiTI = (function () {
+  'use strict';
+  // Thứ tự thử qua Worker: '' = mô hình mặc định của Worker
+  var MO_HINH_WORKER = ['', '@cf/google/gemma-4-26b-a4b-it', '@cf/zai-org/glm-4.7-flash'];
+  function laSuyLuan(m) { return /glm|gemma-4|qwq|deepseek-r1|gpt-oss/i.test(String(m || '')); }
+  /** Số token tối đa: mô hình suy luận cần thêm chỗ cho phần suy luận trước khi trả lời */
+  function soToken(m, n) { n = +n || 1200; return laSuyLuan(m) ? Math.min(4096, Math.max(n * 2, 3500)) : n; }
+  /** Gộp các tin "system" vào tin "user" đầu tiên */
+  function gopHeThong(msgs) {
+    var sys = [], out = [];
+    (msgs || []).forEach(function (m) { if (m && m.role === 'system') sys.push(String(m.content || '')); else if (m) out.push({ role: m.role, content: String(m.content || '') }); });
+    if (!sys.length) return out;
+    var i = 0; while (i < out.length && out[i].role !== 'user') i++;
+    if (i >= out.length) return [{ role: 'user', content: sys.join('\n\n') }].concat(out);
+    out[i] = { role: 'user', content: 'CHỈ DẪN (bắt buộc tuân thủ):\n' + sys.join('\n\n') + '\n\n---\n\n' + out[i].content };
+    return out;
+  }
+  /** Lấy câu trả lời thật từ text Worker trả về. '' nếu chỉ có phần suy luận. */
+  function layNoiDung(text) {
+    var t = String(text == null ? '' : text).trim();
+    if (/^\{[\s\S]*"(choices|response)"/.test(t)) {
+      try {
+        var o = JSON.parse(t), c = o.choices && o.choices[0];
+        t = (c && c.message && typeof c.message.content === 'string' ? c.message.content : c && typeof c.text === 'string' ? c.text : typeof o.response === 'string' ? o.response : '') || '';
+      } catch (e) { return ''; }
+    }
+    return t.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^[\s\S]*<\/think>/i, '').trim();
+  }
+  return { MO_HINH_WORKER: MO_HINH_WORKER, laSuyLuan: laSuyLuan, soToken: soToken, gopHeThong: gopHeThong, layNoiDung: layNoiDung };
+})();
+// @@END ai-tien-ich
 // @@BEGIN trich-van-ban
 /* ============================================================
    trich-van-ban.js — Nhận dạng loại văn bản và bóc tách thông tin
@@ -292,6 +348,7 @@ var TrichVB = (function () {
   var LOAI = [
     ['khlcnt_qd', 'Quyết định phê duyệt kế hoạch lựa chọn nhà thầu'],
     ['khlcnt_trinh', 'Tờ trình, kế hoạch lựa chọn nhà thầu (chưa phê duyệt)'],
+    ['lcnt_buoc', 'Văn bản trong quá trình lựa chọn nhà thầu (HSMT, HSYC, danh sách đáp ứng kỹ thuật…)'],
     ['kqlcnt_qd', 'Quyết định phê duyệt kết quả lựa chọn nhà thầu'],
     ['hop_dong', 'Hợp đồng'],
     ['phu_luc_hd', 'Phụ lục hợp đồng'],
@@ -341,11 +398,22 @@ var TrichVB = (function () {
   }
 
   /* ---------- Nhận dạng loại văn bản ---------- */
+  // Văn bản các bước giữa KHLCNT và kết quả: [mẫu không dấu, tên bước (trùng danh mục "Bước" của phần mềm)]
+  var BUOC_LCNT = [
+    [/phe duyet danh sach nha thau dap ung (yeu cau )?(ve )?ky thuat/, 'Phê duyệt danh sách nhà thầu đáp ứng yêu cầu kỹ thuật'],
+    [/phe duyet danh sach ngan/, 'Phê duyệt danh sách ngắn'],
+    [/phe duyet ho so (moi thau|yeu cau|moi quan tam|moi so tuyen)/, 'Phê duyệt hồ sơ mời thầu, hồ sơ yêu cầu'],
+    [/(phe duyet|thanh lap) to chuyen gia|thanh lap to tham dinh/, 'Thành lập tổ chuyên gia, tổ thẩm định']
+  ];
+  function buocLCNT(text) { var d = boDau(text).replace(/\s+/g, ' ').slice(0, 1500); for (var i = 0; i < BUOC_LCNT.length; i++) if (BUOC_LCNT[i][0].test(d)) return BUOC_LCNT[i][1]; return null; }
+  /** Tên gói thầu nằm trong trích yếu: "…của gói thầu Tư vấn xây dựng…" */
+  function tenGoiTuTrichYeu(ty) { var m = String(ty || '').match(/g[óo]i\s+th[ầa]u\s*(?:s[ốô]\s*\d+\s*[:.-]?\s*)?[:：]?\s*(.{6,})$/i); return m ? gon(m[1]).replace(/[.;,]\s*$/, '') : null; }
   function phanLoai(text) {
     var d = boDau(text).replace(/\s+/g, ' '), dau = d.slice(0, 2500);
     if (/thanh ly hop dong/.test(dau) && /bien ban/.test(dau)) return 'thanh_ly_hd';
     if (/phu luc hop dong/.test(dau)) return 'phu_luc_hd';
     if (/bien ban nghiem thu/.test(dau)) return 'nghiem_thu';
+    if (BUOC_LCNT.some(function (b) { return b[0].test(dau.slice(0, 1500)); })) return 'lcnt_buoc';
     if (/phe duyet ket qua lua chon nha thau|phe duyet ket qua (dau thau|chi dinh thau|chao hang)/.test(dau)) return 'kqlcnt_qd';
     if (/quyet dinh/.test(dau) && /phe duyet ke hoach lua chon nha thau/.test(dau)) return 'khlcnt_qd';
     if (/ke hoach lua chon nha thau/.test(dau) && /to trinh|de nghi (tham dinh|phe duyet)/.test(dau)) return 'khlcnt_trinh';
@@ -363,9 +431,18 @@ var TrichVB = (function () {
     var m = String(text).slice(0, 1500).match(/\bS[ốô]\s*[:：]?\s*([0-9]{1,6}\s*\/\s*[0-9]{0,4}\s*\/?\s*[A-ZĐ][A-ZĐ0-9\-–&]*(?:\s*-\s*[A-ZĐ0-9&]+)*)/);
     return m ? m[1].replace(/\s+/g, '').replace(/–/g, '-') : '';
   }
-  function ngayVB(text) {
-    var dau = String(text).slice(0, 2000), m = dau.match(/ngày\s*\d{1,2}\s*tháng\s*\d{1,2}\s*năm\s*\d{4}/i);
-    return m ? ngayISO(m[0]) : ngayISO((dau.match(/\d{1,2}\/\d{1,2}\/\d{4}/) || [''])[0]);
+  function ngayVB(text) { return ngayVBct(text).ngay; }
+  // {ngay, dau: 'co' (đọc từ dòng địa danh, ngày) | 'trong' (dòng ngày để trống — văn bản ký số) | 'khong'}
+  function ngayVBct(text) {
+    var t = String(text), dau = t.slice(0, 2500), m;
+    var ky = t.match(/(?:Thời gian ký|Ngày ký|Ký ngày|Signing time|Date)\s*[:：]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{4})/i), ngayKy = ky ? ngayISO(ky[1].replace(/\./g, '/')) : '';
+    if ((m = dau.match(/[A-ZĐÂ][^\n,]{1,30},\s*ngày\s*(\d{1,2})\s*tháng\s*(\d{1,2})\s*năm\s*(\d{4})/))) { var v = ngayISO('ngày ' + m[1] + ' tháng ' + m[2] + ' năm ' + m[3]); if (v) return { ngay: v, dau: 'co' }; }
+    if (/[A-ZĐÂ][^\n,]{1,30},\s*ngày\s*(tháng|\.{2,}|…)/.test(dau) || /,\s*ngày\s+tháng\s+(\d{1,2}\s+)?năm/.test(dau)) return { ngay: ngayKy, dau: 'trong' };
+    if (ngayKy) return { ngay: ngayKy, dau: 'khong' };
+    // Không có dòng địa danh: lấy ngày đầu tiên không nằm sau "từ", "đến", "áp dụng"
+    var re = /(từ|đến|trước|sau|áp dụng|kể từ)?\s*ngày\s*(\d{1,2})\s*tháng\s*(\d{1,2})\s*năm\s*(\d{4})/gi, x;
+    while ((x = re.exec(dau))) { if (!x[1]) { var w = ngayISO('ngày ' + x[2] + ' tháng ' + x[3] + ' năm ' + x[4]); if (w) return { ngay: w, dau: 'khong' }; } }
+    return { ngay: '', dau: 'khong' };
   }
   function coQuan(text) {
     var dong = String(text).split('\n').slice(0, 8).map(gon).filter(Boolean), kq = '';
@@ -382,14 +459,16 @@ var TrichVB = (function () {
   }
   function tien(text, nhan) { var s = sau(text, nhan, 200); return s ? soTien(s) : null; }
   function trichQuyTac(text) {
-    var t = gon(text), loai = phanLoai(t), r = { loai: loai, so_van_ban: soVB(t) || null, ngay_van_ban: ngayVB(t) || null, co_quan_ban_hanh: coQuan(t) || null, trich_yeu: trichYeu(t) || null, nguon_trich: 'quy_tac' };
+    var t = gon(text), loai = phanLoai(t), nv = ngayVBct(t), r = { loai: loai, so_van_ban: soVB(t) || null, ngay_van_ban: nv.ngay || null, ngay_dau: nv.dau, so_trong: /\bS[ốô]\s*[:：]?\s*\/\s*[A-ZĐ]/.test(t.slice(0, 1500)) || undefined, co_quan_ban_hanh: coQuan(t) || null, trich_yeu: trichYeu(t) || null, nguon_trich: 'quy_tac' };
     var tenDA = sau(t, 'Tên dự án|Tên nhiệm vụ|Tên dự toán|Dự án|Nhiệm vụ', 250); if (tenDA) r.ten_du_an_nhiem_vu = tenDA;
     var goi = { ten: sau(t, 'Tên gói thầu', 300) || null, gia_goi_thau: tien(t, 'Giá gói thầu'), nguon_von: sau(t, 'Nguồn vốn', 200) || null, hinh_thuc_lcnt: sau(t, 'Hình thức lựa chọn nhà thầu', 150) || null, phuong_thuc: sau(t, 'Phương thức lựa chọn nhà thầu', 150) || null, thoi_gian_bat_dau_lcnt: sau(t, 'Thời gian (?:bắt đầu )?tổ chức lựa chọn nhà thầu', 150) || null, loai_hop_dong: sau(t, 'Loại hợp đồng', 100) || null, thoi_gian_thuc_hien_hd: sau(t, 'Thời gian thực hiện (?:gói thầu|hợp đồng)', 150) || null };
     if (loai === 'khlcnt_qd' || loai === 'khlcnt_trinh') r.goi_thau = goi.ten || goi.gia_goi_thau ? [goi] : [];
-    if (loai === 'kqlcnt_qd') r.ket_qua = { ten_goi_thau: goi.ten, nha_thau: sau(t, 'Tên nhà thầu(?: trúng thầu)?|Nhà thầu trúng thầu|Đơn vị trúng thầu', 250) || null, gia_trung_thau: tien(t, 'Giá trúng thầu|Giá đề nghị trúng thầu'), thoi_gian_thuc_hien_hd: goi.thoi_gian_thuc_hien_hd, loai_hop_dong: goi.loai_hop_dong };
+    var tenTY = tenGoiTuTrichYeu(r.trich_yeu);
+    if (loai === 'lcnt_buoc') r.lcnt_buoc = { ten_goi_thau: goi.ten || tenTY, buoc: buocLCNT(t) };
+    if (loai === 'kqlcnt_qd') r.ket_qua = { ten_goi_thau: goi.ten || tenTY, nha_thau: sau(t, 'Tên nhà thầu(?: trúng thầu)?|Nhà thầu trúng thầu|Đơn vị trúng thầu', 250) || null, gia_trung_thau: tien(t, 'Giá trúng thầu|Giá đề nghị trúng thầu'), thoi_gian_thuc_hien_hd: goi.thoi_gian_thuc_hien_hd, loai_hop_dong: goi.loai_hop_dong };
     if (loai === 'hop_dong') {
       var so = (t.match(/H[ỢO]P Đ[ỒO]NG[^\n]*\n?\s*S[ốô]\s*[:：]?\s*([^\n]{3,60})/i) || [])[1] || r.so_van_ban || '';
-      r.hop_dong = { so_hop_dong: gon(so).replace(/\s+/g, '') || null, ngay_ky: r.ngay_van_ban, ten: sau(t, 'Tên hợp đồng|Gói thầu|Tên gói thầu', 300) || r.trich_yeu, ten_goi_thau: goi.ten, nha_thau: sau(t, 'Bên B|Bên nhận thầu|Nhà thầu|Bên nhận', 250) || null, ben_a: sau(t, 'Bên A|Bên giao thầu|Chủ đầu tư', 250) || null, gia_tri: tien(t, 'Giá (?:trị )?hợp đồng|Tổng giá trị hợp đồng|Giá hợp đồng'), loai_hop_dong: goi.loai_hop_dong, thoi_gian_thuc_hien: goi.thoi_gian_thuc_hien_hd, tam_ung: tien(t, 'Tạm ứng|Giá trị tạm ứng|Mức tạm ứng'), bao_lanh_thuc_hien: tien(t, 'Bảo đảm thực hiện hợp đồng|Bảo lãnh thực hiện hợp đồng') };
+      r.hop_dong = { so_hop_dong: gon(so).replace(/\s+/g, '') || null, ngay_ky: r.ngay_van_ban, ten: sau(t, 'Tên hợp đồng|Gói thầu|Tên gói thầu', 300) || r.trich_yeu, ten_goi_thau: goi.ten || tenTY, nha_thau: sau(t, 'Bên B|Bên nhận thầu|Nhà thầu|Bên nhận', 250) || null, ben_a: sau(t, 'Bên A|Bên giao thầu|Chủ đầu tư', 250) || null, gia_tri: tien(t, 'Giá (?:trị )?hợp đồng|Tổng giá trị hợp đồng|Giá hợp đồng'), loai_hop_dong: goi.loai_hop_dong, thoi_gian_thuc_hien: goi.thoi_gian_thuc_hien_hd, tam_ung: tien(t, 'Tạm ứng|Giá trị tạm ứng|Mức tạm ứng'), bao_lanh_thuc_hien: tien(t, 'Bảo đảm thực hiện hợp đồng|Bảo lãnh thực hiện hợp đồng') };
     }
     if (loai === 'phu_luc_hd') r.phu_luc = { so_hop_dong: sau(t, 'Hợp đồng số|Căn cứ Hợp đồng số', 80) || null, so_phu_luc: r.so_van_ban, noi_dung: r.trich_yeu, gia_tri_dieu_chinh: tien(t, 'Giá trị điều chỉnh|Giá trị tăng|Giá trị giảm'), gia_han_den: ngayISO(sau(t, 'Gia hạn (?:thời gian thực hiện )?(?:hợp đồng )?đến', 80)) || null };
     if (loai === 'nghiem_thu') r.nghiem_thu = { so_hop_dong: sau(t, 'Hợp đồng số|Căn cứ Hợp đồng số', 80) || null, noi_dung: r.trich_yeu, gia_tri: tien(t, 'Giá trị nghiệm thu|Giá trị khối lượng hoàn thành|Giá trị đề nghị thanh toán') };
@@ -405,13 +484,14 @@ var TrichVB = (function () {
     'Quy tắc bắt buộc:',
     '1. Chỉ lấy thông tin có trong văn bản. Không có thì để null. Không suy đoán, không tự tính.',
     '2. Số tiền ghi số nguyên, đơn vị đồng, không dấu chấm, dấu phẩy (ví dụ 1250000000).',
-    '3. Ngày ghi dạng dd/mm/yyyy.',
-    '4. "loai" là một trong: khlcnt_qd (QĐ phê duyệt kế hoạch lựa chọn nhà thầu), khlcnt_trinh (tờ trình/KHLCNT chưa phê duyệt), kqlcnt_qd (QĐ phê duyệt kết quả lựa chọn nhà thầu), hop_dong, phu_luc_hd, nghiem_thu, thanh_ly_hd, du_toan_qd (QĐ giao/bổ sung/điều chỉnh/thu hồi dự toán), khac.',
+    '3. Ngày ghi dạng dd/mm/yyyy. "ngay_van_ban" là ngày ban hành ở dòng "<địa danh>, ngày … tháng … năm …" dưới số văn bản, KHÔNG lấy ngày nằm trong trích yếu hay nội dung (ví dụ "áp dụng từ ngày …"). Văn bản ký số để trống số hoặc ngày thì để null.',
+    '4. "loai" là một trong: khlcnt_qd (QĐ phê duyệt kế hoạch lựa chọn nhà thầu), khlcnt_trinh (tờ trình/KHLCNT chưa phê duyệt), lcnt_buoc (QĐ, văn bản các bước giữa KHLCNT và kết quả: phê duyệt hồ sơ mời thầu/hồ sơ yêu cầu, danh sách nhà thầu đáp ứng yêu cầu kỹ thuật, danh sách ngắn, thành lập tổ chuyên gia), kqlcnt_qd (QĐ phê duyệt kết quả lựa chọn nhà thầu), hop_dong, phu_luc_hd, nghiem_thu, thanh_ly_hd, du_toan_qd (QĐ giao/bổ sung/điều chỉnh/thu hồi dự toán), khac.',
     '5. Bảng danh mục gói thầu: mỗi dòng gói thầu là một phần tử của "goi_thau", giữ nguyên tên gói thầu.',
     '6. "trich_dan": với mỗi số tiền, ghi nguyên văn ngắn (dưới 120 ký tự) câu chứa số tiền đó để người duyệt đối chiếu.',
     'Cấu trúc JSON (chỉ điền phần đúng với loại văn bản, phần khác để null):',
     '{"loai":"","so_van_ban":null,"ngay_van_ban":null,"co_quan_ban_hanh":null,"trich_yeu":null,"ten_du_an_nhiem_vu":null,',
     '"goi_thau":[{"ten":null,"gia_goi_thau":null,"nguon_von":null,"hinh_thuc_lcnt":null,"phuong_thuc":null,"thoi_gian_bat_dau_lcnt":null,"loai_hop_dong":null,"thoi_gian_thuc_hien_hd":null}],',
+    '"lcnt_buoc":{"ten_goi_thau":null,"buoc":null},',
     '"ket_qua":{"ten_goi_thau":null,"nha_thau":null,"gia_trung_thau":null,"thoi_gian_thuc_hien_hd":null,"loai_hop_dong":null},',
     '"hop_dong":{"so_hop_dong":null,"ngay_ky":null,"ten":null,"ten_goi_thau":null,"ben_a":null,"nha_thau":null,"gia_tri":null,"loai_hop_dong":null,"ngay_bat_dau":null,"ngay_ket_thuc":null,"thoi_gian_thuc_hien":null,"tam_ung":null,"bao_lanh_thuc_hien":null,"bao_lanh_thuc_hien_den":null},',
     '"phu_luc":{"so_hop_dong":null,"so_phu_luc":null,"noi_dung":null,"gia_tri_dieu_chinh":null,"gia_han_den":null},',
@@ -444,6 +524,7 @@ var TrichVB = (function () {
     if (MA_LOAI.indexOf(r.loai) < 0) r.loai = 'khac';
     ['so_van_ban', 'co_quan_ban_hanh', 'trich_yeu', 'ten_du_an_nhiem_vu'].forEach(function (k) { r[k] = rong(r[k]) ? null : gon(r[k]); });
     if (r.so_van_ban) r.so_van_ban = r.so_van_ban.replace(/^S[ốô]\s*[:：]?\s*/i, '').replace(/\s+/g, '');
+    if (r.so_van_ban && !/^\d/.test(r.so_van_ban)) { r.so_van_ban = null; r.so_trong = true; }   // "/QĐ-SNNMT": văn bản ký số, số nằm ở chữ ký
     r.ngay_van_ban = rong(r.ngay_van_ban) ? null : (ngayISO(r.ngay_van_ban) || null);
     var lam = function (obj, sec) {
       if (!obj || typeof obj !== 'object') return obj;
@@ -453,7 +534,7 @@ var TrichVB = (function () {
       return obj;
     };
     if (Array.isArray(r.goi_thau)) r.goi_thau = r.goi_thau.map(function (g) { return lam(g, 'goi_thau'); }).filter(function (g) { return g && (g.ten || g.gia_goi_thau); }); else r.goi_thau = [];
-    ['ket_qua', 'hop_dong', 'phu_luc', 'nghiem_thu', 'thanh_ly', 'du_toan'].forEach(function (k) { if (r[k] && typeof r[k] === 'object') r[k] = lam(r[k], k); else r[k] = null; });
+    ['lcnt_buoc', 'ket_qua', 'hop_dong', 'phu_luc', 'nghiem_thu', 'thanh_ly', 'du_toan'].forEach(function (k) { if (r[k] && typeof r[k] === 'object') r[k] = lam(r[k], k); else r[k] = null; });
     if (r.du_toan && Array.isArray(r.du_toan.dong)) r.du_toan.dong = r.du_toan.dong.map(function (d) { return { don_vi: rong(d && d.don_vi) ? null : gon(d.don_vi), noi_dung: rong(d && d.noi_dung) ? null : gon(d.noi_dung), so_tien: soTien(d && d.so_tien) }; }).filter(function (d) { return d.noi_dung || d.so_tien; });
     if (r.trich_dan && typeof r.trich_dan !== 'object') r.trich_dan = {};
     return r;
@@ -461,9 +542,14 @@ var TrichVB = (function () {
   /** Ưu tiên AI; trường AI để trống thì lấy từ quy tắc. Ghi lại trường nào lấy từ đâu. */
   function ghep(ai, qt) {
     var a = chuanHoa(ai), q = chuanHoa(qt), bu = [];
+    if (a.so_van_ban && q.so_van_ban && a.so_van_ban !== q.so_van_ban && /^\d/.test(q.so_van_ban)) { a.so_van_ban = q.so_van_ban; bu.push('so_van_ban'); }
     if (a.loai === 'khac' && q.loai !== 'khac') { a.loai = q.loai; bu.push('loai'); }
     ['so_van_ban', 'ngay_van_ban', 'co_quan_ban_hanh', 'trich_yeu', 'ten_du_an_nhiem_vu'].forEach(function (k) { if (!a[k] && q[k]) { a[k] = q[k]; bu.push(k); } });
-    ['ket_qua', 'hop_dong', 'phu_luc', 'nghiem_thu', 'thanh_ly', 'du_toan'].forEach(function (k) {
+    if (qt && qt.ngay_dau === 'co' && q.ngay_van_ban && a.ngay_van_ban !== q.ngay_van_ban) { a.ngay_van_ban = q.ngay_van_ban; bu.push('ngay_van_ban'); }
+    if (qt && qt.ngay_dau === 'trong') { a.ngay_van_ban = q.ngay_van_ban || null; a.ngay_trong = true; }
+    if (qt && qt.so_trong) a.so_trong = true;
+    if (q.loai === 'lcnt_buoc' && a.loai === 'kqlcnt_qd') { a.loai = 'lcnt_buoc'; bu.push('loai'); }
+    ['lcnt_buoc', 'ket_qua', 'hop_dong', 'phu_luc', 'nghiem_thu', 'thanh_ly', 'du_toan'].forEach(function (k) {
       if (!q[k]) return; if (!a[k]) { a[k] = q[k]; bu.push(k); return; }
       Object.keys(q[k]).forEach(function (f) { if (a[k][f] == null && q[k][f] != null && f !== 'dong') { a[k][f] = q[k][f]; bu.push(k + '.' + f); } });
     });
@@ -478,6 +564,6 @@ var TrichVB = (function () {
     var sb = {}; tb.forEach(function (x) { sb[x] = 1; }); var chung = ta.filter(function (x) { return sb[x]; }).length;
     return 2 * chung / (ta.length + tb.length);
   }
-  return { LOAI: LOAI, boDau: boDau, ngayISO: ngayISO, soTien: soTien, phanLoai: phanLoai, trichQuyTac: trichQuyTac, LOI_NHAC_HE_THONG: LOI_NHAC_HE_THONG, loiNhacNguoiDung: loiNhacNguoiDung, docJson: docJson, chuanHoa: chuanHoa, ghep: ghep, giongTen: giongTen, TOI_DA_KY_TU: TOI_DA_KY_TU };
+  return { LOAI: LOAI, buocLCNT: buocLCNT, tenGoiTuTrichYeu: tenGoiTuTrichYeu, ngayVBct: ngayVBct, boDau: boDau, ngayISO: ngayISO, soTien: soTien, phanLoai: phanLoai, trichQuyTac: trichQuyTac, LOI_NHAC_HE_THONG: LOI_NHAC_HE_THONG, loiNhacNguoiDung: loiNhacNguoiDung, docJson: docJson, chuanHoa: chuanHoa, ghep: ghep, giongTen: giongTen, TOI_DA_KY_TU: TOI_DA_KY_TU };
 })();
 // @@END trich-van-ban

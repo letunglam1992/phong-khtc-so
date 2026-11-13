@@ -42,6 +42,11 @@
       });
       if (!(r.goi_thau || []).length) ops.push({ key: 'gt0', title: 'Thêm gói thầu (văn bản không có bảng gói thầu đọc được — nhập tay)', coll: 'goithau', id: '', choices: choicesOf('goithau'), fields: { ten: r.ten_du_an_nhiem_vu || '', duAnId: da ? da.id : '', qdKHSo: qd ? so : '', qdKHNgay: qd ? ngay : '', trangThai: qd ? 'khlcnt' : 'trinhkh' }, keys: ['ten', 'duAnId', 'giaGoiThau', 'hinhThuc', 'qdKHSo', 'qdKHNgay', 'trangThai'], push: [], dinhKem: dk, on: true });
     }
+    if (r.loai === 'lcnt_buoc') {
+      const b = r.lcnt_buoc || {}, ten = b.ten_goi_thau || (T ? T.tenGoiTuTrichYeu(r.trich_yeu) : ''), cu = L.vbTimGT(ten);
+      ops.push({ key: 'buoc', title: cu ? 'Ghi bước vào tiến trình gói thầu' : '[Chưa tìm thấy gói thầu "' + U.trunc(ten || '', 60) + '" — chọn gói thầu]', coll: 'goithau', id: cu ? cu.id : '', mustExist: true, choices: choicesOf('goithau').slice(1),
+        fields: { trangThai: cu && L.gtBuoc(cu) >= 4 ? cu.trangThai : 'danglcnt' }, keys: ['trangThai'], push: [{ k: 'tienTrinh', label: 'Bước lựa chọn nhà thầu', row: { buoc: b.buoc || r.trich_yeu || '', ngay, soVB: so, ghiChu: r.trich_yeu || '' } }], dinhKem: dk, on: !!cu });
+    }
     if (r.loai === 'kqlcnt_qd') {
       const k = r.ket_qua || {}, cu = L.vbTimGT(k.ten_goi_thau);
       ops.push({ key: 'kq', title: cu ? 'Cập nhật kết quả lựa chọn nhà thầu' : 'Thêm gói thầu đã có kết quả (chưa tìm thấy gói thầu tương ứng)', coll: 'goithau', id: cu ? cu.id : '', choices: choicesOf('goithau'),

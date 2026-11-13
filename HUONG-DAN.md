@@ -108,6 +108,7 @@ Mỗi tài sản loại **"Cơ sở nhà, đất"** (hoặc "Trụ sở, nhà l�
 | Loại văn bản | Phần mềm đề xuất |
 |---|---|
 | QĐ phê duyệt KHLCNT / tờ trình KHLCNT | Thêm hoặc cập nhật từng gói thầu trong bảng (giá, nguồn vốn, hình thức, phương thức, loại HĐ, thời gian), ghi số QĐ, bước tiến trình |
+| QĐ phê duyệt HSMT/HSYC, danh sách nhà thầu đáp ứng kỹ thuật, danh sách ngắn, tổ chuyên gia | Ghi bước vào tiến trình của gói thầu (tìm theo tên gói thầu trong trích yếu), chuyển sang "Đang lựa chọn nhà thầu" |
 | QĐ phê duyệt kết quả LCNT | Ghi nhà thầu trúng thầu, giá trúng thầu, số QĐ vào gói thầu tương ứng |
 | Hợp đồng | Thêm hợp đồng, gắn gói thầu (theo tên, nhà thầu), chuyển gói thầu sang "Đã ký hợp đồng" |
 | Phụ lục, biên bản nghiệm thu, thanh lý | Thêm dòng phụ lục / nghiệm thu; ghi thanh lý vào hợp đồng đã có |
@@ -125,6 +126,8 @@ Hai cách đọc:
    6. Phần mềm → **Thiết lập → Đồng bộ qua Google Apps Script** → dán URL `.../exec` và mã bí mật.
    
    Mỗi lần sửa Code.gs: Triển khai → Quản lý triển khai → Sửa → **Phiên bản mới** (giữ nguyên URL). Tệp đã đọc chuyển vào thư mục con "Đã đọc". Đổi thư mục nhận văn bản ở trang Văn bản đến.
+
+Văn bản ký số thường để trống số và ngày ở đầu văn bản (đóng ở chữ ký số): phần mềm không lấy nhầm ngày trong trích yếu, báo rõ để anh/chị nhập số, ngày theo bản đã ký. "Bỏ qua văn bản này" có hiệu lực ngay; trạng thái gửi lên máy chủ chạy nền, máy chủ bận thì tự gửi lại.
 
 Lưu ý: máy đọc có thể sai — luôn đối chiếu với văn bản gốc (có nút mở tệp gốc và phần nội dung đã đọc). Thời hạn hợp đồng ghi theo số ngày/tháng được ước tính theo cách tính thời hạn tại Điều 147, 148 Bộ luật Dân sự 2015 (ngày đầu không tính) và kèm ghi chú để đối chiếu điều khoản hiệu lực của hợp đồng.
 

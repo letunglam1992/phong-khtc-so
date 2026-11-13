@@ -72,14 +72,35 @@ test('gọi thẳng Cloudflare khi có CF_ACCOUNT_ID + CF_API_TOKEN', () => {
 test('aiChat: hộp chat gọi AI qua máy chủ (khi trình duyệt bị Worker chặn tên miền)', () => {
   const e = env({ ai: b => ({ code: 200, json: { text: 'Trả lời ' + b.messages.length + ' tin' } }) });
   const r = e.post({ action: 'aiChat', messages: [{ role: 'system', content: 'a' }, { role: 'user', content: 'b' }, { role: 'tool', content: 'x' }], max_tokens: 500 });
-  assert.equal(r.ok, true); assert.equal(r.text, 'Trả lời 2 tin'); assert.equal(e.fetches[0].body.max_tokens, 500);
+  assert.equal(r.ok, true); assert.equal(r.text, 'Trả lời 1 tin', 'gộp system vào user, bỏ vai lạ'); assert.equal(e.fetches[0].body.max_tokens, 500);
   assert.match(e.post({ action: 'aiChat', messages: [] }).error, /Thiếu/);
   assert.match(e.post({ key: 'SAI', action: 'aiChat', messages: [{ role: 'user', content: 'b' }] }).error, /Sai mã/);
 });
 test('Worker: mô hình mặc định lỗi 3030 → tự thử mô hình kế tiếp', () => {
   const e = env({ ai: b => b.model ? { code: 200, json: { text: 'OK từ ' + b.model, model: b.model } } : { code: 502, json: { error: '3030: Internal Server Error' } } });
   const r = e.post({ action: 'aiChat', messages: [{ role: 'user', content: 'x' }] });
-  assert.equal(r.ok, true); assert.equal(r.model, '@cf/zai-org/glm-4.7-flash'); assert.equal(e.fetches.length, 2);
+  assert.equal(r.ok, true); assert.equal(r.model, '@cf/google/gemma-4-26b-a4b-it'); assert.equal(e.fetches.length, 2);
+  assert.equal(e.fetches[0].body.messages.length, 1, 'gộp system vào user');
   const e2 = env({ ai: () => ({ code: 502, json: { error: '3030: Internal Server Error' } }) });
-  assert.match(e2.post({ action: 'aiChat', messages: [{ role: 'user', content: 'x' }] }).error, /mặc định: 3030.*glm-4\.7-flash: 3030.*gemma-4-26b-a4b-it: 3030/);
+  assert.match(e2.post({ action: 'aiChat', messages: [{ role: 'user', content: 'x' }] }).error, /mặc định: 3030.*gemma-4-26b-a4b-it: 3030.*glm-4\.7-flash: 3030/);
+});
+test('đọc văn bản không chạy chồng; kết quả đọc không ghi đè thao tác duyệt xảy ra trong lúc đọc', () => {
+  const e = env();
+  e.props.DANG_DOC_DEN = String(Date.now());
+  assert.equal(e.post({ action: 'inboxProcess' }).busy, true);
+  delete e.props.DANG_DOC_DEN;
+  e.post({ action: 'inboxUpload', name: 'a.txt', mime: 'text/plain', data: Buffer.from(QD).toString('base64') });
+  e.post({ action: 'inboxUpload', name: 'b.txt', mime: 'text/plain', data: Buffer.from(QD).toString('base64') });
+  const r1 = e.post({ action: 'inboxProcess', max: 1 }), a = r1.items.find(x => x.status === 'cho_duyet');
+  // Trong lúc đọc tệp b, cán bộ bỏ qua tệp a: mô phỏng bằng cách đánh dấu trước khi đọc tiếp
+  e.post({ action: 'inboxResolve', id: a.id, status: 'bo_qua', by: 'x' });
+  const r2 = e.post({ action: 'inboxProcess' });
+  assert.equal(r2.items.find(x => x.id === a.id).status, 'bo_qua'); assert.equal(r2.summary.cho_duyet, 1);
+  assert.equal(e.props.DANG_DOC_DEN, undefined, 'xóa cờ đang đọc sau khi xong');
+});
+test('Worker trả khối JSON chỉ có suy luận (content null) → thử mô hình kế tiếp', () => {
+  const raw = JSON.stringify({ id: 'chatcmpl-x', choices: [{ message: { role: 'assistant', content: null, reasoning: '1. Analyze' } }] });
+  const e = env({ ai: b => b.model === '@cf/zai-org/glm-4.7-flash' ? { code: 200, json: { text: 'Có 2 gói thầu [1].', model: b.model } } : { code: 200, json: { text: raw, model: b.model || 'x' } } });
+  const r = e.post({ action: 'aiChat', messages: [{ role: 'system', content: 'S' }, { role: 'user', content: 'x' }] });
+  assert.equal(r.text, 'Có 2 gói thầu [1].'); assert.equal(e.fetches.length, 3); assert.equal(e.fetches[2].body.max_tokens, 3500);
 });

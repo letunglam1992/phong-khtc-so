@@ -26,7 +26,7 @@
   };
   VB.refresh = async (action, extra) => {
     VB.loading = true; VB.err = '';
-    try { const j = await VB.gas(Object.assign({ action: action || 'inboxGet' }, extra || {})); VB.state = j.state || j; if (j.msg) UI.toast(j.msg, 'ok'); return j; }
+    try { const j = await VB.gas(Object.assign({ action: action || 'inboxGet' }, extra || {})); VB.state = apDung(j.state || j); if (j.msg) UI.toast(j.msg, 'ok'); return j; }
     catch (er) { VB.err = er.message; throw er; }
     finally { VB.loading = false; badge(); }
   };
@@ -34,7 +34,7 @@
   const badge = () => { const b = $('#nav-vbd'); if (!b) return; const n = choDuyet(); b.textContent = n; b.classList.toggle('hide', !n); };
   VB.badge = badge;
   // Khi mở phần mềm: lấy trạng thái hàng đợi trên máy chủ (không đọc văn bản), cập nhật số chờ duyệt
-  VB.autoCheck = () => { if (coMayChu()) VB.refresh('inboxGet').then(() => { if (A.route === 'vanbanden') A.render(); }).catch(() => { }); else badge(); };
+  VB.autoCheck = () => { if (coMayChu() && VB.guiLai) VB.guiLai(); if (coMayChu()) VB.refresh('inboxGet').then(() => { if (A.route === 'vanbanden') A.render(); }).catch(() => { }); else badge(); };
 
   /* ---------- Đọc chữ trên trình duyệt ---------- */
   const loadPdfJs = () => window.pdfjsLib ? Promise.resolve(window.pdfjsLib) : new Promise((res, rej) => {
@@ -169,7 +169,7 @@
     const draw = () => {
       body.innerHTML = '<div class="vb-rv"><div class="vb-meta"><div class="form"><div class="fld"><label for="vr_l">Loại văn bản</label><select class="sel" id="vr_l">' + LOAI.map(l => '<option value="' + l[0] + '"' + (l[0] === r.loai ? ' selected' : '') + '>' + e(l[1]) + '</option>').join('') + '</select></div><div class="fld"><label for="vr_s">Số, ký hiệu</label><input class="inp" id="vr_s" value="' + e(r.so_van_ban || '') + '"></div><div class="fld"><label for="vr_n">Ngày văn bản</label><input class="inp" type="date" id="vr_n" value="' + e(r.ngay_van_ban || '') + '"></div><div class="fld full"><label for="vr_t">Trích yếu</label><textarea class="inp" rows="2" id="vr_t">' + e(r.trich_yeu || '') + '</textarea></div></div>' +
         '<div class="small muted mt">' + e([it.src === 'may' ? 'Đọc trên máy' : 'Thư mục Drive', r.cach_doc, r.nguon_trich === 'ai' ? 'AI Cloudflare' + (r.mo_hinh ? ' (' + r.mo_hinh + ')' : '') + ' + quy tắc' : 'Chỉ theo quy tắc' + (r.ai_loi ? ' — AI: ' + r.ai_loi : '')].filter(Boolean).join(' · ')) + '</div>' +
-        '<div class="note warn mt">Thông tin do máy đọc tự động — hãy đối chiếu với văn bản gốc trước khi cập nhật. Đổi "Loại văn bản" để phần mềm lập lại phương án.</div>' +
+        (r.so_trong || r.ngay_trong ? '<div class="note bad mt">Văn bản ký số: ' + [r.so_trong ? 'số văn bản' : '', r.ngay_trong ? 'ngày ban hành' : ''].filter(Boolean).join(' và ') + ' để trống ở đầu văn bản (đóng ở chữ ký số). Hãy nhập ' + (r.so_trong ? 'số' : '') + (r.so_trong && r.ngay_trong ? ', ' : '') + (r.ngay_trong ? 'ngày' : '') + ' theo bản đã ký.</div>' : '') + '<div class="note warn mt">Thông tin do máy đọc tự động — hãy đối chiếu với văn bản gốc trước khi cập nhật. Đổi "Loại văn bản" để phần mềm lập lại phương án.</div>' +
         (trich.length ? '<details class="mt"><summary class="small">Câu trích nguyên văn chứa số tiền (' + trich.length + ')</summary>' + trich.map(x => '<div class="small soft" style="margin:4px 0">• ' + e(String(x[1]).slice(0, 200)) + '</div>').join('') + '</details>' : '') +
         '<details class="mt"' + (ops.filter(o => o.on).length ? '' : ' open') + '><summary class="small">Nội dung văn bản đã đọc' + (r.van_ban_cat ? ' (8.000 ký tự đầu)' : '') + '</summary><pre class="vb-text">' + e(r.van_ban || '') + '</pre></details>' +
         (it.url ? '<div class="mt"><a class="btn sm" href="' + e(it.url) + '" target="_blank" rel="noopener">' + ic('eye', 15) + 'Mở tệp gốc trên Drive</a></div>' : '') + '</div>' +
@@ -191,7 +191,7 @@
     };
     draw();
     const m = UI.modal({ title: 'Duyệt văn bản: ' + U.trunc(it.name, 70), sub: loaiTen(r.loai), size: 'xl', body,
-      buttons: [{ label: 'Đóng', on: x => x.close() }, { label: 'Bỏ qua văn bản này', on: async x => { await resolve(it, 'bo_qua', ''); x.close(); } }, { label: 'Cập nhật vào phần mềm', cls: 'primary', icon: 'check', on: async x => {
+      buttons: [{ label: 'Đóng', on: x => x.close() }, { label: 'Bỏ qua văn bản này', on: async x => { x.close(true); await resolve(it, 'bo_qua', ''); UI.toast('Đã chuyển văn bản sang "Đã xử lý" (bỏ qua).', 'ok'); } }, { label: 'Cập nhật vào phần mềm', cls: 'primary', icon: 'check', on: async x => {
         let plan; try { plan = L.vbApply(ops); } catch (er) { UI.toast(er.message, 'bad'); return; }
         if (!plan.items.length) { UI.toast('Chưa chọn thao tác nào. Bỏ chọn hết thì dùng "Bỏ qua văn bản này".', 'bad'); return; }
         if (!await UI.confirm({ title: 'Cập nhật ' + plan.items.length + ' bản ghi?', msg: plan.tomTat.map(t => '• ' + t).join('\n'), ok: 'Cập nhật' })) return;
@@ -203,11 +203,28 @@
       } }] });
     return m;
   }
+  /* Đánh dấu đã xử lý / bỏ qua: cập nhật ngay trên máy (phản hồi tức thì), gửi máy chủ chạy nền, thử lại nếu máy chủ bận.
+     Mục chưa gửi được giữ trong cấu hình (vbdChoGui) và gửi lại ở lần mở trang sau. */
+  const choGui = () => Object.assign({}, S.cfg.vbdChoGui || {});
+  const apDung = st => { if (!st || !st.items) return st; const cg = choGui(); st.items.forEach(x => { const c = cg[x.id]; if (c && x.status !== c.status) { x.status = c.status; x.applied = c.applied; } }); st.summary = { cho_doc: st.items.filter(x => x.status === 'cho_doc').length, cho_duyet: st.items.filter(x => x.status === 'cho_duyet').length, loi: st.items.filter(x => x.status === 'loi').length }; return st; };
+  VB.apDung = apDung;
+  async function guiMayChu(id, lan) {
+    const c = choGui()[id]; if (!c) return;
+    try {
+      await VB.gas({ action: 'inboxResolve', id, status: c.status, by: c.by, applied: c.applied });
+      const cg = choGui(); delete cg[id]; await S.setCfg({ vbdChoGui: cg });
+    } catch (er) {
+      if ((lan || 0) < 3) setTimeout(() => guiMayChu(id, (lan || 0) + 1), [5000, 20000, 60000][lan || 0]);
+      else UI.toast('Chưa ghi được trạng thái văn bản lên máy chủ (' + er.message + '). Phần mềm sẽ gửi lại ở lần mở trang sau.', 'bad');
+    }
+  }
+  VB.guiLai = () => Object.keys(choGui()).forEach(id => guiMayChu(id, 3));
   async function resolve(it, status, applied) {
     if (it.src === 'may') { await S.save('vbden', Object.assign({}, it, { status, applied, done_at: U.nowStamp(), done_by: S.user() })); badge(); return; }
-    try { await VB.gas({ action: 'inboxResolve', id: it.id, status, by: S.user(), applied }); it.status = status; it.applied = applied; await VB.refresh('inboxGet').catch(() => { }); }
-    catch (er) { UI.toast('Đã cập nhật dữ liệu nhưng chưa đánh dấu được trên máy chủ: ' + er.message, 'bad'); }
-    A.render();
+    it.status = status; it.applied = applied;
+    await S.setCfg({ vbdChoGui: Object.assign(choGui(), { [it.id]: { status, applied: String(applied || '').slice(0, 500), by: S.user() } }) });
+    apDung(VB.state); badge(); A.render();
+    guiMayChu(it.id, 0);
   }
   VB.review = review;
 

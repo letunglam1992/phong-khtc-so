@@ -18,7 +18,7 @@ function env(opt) {
   const g = {
     Logger: { log() {} }, console,
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] === undefined ? null : props[k], setProperty: (k, v) => { props[k] = String(v); }, setProperties: o => Object.assign(props, o) }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] === undefined ? null : props[k], setProperty: (k, v) => { props[k] = String(v); }, setProperties: o => Object.assign(props, o), deleteProperty: k => { delete props[k]; } }) },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: s => ({ setMimeType() { return this; }, s }) },
     DriveApp: { getFilesByName: n => it(files.filter(f => f.name === n && !f.trashed)), createFile: (n, c, m) => mk(n, c, m), getFoldersByName: n => it(folders.filter(f => f.name === n && f.parent === root)),
       createFolder: n => new Folder(n, root), getFolderById: id => { const f = folders.find(x => x.id === id); if (!f) throw new Error('not found'); return f; }, getFileById: id => { const f = files.find(x => x.id === id); if (!f) throw new Error('nf'); return f; } },

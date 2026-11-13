@@ -92,3 +92,33 @@ test('trích yếu dừng ở "Điều 1." và gạch đầu dòng', () => {
   const r = T.trichQuyTac('QUYẾT ĐỊNH\nPhê duyệt kế hoạch lựa chọn nhà thầu nhiệm vụ A\nĐiều 1. Phê duyệt như sau:\n- Tên gói thầu: X\n- Giá gói thầu: 1.000.000 đồng');
   assert.equal(r.trich_yeu, 'Phê duyệt kế hoạch lựa chọn nhà thầu nhiệm vụ A');
 });
+// Mẫu tự soạn mô phỏng văn bản ký số: số và ngày để trống ở đầu văn bản, ngày nằm trong trích yếu không phải ngày ban hành
+const KY_SO = `UBND TỈNH SƠN LA
+SỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG
+Số: /QĐ-SNNMT
+CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Sơn La, ngày tháng năm 2026
+QUYẾT ĐỊNH
+Về việc phê duyệt danh sách nhà thầu đáp ứng yêu cầu về kỹ thuật của gói thầu Tư vấn xây dựng hệ số điều chỉnh giá đất thử nghiệm để áp dụng từ ngày 01 tháng 01 năm 2027
+Căn cứ Luật Đấu thầu;`;
+test('văn bản ký số: không nhận số "/QĐ", không lấy ngày trong trích yếu; nhận loại "bước LCNT" và tên gói thầu', () => {
+  const r = T.trichQuyTac(KY_SO);
+  assert.equal(r.loai, 'lcnt_buoc'); assert.equal(r.so_van_ban, null); assert.equal(r.ngay_van_ban, null); assert.equal(r.ngay_dau, 'trong');
+  assert.equal(r.lcnt_buoc.buoc, 'Phê duyệt danh sách nhà thầu đáp ứng yêu cầu kỹ thuật');
+  assert.match(r.lcnt_buoc.ten_goi_thau, /^Tư vấn xây dựng hệ số điều chỉnh giá đất thử nghiệm/);
+  const g = T.ghep({ loai: 'kqlcnt_qd', so_van_ban: '/QĐ-SNNMT', ngay_van_ban: '01/01/2027' }, r);
+  assert.equal(g.loai, 'lcnt_buoc'); assert.equal(g.so_van_ban, null); assert.equal(g.ngay_van_ban, null); assert.ok(g.so_trong && g.ngay_trong);
+  const k = T.trichQuyTac(KY_SO + '\nNgười ký: Sở Nông nghiệp\nThời gian ký: 05.11.2026 10:15');
+  assert.equal(k.ngay_van_ban, '2026-11-05', 'lấy ngày ký trong chữ ký số');
+  assert.equal(T.trichQuyTac('UBND\nSố: 12/QĐ-X\nSơn La, ngày 03 tháng 11 năm 2026\nQUYẾT ĐỊNH\nPhê duyệt từ ngày 01 tháng 01 năm 2027').ngay_van_ban, '2026-11-03');
+});
+test('AiTI: bỏ khối JSON chỉ có suy luận, gộp system, token cho mô hình suy luận', () => {
+  const A = require('../src/shared/ai-tien-ich.js');
+  assert.equal(A.layNoiDung('{"id":"chatcmpl-1","choices":[{"index":0,"message":{"role":"assistant","content":null,"reasoning":"1. Analyze"}}]}'), '');
+  assert.equal(A.layNoiDung('{"choices":[{"message":{"content":"Có 3 gói thầu [1]."}}]}'), 'Có 3 gói thầu [1].');
+  assert.equal(A.layNoiDung('<think>abc</think>\nTrả lời'), 'Trả lời');
+  assert.equal(A.layNoiDung('Trả lời thường'), 'Trả lời thường');
+  const g = A.gopHeThong([{ role: 'system', content: 'S' }, { role: 'user', content: 'U' }]);
+  assert.equal(g.length, 1); assert.match(g[0].content, /^CHỈ DẪN[\s\S]*S[\s\S]*U$/);
+  assert.equal(A.soToken('@cf/zai-org/glm-4.7-flash', 1200), 3500); assert.equal(A.soToken('', 1200), 1200);
+});
