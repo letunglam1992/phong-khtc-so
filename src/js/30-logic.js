@@ -235,10 +235,10 @@
       n.children.forEach(c => calc(c, lv + 1));
       L.NS_F.forEach(f => { n.sum[f] = n.children.length ? U.sum(n.children, c => c.sum[f]) : U.num(n.r[f]); });
       n.sum.tong = L.nsTong(n.sum); n.sum.conLai = n.sum.tong - n.sum.giaiNgan; n.sum.tyLe = U.pct(n.sum.giaiNgan, n.sum.tong);
-      // Đối chiếu: số tổng nhập từ Excel (nếu có) khác tổng các dòng con
+      // Đối chiếu: số tổng nhập từ Excel (nếu có) khác tổng các dòng con. Ô thành phần để trống trên dòng tổng (vd. tiết kiệm) không coi là lệch
       n.lech = [];
       if (n.children.length && n.r.goc) L.NS_F.concat(['tong']).forEach(f => {
-        if (n.r.goc[f] !== undefined && n.r.goc[f] !== null && Math.abs(U.num(n.r.goc[f]) - n.sum[f]) > 0.5) n.lech.push({ f, goc: U.num(n.r.goc[f]), tinh: n.sum[f] });
+        if (n.r.goc[f] !== undefined && n.r.goc[f] !== null && !(U.num(n.r.goc[f]) === 0 && f !== 'tong' && f !== 'giaiNgan') && Math.abs(U.num(n.r.goc[f]) - n.sum[f]) > 0.5) n.lech.push({ f, goc: U.num(n.r.goc[f]), tinh: n.sum[f] });
       });
     };
     roots.sort(ord).forEach(r => calc(r, 0));
@@ -254,6 +254,27 @@
     const nhomOf = n => { let cur = n, guard = 0; const byId = new Map(t.flat.map(x => [x.r.id, x])); while (cur && guard++ < 20) { if (cur.r.nhomKP) return cur.r.nhomKP; cur = byId.get(cur.r.parentId); } return '(chưa phân nhóm)'; };
     leafs.forEach(n => { const k = nhomOf(n); const g = m.get(k) || { k, tong: 0, giaiNgan: 0, quyetToan: 0, duToan: 0 }; g.tong += n.sum.tong; g.giaiNgan += n.sum.giaiNgan; g.quyetToan += n.sum.quyetToan; g.duToan += n.sum.duToan; m.set(k, g); });
     return Array.from(m.values());
+  };
+
+  /* Rà soát ⚠: dòng còn sót của lần nhập biểu trước (ngày biểu cũ hơn lần nhập gần nhất của cùng đơn vị, năm),
+     dòng tổng lệch hiện tại và dự kiến sau khi xóa dòng sót */
+  L.nsRaSoat = (nam, donViId) => {
+    const all = S.all('ngansach').filter(r => +r.nam === nam && (!donViId || r.donViId === donViId));
+    // Ngày biểu Excel đã nhập dòng này: bieuNgay (từ bản này) → mốc 'excel' cuối trong lịch sử giải ngân → ngày số liệu của dòng tổng nhập từ biểu
+    const ngayCua = r => r.bieuNgay || ((r.gnHist || []).filter(h => h.nguon === 'excel').map(h => h.ngay).sort().pop()) || (r.goc ? r.ngayGN : '') || '';
+    const moi = new Map(); all.forEach(r => { const d = ngayCua(r); if (U.isISO(d) && (!moi.has(r.donViId) || d > moi.get(r.donViId))) moi.set(r.donViId, d); });
+    const tree = L.nsTree(nam, donViId), byId = new Map(tree.flat.map(n => [n.r.id, n]));
+    const sotIds = new Set(all.filter(r => { const d = ngayCua(r); return U.isISO(d) && moi.has(r.donViId) && d < moi.get(r.donViId); }).map(r => r.id));
+    // dòng con của dòng sót cũng sót
+    let doi = true; while (doi) { doi = false; all.forEach(r => { if (!sotIds.has(r.id) && r.parentId && sotIds.has(r.parentId)) { sotIds.add(r.id); doi = true; } }); }
+    const sot = all.filter(r => sotIds.has(r.id)).map(r => { const n = byId.get(r.id); return { r, cha: S.get('ngansach', r.parentId), tong: n ? n.sum.tong : L.nsTong(r), gn: n ? n.sum.giaiNgan : U.num(r.giaiNgan), ngay: ngayCua(r) }; })
+      .sort((a, b) => (U.num(a.r.thuTu) - U.num(b.r.thuTu)));
+    const lechNay = tree.flat.filter(n => n.lech.length).map(n => ({ r: n.r, lech: n.lech }));
+    // Tính lại cây khi bỏ dòng sót
+    const giu = all.filter(r => !sotIds.has(r.id)), con = new Map(); giu.forEach(r => { if (r.parentId) (con.get(r.parentId) || con.set(r.parentId, []).get(r.parentId)).push(r); });
+    const memo = new Map(), sum = r => { if (memo.has(r.id)) return memo.get(r.id); const k = con.get(r.id) || [], o = {}; L.NS_F.forEach(f => { o[f] = k.length ? U.sum(k, c => sum(c)[f]) : U.num(r[f]); }); o.tong = L.nsTong(o); memo.set(r.id, o); return o; };
+    const lechSau = giu.filter(r => r.goc && (con.get(r.id) || []).length).map(r => { const o = sum(r), l = []; L.NS_F.concat(['tong']).forEach(f => { if (r.goc[f] !== undefined && r.goc[f] !== null && !(U.num(r.goc[f]) === 0 && f !== 'tong' && f !== 'giaiNgan') && Math.abs(U.num(r.goc[f]) - o[f]) > 0.5) l.push({ f, goc: U.num(r.goc[f]), tinh: o[f] }); }); return { r, lech: l }; }).filter(x => x.lech.length);
+    return { sot, lechNay, lechSau, dvs: Array.from(moi.entries()).map(([id, d]) => ({ id, ten: A.Schema.refName('donvi', id), moi: d })) };
   };
 
   /* Ghép dòng biểu mới với dòng dự toán đã có (giữ mã dòng, lịch sử giải ngân, cán bộ):

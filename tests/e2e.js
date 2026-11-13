@@ -545,20 +545,27 @@ if(process.env.VPS){
 console.log('# 18. Biểu giải ngân mới (mẫu Phụ lục II, VP Sở): nhập sau biểu tháng 10, ghép dòng, giữ lịch sử');
 const c3=await b.newContext({viewport:{width:1440,height:900}});const q=await c3.newPage();await q.clock.setFixedTime(NGAY);q.on('pageerror',e=>errs.push(e.message));await q.goto(URL);await q.waitForSelector('.nav-item');
 const nhap=async(f,ngay,xoa)=>{await q.click('.nav-item[data-r="ngansach"]');await q.waitForTimeout(200);const [fc]=await Promise.all([q.waitForEvent('filechooser'),(async()=>{await q.click('[data-imp]');await q.waitForSelector('[data-pick]');await q.click('[data-pick]')})()]);await fc.setFiles(f);await q.waitForSelector('#ib_dv');await q.waitForTimeout(300);if(ngay)await q.fill('#ib_d',ngay);if(xoa)await q.check('#ib_xoa');const t=(await q.textContent('.modal')).replace(/\s+/g,' ');await q.click('.modal-f .btn.primary');await q.waitForTimeout(500);let c='';if(await q.locator('.ov').count()>1){c=await q.locator('.ov').last().textContent();await q.locator('.ov').last().locator('.modal-f .btn.primary').click();}await q.waitForTimeout(900);return {t,c}};
-await nhap(XLS);
-const r2=await nhap(process.env.VPS);
+const nhap2=async(f,giu,ngay)=>{await q.click('.nav-item[data-r="ngansach"]');await q.waitForTimeout(200);const [fc]=await Promise.all([q.waitForEvent('filechooser'),(async()=>{await q.click('[data-imp]');await q.waitForSelector('[data-pick]');await q.click('[data-pick]')})()]);await fc.setFiles(f);await q.waitForSelector('#ib_dv');await q.waitForTimeout(300);if(ngay)await q.fill('#ib_d',ngay);if(giu)await q.check('#ib_giu');const t=(await q.textContent('.modal')).replace(/\s+/g,' ');await q.click('.modal-f .btn.primary');await q.waitForTimeout(500);let c='';if(await q.locator('.ov').count()>1){c=await q.locator('.ov').last().textContent();await q.locator('.ov').last().locator('.modal-f .btn.primary').click();}await q.waitForTimeout(900);return {t,c}};
+await nhap2(XLS);
+// Tái hiện tình huống: nhập biểu mới nhưng GIỮ dòng cũ → dòng cũ treo dưới dòng tổng → ⚠
+const r2=await nhap2(process.env.VPS,true);
 ok(/đọc được 83 dòng/.test(r2.t)&&/Điểmcầnđốichiếu0/.test(r2.t.replace(/\s/g,'')),'biểu mới: 83 dòng, số học trên biểu khớp (0 điểm lệch)');
 ok(/Ngày trên biểu \(18\/11\/2026\) sau hôm nay/.test(r2.t),'lấy ngày số liệu 18/11/2026 từ tiêu đề cột giải ngân, nhắc vì sau hôm nay');
-ok(/72 dòng khớp/.test(r2.c)&&/11 dòng mới/.test(r2.c)&&/16 dòng cũ không có trên biểu được giữ nguyên/.test(r2.c),'ghép 72/83 dòng với dữ liệu tháng 10 (bỏ qua khác dấu câu, đánh lại số); giữ 16 dòng cũ (CTMTQG…)');
-const v=await q.evaluate(()=>{const L=App.L,S=App.Store;const all=S.all('ngansach');const r=all.find(x=>/xử lý chất thải rắn sinh hoạt tại Nhà máy/.test(x.noiDung));const dt=all.find(x=>/Đề tài nghiên cứu khoa học/.test(x.noiDung)&&x.stt==='3.9');const q2=all.find(x=>/khu vực cấm, tạm thời cấm/.test(x.noiDung));return {n:all.length,hist:r.gnHist.map(h=>h.ngay).join(','),bs:dt&&dt.boSung===0?'grp':'', gc:(all.find(x=>/Xây dựng giá đất cụ thể hàng năm 2026/.test(x.noiDung))||{}).ghiChuBieu, bsLeaf:all.filter(x=>x.boSung>0).length, ns38:(all.find(x=>x.stt==='3.8')||{}).noiDung}});
-ok(v.n===99,'tổng 99 dòng = 88 cũ + 11 mới (không sinh trùng): '+v.n);
-ok(v.hist==='2026-10-20,2026-11-18','dòng khớp giữ lịch sử, thêm mốc 18/11: '+v.hist);
-ok(v.bsLeaf>=10,'đọc được cột "KP Bổ sung trong năm" ('+v.bsLeaf+' dòng có số bổ sung)');
-ok(v.gc==='Phòng Quản lý tài nguyên đất','đọc cột "Ghi chú" (phòng thực hiện) vào "Ghi chú trên biểu"');
-ok(/Khoản 123- Chuyển đổi số/.test(v.ns38),'dòng 3.8 cập nhật tên theo biểu mới (khoản 123)');
-const r3=await nhap(process.env.VPS,'2026-11-12',true);
-ok(/16 dòng cũ không còn trên biểu sẽ bị xóa/.test(r3.c)&&await q.evaluate(()=>App.Store.count('ngansach'))===83,'chọn "xóa dòng cũ không có trên biểu" → còn đúng 83 dòng');
-ok(await q.evaluate(()=>{const g=App.L.giaiNgan(2026,{});return g.tong===289310504739&&g.gn===50540020474}),'tổng KP được sử dụng 289.310.504.739, đã giải ngân 50.540.020.474 — trùng dòng I của biểu');
+ok(/72 dòng khớp/.test(r2.c)&&/11 dòng mới/.test(r2.c)&&/16 dòng cũ không có trên biểu được giữ nguyên/.test(r2.c),'ghép 72/83 dòng với dữ liệu tháng 10 (bỏ qua khác dấu câu, đánh lại số)');
+const v=await q.evaluate(()=>{const all=App.Store.all('ngansach');const r=all.find(x=>/xử lý chất thải rắn sinh hoạt tại Nhà máy/.test(x.noiDung));return {n:all.length,hist:r.gnHist.map(h=>h.ngay).join(','),gc:(all.find(x=>/Xây dựng giá đất cụ thể hàng năm 2026/.test(x.noiDung))||{}).ghiChuBieu,bsLeaf:all.filter(x=>x.boSung>0).length,ns38:(all.find(x=>x.stt==='3.8')||{}).noiDung}});
+ok(v.n===99&&v.hist==='2026-10-20,2026-11-18','giữ dòng cũ: 99 dòng; dòng khớp giữ lịch sử, thêm mốc 18/11');
+ok(v.bsLeaf>=10&&v.gc==='Phòng Quản lý tài nguyên đất'&&/Khoản 123- Chuyển đổi số/.test(v.ns38),'đọc cột "KP Bổ sung", "Ghi chú"; dòng 3.8 cập nhật tên theo biểu mới');
+await q.click('[data-tab="ct"]');await q.waitForTimeout(300);
+const nl=await q.evaluate(()=>App.L.nsTree(2026,null).flat.filter(n=>n.lech.length).length);
+ok(nl>0&&await q.$('[data-rasoat]'),'tái hiện: '+nl+' dòng tổng có dấu ⚠, có nút "Rà soát, xử lý cảnh báo"');
+await q.click('[data-rasoat]');await q.waitForTimeout(300);
+ok(/Dòng còn sót từ lần nhập biểu trước \(16 dòng\)/.test(await q.textContent('.ov'))&&/hết cảnh báo ⚠/.test(await q.textContent('.ov')),'rà soát: tìm đúng 16 dòng còn sót của biểu tháng 10; dự kiến xóa xong hết ⚠');
+await q.click('[data-xoasot]');await q.waitForTimeout(300);await q.locator('.ov').last().locator('.modal-f .btn.danger,.modal-f .btn.primary').last().click();await q.waitForTimeout(900);
+ok(await q.evaluate(()=>App.L.nsTree(2026,null).flat.filter(n=>n.lech.length).length)===0&&!(await q.$('[data-rasoat]')),'sau khi xóa dòng còn sót: hết dấu ⚠');
+ok(await q.evaluate(()=>{const g=App.L.giaiNgan(2026,{});return App.Store.count('ngansach')===83&&g.tong===289310504739&&g.gn===50540020474}),'còn 83 dòng; tổng 289.310.504.739, đã giải ngân 50.540.020.474 — trùng dòng I của biểu');
+// Mặc định: biểu mới thay toàn bộ — nhập lại biểu tháng 10 rồi biểu mới không sinh ⚠
+await nhap2(XLS);const r4=await nhap2(process.env.VPS);
+ok(/dòng cũ không còn trên biểu sẽ bị xóa/.test(r4.c)&&await q.evaluate(()=>App.Store.count('ngansach'))===83&&await q.evaluate(()=>App.L.nsTree(2026,null).flat.filter(n=>n.lech.length).length)===0,'mặc định biểu mới thay toàn bộ: 83 dòng, không có ⚠');
 await c3.close();
 }
 console.log('\nLỗi JavaScript trong suốt quá trình: '+(errs.length?errs.slice(0,8).join('\n'):'không có'));
