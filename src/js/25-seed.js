@@ -133,17 +133,19 @@
       ['Thuê dịch vụ công nghệ số "Hệ thống quản lý điều hành chính quyền số lĩnh vực nông nghiệp và môi trường" trên địa bàn tỉnh Sơn La', 'Chuyển đổi số']
     ]);
 
+  // Mã cố định theo tên: mọi máy nạp lần đầu đều sinh cùng mã → đồng bộ giữa các máy không sinh bản trùng
+  const slug = x => A.U.norm(x).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   A.Seed = {
     QD, DM, CB, DV, DA279,
     /* Nạp lần đầu: danh mục chức năng + cán bộ + đơn vị. Không ghi đè nếu đã có dữ liệu. */
     async firstRun() {
       const S = A.Store; if (S.cfg.seeded) return false;
       const items = [];
-      if (!S.count('donvi')) DV.forEach(d => items.push({ c: 'donvi', rec: { ten: d[0], tenTat: d[1], loai: 'Đơn vị dự toán trực thuộc Sở', ghiChu: 'Theo biểu kèm Thông báo 279/TB-KHTC' } }));
-      if (!S.count('canbo')) CB.forEach(c => items.push({ c: 'canbo', rec: { hoTen: c[0], tenGoi: c[1], chucVu: c[2], viTri: c[3], trangThai: 'danglam' } }));
+      if (!S.count('donvi')) DV.forEach(d => items.push({ c: 'donvi', rec: { id: 'dv_' + slug(d[0]), ten: d[0], tenTat: d[1], loai: 'Đơn vị dự toán trực thuộc Sở', ghiChu: 'Theo biểu kèm Thông báo 279/TB-KHTC' } }));
+      if (!S.count('canbo')) CB.forEach(c => items.push({ c: 'canbo', rec: { id: 'cb_' + slug(c[0]), hoTen: c[0], tenGoi: c[1], chucVu: c[2], viTri: c[3], trangThai: 'danglam' } }));
       if (!S.count('danhmuc')) DM.forEach((d, i) => items.push({
         c: 'danhmuc', rec: {
-          ma: d[0], nhom: d[1], ten: d[2], vaiTroText: d[3], tinhChat: d[4], ky: d[5], kyNguon: d[6], sanPham: d[7],
+          id: 'dm_' + slug(d[0]), ma: d[0], nhom: d[1], ten: d[2], vaiTroText: d[3], tinhChat: d[4], ky: d[5], kyNguon: d[6], sanPham: d[7],
           canCu: d[8] + ' ' + QD, goiY: d[9], loai: 'chinhthuc', thuTu: i, ghiChu: GHI_CHU[d[0]] || '', chuTriId: '', phoiHopIds: []
         }
       }));

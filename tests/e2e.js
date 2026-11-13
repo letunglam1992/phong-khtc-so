@@ -4,6 +4,8 @@ let pass=0,fail=0;const ok=(c,m)=>{if(c){pass++;console.log('  ok  '+m)}else{fai
 (async()=>{const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:1440,height:900},acceptDownloads:true});const p=await ctx.newPage();
 const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/Failed to load resource|Mã truy cập không hợp lệ|Sai mã bí mật/.test(m.text()))errs.push(m.text())});
 p.on('dialog',d=>d.accept());
+// Các kỳ vọng ngày tháng viết theo ngày 12/11/2026: cố định đồng hồ trình duyệt
+const NGAY=new Date('2026-11-12T09:00:00+07:00');await p.clock.setFixedTime(NGAY);
 const URL='file://'+path.resolve(__dirname,'../dist/PhongKHTC-so.html');
 await p.goto(URL);await p.waitForSelector('.nav-item');
 const go=async r=>{await p.click(`.nav-item[data-r="${r}"]`);await p.waitForTimeout(200)};
@@ -40,7 +42,10 @@ await p.fill('[data-k="ngayGiao"]','2026-11-10');await p.fill('[data-k="han"]','
 await p.click('.modal-f .btn.primary');await p.waitForTimeout(150);
 ok(/Thời hạn hoàn thành trước ngày giao/.test(await p.textContent('.errbox')),'chặn hạn trước ngày giao');
 await p.fill('[data-k="han"]','2026-11-15');
-await p.selectOption('[data-k="chuTriId"]',kien);
+await p.click('#f_chuTriId');await p.waitForSelector('.rp-pop');await p.fill('.rp-pop input','trinh kien');await p.waitForTimeout(80);
+ok((await p.$$eval('.rp-pop .rp-i',e=>e.length))===2,'ô chọn cán bộ: gõ không dấu "trinh kien" lọc còn 1 người');
+await p.keyboard.press('Enter');await p.waitForTimeout(80);
+ok(await p.inputValue('[data-k="chuTriId"]')===kien&&/Trịnh Trung Kiên/.test(await p.textContent('#f_chuTriId')),'chọn bằng bàn phím, hiển thị tên');
 const others=await ev(()=>App.Store.all('canbo').filter(c=>['Thương','Nhung','Thư'].includes(c.tenGoi)).map(c=>c.id));
 for(const id of others){await p.selectOption('[data-refs="phoiHopIds"] select',id);await p.waitForTimeout(60)}
 await p.click('.modal-f .btn.primary');await p.waitForTimeout(350);
@@ -413,7 +418,7 @@ await p.screenshot({path:SHOTS+'/e_ext.png'});await p.keyboard.press('Escape');a
 console.log('# 15. Đồng bộ nhiều máy (dịch vụ của phần mềm)');
 await go('thietlap');await p.fill('#tl_su','http://localhost:8765/sync');await p.fill('#tl_sk','KHOA-THU');await p.click('[data-sync="push"]');await p.waitForTimeout(900);
 ok(await ev(()=>App.Store.cfg.syncRev)===1,'đẩy lên: bản số 1');
-const ctx2=await b.newContext();const p2=await ctx2.newPage();await p2.goto(URL);await p2.waitForSelector('.nav-item');
+const ctx2=await b.newContext();const p2=await ctx2.newPage();await p2.clock.setFixedTime(NGAY);await p2.goto(URL);await p2.waitForSelector('.nav-item');
 await p2.evaluate(async()=>{await App.Store.setCfg({syncUrl:'http://localhost:8765/sync',syncKey:'KHOA-THU'})});
 await p2.click('.nav-item[data-r="thietlap"]');await p2.click('[data-sync="pull"]');await p2.waitForTimeout(1500);
 ok(await p2.evaluate(()=>App.Store.count('duan'))===168&&await p2.evaluate(()=>App.Store.count('ngansach'))===88,'máy thứ hai tải về: 168 dự án, 88 dòng dự toán');
@@ -455,6 +460,27 @@ ok(await p.inputValue('.vb-op [data-p="0.f.ngayKT"]')==='2027-11-05','thời h�
 await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(300);await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(800);
 ok(await ev(()=>{const h=App.Store.all('hopdong').find(x=>x.so==='15/2026/HĐ-TV');const g=App.Store.get('goithau',h&&h.goiThauId);return h&&h.giaTri===12e9&&g&&g.qdKHSo==='812/QĐ-SNNMT'&&g.trangThai==='dakyhd'}),'hợp đồng tạo xong, gắn đúng gói thầu 812, gói thầu chuyển "Đã ký hợp đồng"');
 ok(await ev(()=>App.AI.hanMuc().da)===1,'tính 1 lượt AI trong hạn mức ngày');
+// Nguồn kinh phí ↔ gói thầu ↔ hợp đồng
+await ev(async()=>{const ns=App.Store.all('ngansach').find(x=>/nhiệm vụ xử lý chất thải rắn sinh hoạt/.test(x.noiDung));const g=App.Store.all('goithau').find(x=>x.qdKHSo==='812/QĐ-SNNMT');await App.Store.save('goithau',{id:g.id,nsId:ns.id});const h=App.Store.all('hopdong').find(x=>x.so==='15/2026/HĐ-TV');await App.Store.save('hopdong',{id:h.id,thanhToan:[{ngay:'2026-11-12',soTien:8e9}]});window.__ns=ns.id});
+ok(await ev(()=>{const lk=App.L.nsLienKet(window.__ns);return lk.gts.length===1&&lk.hds.length===1&&lk.giaHD===12e9&&lk.daTT===8e9&&lk.canhBao.length===1&&/Đã thanh toán hợp đồng 8,00 tỷ nhưng số giải ngân của dòng dự toán mới 7,08 tỷ/.test(lk.canhBao[0].t)}),'nguồn kinh phí: hợp đồng kế thừa nguồn từ gói thầu; cảnh báo thanh toán HĐ (8 tỷ) > giải ngân dòng (7,08 tỷ) '+await ev(()=>JSON.stringify(App.L.nsLienKet(window.__ns).canhBao)));
+ok(await ev(()=>App.L.dtViec({}).some(v=>v.coll==='ngansach'&&/cần cập nhật số giải ngân/.test(v.detail))),'cảnh báo nguồn kinh phí vào danh sách việc cần xử lý đấu thầu');
+await ev(()=>App.open('hopdong',App.Store.all('hopdong').find(x=>x.so==='15/2026/HĐ-TV').id));await p.waitForTimeout(250);
+ok(/Nguồn kinh phí/.test(await p.textContent('.ov'))&&/xử lý chất thải rắn/.test(await p.textContent('.ov')),'chi tiết hợp đồng hiện nguồn kinh phí');await p.keyboard.press('Escape');await p.waitForTimeout(150);
+await ev(()=>App.open('ngansach',window.__ns));await p.waitForTimeout(250);ok(/Gói thầu, hợp đồng sử dụng nguồn kinh phí này/.test(await p.textContent('.ov')),'chi tiết dòng dự toán liệt kê gói thầu, hợp đồng');await p.keyboard.press('Escape');await p.waitForTimeout(150);
+// Ô chọn nguồn kinh phí: tìm theo chữ, thêm đơn vị mới ngay trong form
+await ev(()=>App.UI.form({coll:'goithau'}));await p.waitForSelector('#f_nsId');await p.click('#f_nsId');await p.fill('.rp-pop input','chat thai ran');await p.waitForTimeout(100);
+ok(await p.$$eval('.rp-pop .rp-i',e=>e.length)>=2&&/chất thải rắn/i.test(await p.textContent('.rp-pop .rp-i.on')),'ô "Dòng dự toán nguồn kinh phí" tìm được theo chữ không dấu');
+await p.keyboard.press('Enter');await p.waitForTimeout(80);
+await p.click('#f_donViId');await p.fill('.rp-pop input','Ban quản lý thử');await p.click('.rp-pop .rp-add');await p.waitForTimeout(250);
+ok(await p.inputValue('.ov:last-child [data-k="ten"]')==='Ban quản lý thử','thêm đơn vị mới ngay trong ô chọn (điền sẵn tên đã gõ)');
+await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(300);
+ok(/Ban quản lý thử/.test(await p.textContent('#f_donViId'))&&await ev(()=>App.Store.all('donvi').some(d=>d.ten==='Ban quản lý thử')),'đơn vị mới được lưu và chọn luôn');
+await p.locator('.ov').last().locator('[data-close]').click();await p.waitForTimeout(150);await p.keyboard.press('Escape');
+// Gộp bản trùng do đồng bộ từ máy khác
+await ev(async()=>{const c=App.Store.all('canbo').find(x=>x.tenGoi==='Kiên');await App.Store.save('canbo',{hoTen:c.hoTen,tenGoi:'Kiên',trangThai:'danglam',email:'kien@example.vn'});const dv=App.Store.all('donvi')[0];const d2=await App.Store.save('donvi',{ten:dv.ten});await App.Store.save('nhiemvu',{ten:'Việc gắn bản trùng',nam:2026,trangThai:'chua',chuTriId:App.Store.all('canbo').filter(x=>x.hoTen===c.hoTen)[1].id,phoiHopIds:[]});window.__d2=d2.id;window.__cbTen=c.hoTen});
+ok(await ev(()=>App.L.gopTrung(true))===2,'phát hiện 2 bản ghi trùng tên');
+await ev(()=>App.L.gopTrung());
+ok(await ev(()=>{const cs=App.Store.all('canbo').filter(x=>x.hoTen===window.__cbTen);const t=App.Store.all('nhiemvu').find(x=>x.ten==='Việc gắn bản trùng');return cs.length===1&&t.chuTriId===cs[0].id&&cs[0].email==='kien@example.vn'&&!App.Store.get('donvi',window.__d2)&&App.Store.all('nhiemvu').filter(x=>x.chuTriId===cs[0].id).length>1}),'gộp: còn 1 cán bộ, giữ thông tin bổ sung, chuyển liên kết nhiệm vụ sang bản giữ lại');
 console.log('# 15c. Hộp chat Trợ lý AI');
 await p.click('.cb-fab');await p.waitForSelector('.cb-panel:not([hidden])');
 ok(/Còn 29\/30 lượt hỏi hôm nay/.test(await p.textContent('.cb-panel')),'hiển thị hạn mức 29/30');
@@ -465,6 +491,12 @@ await p.screenshot({path:SHOTS+'/e_chat.png'});
 await p.click('.cb-row.ai .cite');await p.waitForTimeout(300);ok(await ev(()=>App.route)==='ngansach','bấm [1] mở trang nguồn số liệu');
 await p.click('.cb-fab');await p.unroute('https://rasoatvanban.letunglam1992.workers.dev/**');
 
+// AI: Worker chặn tên miền → tự gọi qua máy chủ Apps Script
+await p.route('https://rasoatvanban.letunglam1992.workers.dev/**',r=>r.abort('failed'));
+await ev(()=>{App.AI.duongDi=''});
+const viaGas=await ev(async()=>{try{const r=await App.AI.goi([{role:'user',content:'Chỉ trả lời OK'}],{tinh:false});return r.tenMoHinh+'|'+App.AI.duongDi}catch(e){return 'ERR '+e.message}});
+ok(/qua máy chủ Apps Script\|gas/.test(viaGas),'Worker bị chặn (Failed to fetch) → AI tự gọi qua máy chủ Apps Script: '+viaGas);
+await p.unroute('https://rasoatvanban.letunglam1992.workers.dev/**');await ev(()=>{App.AI.duongDi=''});
 console.log('# 16. Dữ liệu lớn');
 const perf=await ev(async()=>{const items=[];const cb=App.Store.all('canbo');for(let i=0;i<5000;i++)items.push({c:'nhiemvu',rec:{ten:'Nhiệm vụ khối lượng lớn số '+i,ma:'L'+i,nam:2026,nhom:String(i%9+1),chuTriId:cb[i%9].id,phoiHopIds:[],ngayGiao:'2026-0'+(i%9+1)+'-01',han:'2026-'+String(i%12+1).padStart(2,'0')+'-15',trangThai:i%3?'chua':'hoanthanh',ngayHT:i%3?'':'2026-'+String(i%12+1).padStart(2,'0')+'-14',tienDo:i%3?0:100}});
  let t0=performance.now();await App.Store.saveMany(items,{silent:true});const w=performance.now()-t0;

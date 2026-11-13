@@ -12,6 +12,7 @@
 
   /* ---------- Máy chủ Apps Script ---------- */
   const coMayChu = () => /^(https:\/\/script\.google(usercontent)?\.com\/|http:\/\/localhost[:/])/.test((S.cfg.syncUrl || '').trim()) && !!S.cfg.syncKey;   // localhost: máy chủ thử nghiệm
+  VB.coMayChu = coMayChu;
   VB.gas = async body => {
     const url = (S.cfg.syncUrl || '').trim();
     if (!coMayChu()) throw new Error('Chưa cấu hình máy chủ Apps Script (Thiết lập → Đồng bộ qua Google Apps Script).');

@@ -69,3 +69,10 @@ test('gọi thẳng Cloudflare khi có CF_ACCOUNT_ID + CF_API_TOKEN', () => {
   assert.match(e.fetches[0].url, /api\.cloudflare\.com\/client\/v4\/accounts\/acc\/ai\/v1\/chat\/completions/);
   assert.equal(e.fetches[0].body.chat_template_kwargs.enable_thinking, false);
 });
+test('aiChat: hộp chat gọi AI qua máy chủ (khi trình duyệt bị Worker chặn tên miền)', () => {
+  const e = env({ ai: b => ({ code: 200, json: { text: 'Trả lời ' + b.messages.length + ' tin' } }) });
+  const r = e.post({ action: 'aiChat', messages: [{ role: 'system', content: 'a' }, { role: 'user', content: 'b' }, { role: 'tool', content: 'x' }], max_tokens: 500 });
+  assert.equal(r.ok, true); assert.equal(r.text, 'Trả lời 2 tin'); assert.equal(e.fetches[0].body.max_tokens, 500);
+  assert.match(e.post({ action: 'aiChat', messages: [] }).error, /Thiếu/);
+  assert.match(e.post({ key: 'SAI', action: 'aiChat', messages: [{ role: 'user', content: 'b' }] }).error, /Sai mã/);
+});

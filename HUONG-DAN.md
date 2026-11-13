@@ -93,6 +93,9 @@ Mỗi tài sản loại **"Cơ sở nhà, đất"** (hoặc "Trụ sở, nhà l�
 
 ## 4e. Đấu thầu, hợp đồng do Sở làm chủ đầu tư
 
+- **Nguồn kinh phí**: chọn "Dòng dự toán nguồn kinh phí" cho gói thầu (hợp đồng tự lấy theo gói thầu nếu không chọn riêng). Chi tiết gói thầu, hợp đồng và dòng dự toán hiện: kinh phí được sử dụng, đã giải ngân, giá gói thầu, giá trị hợp đồng, đã thanh toán, kinh phí chưa bố trí; cảnh báo khi giá trị hợp đồng vượt kinh phí, hoặc đã thanh toán hợp đồng nhiều hơn số giải ngân đã cập nhật của dòng dự toán.
+- Các ô chọn (đơn vị, dòng dự toán, cán bộ, dự án, gói thầu…) gõ để tìm, không cần dấu; có nút **Thêm … mới** và nút bút chì để sửa bản ghi đang chọn ngay trong biểu mẫu.
+
 - **Tổng quan**: gói thầu theo bước (nhu cầu → dự toán → trình KHLCNT → duyệt KHLCNT → đang LCNT → có kết quả → ký HĐ), giá trị tiết kiệm qua đấu thầu, thanh toán hợp đồng, tạm ứng chưa thu hồi, **việc cần xử lý**, **lịch hạn 60 ngày**, biểu đồ tiến độ hợp đồng.
 - Gói thầu: thông tin KHLCNT (hình thức, phương thức, loại HĐ, thời gian bắt đầu LCNT, thời gian thực hiện HĐ), số TBMT, tiến trình từng bước, dòng dự toán nguồn kinh phí. Tình trạng tự nâng khi nhập số QĐ KHLCNT, số TBMT, kết quả.
 - Hợp đồng: phụ lục (giá trị tăng/giảm, gia hạn), bảo đảm thực hiện HĐ và bảo lãnh tạm ứng (số tiền, hiệu lực đến ngày), tạm ứng và thu hồi tạm ứng, nghiệm thu, thanh toán, quyết toán, thanh lý.
@@ -131,6 +134,9 @@ Lưu ý: máy đọc có thể sai — luôn đối chiếu với văn bản g�
 - Mặc định dùng Worker `rasoatvanban.letunglam1992.workers.dev` (giao thức `{messages, max_tokens}` → `{text, model}`, như phần mềm Tra cứu TTHC đất đai). Đổi địa chỉ, giới hạn lượt ở biểu tượng bánh răng trong hộp chat.
 - Giới hạn **30 lượt/ngày** trên mỗi trình duyệt (đọc văn bản đến trên máy cũng tính lượt); Worker báo hết hạn mức thì tạm dừng đến hôm sau. Hội thoại chỉ lưu tạm trong thẻ trình duyệt.
 - Dữ liệu gửi đi: câu hỏi và các đoạn số liệu tổng hợp liên quan (không gửi tệp đính kèm, không gửi toàn bộ cơ sở dữ liệu).
+- Báo "Failed to fetch": Worker chỉ cho phép một số tên miền (biến `ALLOWED_ORIGIN` của Worker). Hai cách khắc phục, làm một trong hai:
+  1. Cloudflare → Workers & Pages → `rasoatvanban` → Settings → Variables and Secrets → sửa `ALLOWED_ORIGIN`, thêm `,https://phong-khtc-so.vercel.app` (cách nhau bằng dấu phẩy, không có dấu `/` ở cuối) → Deploy.
+  2. Đã nhập máy chủ Apps Script (bản Code.gs mới, có thao tác `aiChat`): phần mềm tự chuyển sang gọi AI qua máy chủ, không cần sửa Worker.
 
 ## 5. Sao lưu, khôi phục
 
@@ -160,6 +166,8 @@ Hai phần mềm cũ vẫn là nơi cập nhật chính; phần mềm này kéo 
 Bản ghi kéo về có nhãn nguồn và nút mở lại đúng phần mềm gốc. Có thể bật "Tự đồng bộ khi mở phần mềm".
 
 ## 7. Giới hạn cần biết
+
+- **Bản ghi trùng tên** (cán bộ, đơn vị, đầu mục chức năng) do mỗi máy tự nạp danh mục ban đầu rồi "Tải về và gộp": phần mềm tự gộp khi mở và sau mỗi lần tải về – gộp, giữ bản sửa gần nhất, chuyển mọi liên kết sang bản giữ lại.
 
 - **Một máy, một người dùng tại một thời điểm.** Chưa có đăng nhập, chưa phân quyền. Hai người mở hai máy là hai bộ dữ liệu riêng.
 - **Đồng bộ nhiều máy (tùy chọn)** qua Google Apps Script (`gas/Code.gs`): đẩy lên – tải về toàn bộ dữ liệu, không kèm tệp đính kèm; hai người cùng sửa một bản ghi thì bản sửa sau cùng được giữ; có cảnh báo khi máy chủ đã có bản mới hơn.

@@ -16,19 +16,32 @@
   const AI = A.AI = {
     MAC_DINH, cfg,
     hanMuc() { const v = docHM(), c = cfg(); return { da: v.so, toiDa: c.gioiHan, conLai: Math.max(0, c.gioiHan - v.so), het: v.het, chan: v.het || v.so >= c.gioiHan }; },
-    coSan() { return !!cfg().url; },
+    coSan() { return !!cfg().url || !!(A.VBD && A.VBD.coMayChu && A.VBD.coMayChu()); },
     // Gửi hội thoại; tinh: tính vào hạn mức (mặc định có)
     async goi(messages, o) {
       o = o || {}; const c = cfg();
-      if (!c.url) throw new Error('Chưa cấu hình địa chỉ Worker AI (Thiết lập → Trợ lý AI).');
+      if (!c.url && !(A.VBD && A.VBD.coMayChu && A.VBD.coMayChu())) throw new Error('Chưa cấu hình địa chỉ Worker AI (biểu tượng bánh răng trong hộp chat).');
+      if (!c.url) AI.duongDi = 'gas';
       const hm = AI.hanMuc();
       if (o.tinh !== false) { if (hm.het) throw Object.assign(new Error('Hạn mức Workers AI miễn phí hôm nay đã hết — AI tạm dừng đến ngày mai.'), { hanMuc: true }); if (hm.chan) throw Object.assign(new Error('Đã dùng hết ' + hm.toiDa + ' lượt gọi AI hôm nay trên trình duyệt này.'), { hanMuc: true }); }
       const body = { messages, max_tokens: o.max_tokens || 1200 }; if (c.model) body.model = c.model;
       const op = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'omit', cache: 'no-store' };
       if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) op.signal = AbortSignal.timeout(o.timeout || 60000);
       let r, d;
+      const quaMayChu = async ly => {   // dự phòng: gọi AI qua máy chủ Apps Script (không bị chặn CORS)
+        const j = await A.VBD.gas({ action: 'aiChat', messages, max_tokens: o.max_tokens || 1200 }).catch(er => { throw new Error(ly + ' Gọi qua máy chủ Apps Script cũng lỗi: ' + er.message); });
+        AI.duongDi = 'gas'; if (o.tinh !== false) { const v = docHM(); v.so++; ghiHM(v); }
+        return { text: String(j.text || '').trim(), model: j.model || '', tenMoHinh: 'qua máy chủ Apps Script' };
+      };
+      const coMC = A.VBD && A.VBD.coMayChu && A.VBD.coMayChu();
+      if (AI.duongDi === 'gas' && coMC) return quaMayChu('');
       try { r = await fetch(c.url, op); d = await r.json().catch(() => ({})); }
-      catch (er) { throw new Error(er && er.name === 'TimeoutError' ? 'AI không phản hồi kịp (quá thời gian chờ).' : 'Không kết nối được Worker AI: ' + (er.message || er)); }
+      catch (er) {
+        if (er && er.name === 'TimeoutError') throw new Error('AI không phản hồi kịp (quá thời gian chờ).');
+        // "Failed to fetch": thường do Worker chỉ cho phép một số tên miền (biến ALLOWED_ORIGIN) → thử qua máy chủ
+        if (coMC) return quaMayChu('Trình duyệt không gọi thẳng được Worker (Worker chưa cho phép tên miền ' + location.origin + ').');
+        throw new Error('Không kết nối được Worker AI (' + (er.message || er) + '). Worker có thể chưa cho phép tên miền ' + location.origin + ': thêm tên miền này vào biến ALLOWED_ORIGIN của Worker, hoặc nhập máy chủ Apps Script ở Thiết lập để gọi AI qua máy chủ.');
+      }
       const text = String(d.text || (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '').trim();
       if (!r.ok || !text) { if (r.status === 429) { const v = docHM(); v.het = true; ghiHM(v); } throw Object.assign(new Error(giaiThich(r.status, d.error ? String(d.error.message || d.error) : (r.ok ? 'mô hình không trả nội dung' : ''))), { status: r.status }); }
       if (o.tinh !== false) { const v = docHM(); v.so++; ghiHM(v); }

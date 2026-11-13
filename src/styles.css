@@ -431,3 +431,15 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 .ext-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .ext-nums>div{display:flex;flex-direction:column;padding:8px 10px;border:1px solid var(--border);border-radius:10px}
 .ext-nums .k-v{font-size:22px;font-weight:700}.ext-nums .k-l{font-size:12.5px;color:var(--muted)}
+/* Ô chọn liên kết có tìm kiếm */
+.refpick{display:flex;gap:6px;align-items:center;min-width:0}
+.refpick-btn{flex:1;min-width:0;text-align:left;cursor:pointer;overflow:hidden}
+.refpick-btn .rp-l{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rp-pop{position:fixed;z-index:200;background:var(--card);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--sh3);padding:8px;display:flex;flex-direction:column;gap:6px;max-height:min(380px,70vh)}
+.rp-list{overflow-y:auto;min-height:0;display:flex;flex-direction:column}
+.rp-i{border:0;background:none;text-align:left;padding:7px 10px;border-radius:6px;cursor:pointer;font:inherit;font-size:14px;color:var(--text);line-height:1.35}
+.rp-i:hover,.rp-i.on{background:var(--hover)}
+.rp-i.cur{font-weight:600;color:var(--accent)}
+.rp-add{display:flex;align-items:center;gap:6px;border:1px dashed var(--border-strong);background:none;border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:14px;color:var(--accent)}
+.rp-add:hover{background:var(--accent-soft)}
+.rp-edit[hidden]{display:none}

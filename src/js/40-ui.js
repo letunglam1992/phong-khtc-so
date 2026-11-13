@@ -64,7 +64,61 @@
   function refOptions(f, cur) {
     let list = S.all(f.ref);
     if (f.ref === 'canbo') list = list.filter(c => c.trangThai !== 'nghi' || c.id === cur || (Array.isArray(cur) && cur.includes(c.id)));
-    return list.map(r => [r.id, f.ref === 'canbo' ? r.hoTen : f.ref === 'donvi' ? r.ten : U.trunc(Sc.C[f.ref].title(r), 110)]).sort((a, b) => f.ref === 'danhmuc' || f.ref === 'ngansach' ? 0 : U.cmp(a[1], b[1]));
+    return list.map(r => [r.id, f.ref === 'canbo' ? r.hoTen : f.ref === 'donvi' ? r.ten : f.ref === 'ngansach' ? U.trunc(Sc.C.ngansach.title(r), 100) + ' — ' + (Sc.refName('donvi', r.donViId) || '') + ' ' + (r.nam || '') : U.trunc(Sc.C[f.ref].title(r), 110)]).sort((a, b) => f.ref === 'danhmuc' || f.ref === 'ngansach' ? 0 : U.cmp(a[1], b[1]));
+  }
+  UI.refOptions = refOptions;
+  /* Ô chọn bản ghi liên kết có tìm kiếm, thêm mới, sửa (thay cho <select> dài).
+     Giá trị nằm ở <input type=hidden data-k>; đổi giá trị phát sự kiện change để form nhận. */
+  const REF_ADD = ['donvi', 'canbo', 'duan', 'goithau', 'ngansach', 'vanban', 'hopdong'];
+  const refEmpty = f => '— ' + (f.ref === 'canbo' ? 'Chưa phân công' : 'Không chọn') + ' —';
+  UI.refPickHtml = (f, v, id) => {
+    const lab = v ? (refOptions(f, v).find(o => o[0] === v) || [v, '(đã xóa)'])[1] : refEmpty(f);
+    return '<div class="refpick" data-ref="' + e(f.ref) + '"><input type="hidden" data-k="' + f.k + '" value="' + e(v || '') + '"><button type="button" class="sel refpick-btn" id="' + id + '" aria-haspopup="listbox" aria-expanded="false"><span class="rp-l">' + e(lab) + '</span></button>' +
+      (REF_ADD.includes(f.ref) ? '<button type="button" class="btn icon sm rp-edit" title="Sửa bản ghi đang chọn" aria-label="Sửa ' + e(Sc.C[f.ref].label) + ' đang chọn"' + (v ? '' : ' hidden') + '>' + ic('edit', 15) + '</button>' : '') + '</div>';
+  };
+  UI.bindRefPick = root => {
+    UI.on(root, 'click', '.refpick-btn', btn => openPick(btn.closest('.refpick')));
+    UI.on(root, 'click', '.rp-edit', b => { const w = b.closest('.refpick'), hid = $('input[type=hidden]', w), c = w.dataset.ref, r = S.get(c, hid.value); if (r) UI.form({ coll: c, rec: r, onSaved: x => setVal(w, x.id) }); });
+  };
+  function setVal(w, id) {
+    const hid = $('input[type=hidden]', w), c = w.dataset.ref, f = { ref: c };
+    hid.value = id || '';
+    $('.rp-l', w).textContent = id ? ((refOptions(f, id).find(o => o[0] === id) || [id, Sc.refName(c, id)])[1]) : refEmpty(f);
+    const ed = $('.rp-edit', w); if (ed) ed.hidden = !id;
+    hid.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  function openPick(w) {
+    const prev = $('.rp-pop', document.body); if (prev) prev.parentNode.removeChild(prev);
+    const hid = $('input[type=hidden]', w), c = w.dataset.ref, f = { ref: c }, cur = hid.value, btn = $('.refpick-btn', w);
+    const all = refOptions(f, cur), sc = Sc.C[c];
+    const pop = UI.el('<div class="rp-pop" role="dialog" aria-label="Chọn ' + e(sc.label) + '"><input class="inp" type="search" placeholder="Gõ để tìm ' + e(sc.label.toLowerCase()) + '…" aria-label="Tìm"><div class="rp-list" role="listbox"></div>' + (REF_ADD.includes(c) ? '<button type="button" class="rp-add">' + ic('plus', 15) + '<span>Thêm ' + e(sc.label.toLowerCase()) + ' mới</span></button>' : '') + '</div>');
+    document.body.appendChild(pop);
+    const r0 = btn.getBoundingClientRect(), wd = Math.max(r0.width, 320), below = window.innerHeight - r0.bottom;
+    pop.style.width = Math.min(wd, window.innerWidth - 16) + 'px'; pop.style.left = Math.max(8, Math.min(r0.left, window.innerWidth - wd - 8)) + 'px';
+    if (below < 300 && r0.top > below) pop.style.bottom = (window.innerHeight - r0.top + 4) + 'px'; else pop.style.top = (r0.bottom + 4) + 'px';
+    const inp = $('input', pop), list = $('.rp-list', pop); let shown = [], idx = 0;
+    const draw = () => {
+      const ws = U.norm(inp.value).split(' ').filter(Boolean);
+      shown = [['', refEmpty(f)]].concat(all.filter(o => ws.every(x => U.norm(o[1]).includes(x)))).slice(0, 300);
+      idx = Math.max(0, shown.findIndex(o => o[0] === cur)); if (ws.length) idx = shown.length > 1 ? 1 : 0;
+      list.innerHTML = shown.map((o, i) => '<button type="button" role="option" class="rp-i' + (i === idx ? ' on' : '') + (o[0] === cur ? ' cur' : '') + '" data-i="' + i + '">' + e(o[1]) + '</button>').join('') + (shown.length === 1 && ws.length ? '<div class="small muted" style="padding:8px 10px">Không tìm thấy "' + e(inp.value) + '".</div>' : '');
+      const on = $('.rp-i.on', list); if (on) on.scrollIntoView({ block: 'nearest' });
+    };
+    const close = () => { if (pop.parentNode) pop.parentNode.removeChild(pop); document.removeEventListener('mousedown', outside, true); window.removeEventListener('resize', close); btn.setAttribute('aria-expanded', 'false'); };
+    const outside = x => { if (!pop.contains(x.target) && !w.contains(x.target)) close(); };
+    const pick = i => { const o = shown[i]; if (!o) return; close(); setVal(w, o[0]); btn.focus(); };
+    inp.addEventListener('input', draw);
+    inp.addEventListener('keydown', x => {
+      if (x.key === 'ArrowDown' || x.key === 'ArrowUp') { x.preventDefault(); idx = Math.max(0, Math.min(shown.length - 1, idx + (x.key === 'ArrowDown' ? 1 : -1))); $$('.rp-i', list).forEach((b, i) => { b.classList.toggle('on', i === idx); if (i === idx) b.scrollIntoView({ block: 'nearest' }); }); }
+      else if (x.key === 'Enter') { x.preventDefault(); pick(idx); }
+      else if (x.key === 'Escape') { x.preventDefault(); x.stopPropagation(); close(); btn.focus(); }
+    });
+    UI.on(list, 'click', '.rp-i', b => pick(+b.dataset.i));
+    const add = $('.rp-add', pop);
+    if (add) add.onclick = () => { const q = inp.value.trim(), key = c === 'canbo' ? 'hoTen' : c === 'ngansach' ? 'noiDung' : c === 'hopdong' ? 'so' : c === 'vanban' ? 'soKyHieu' : 'ten'; close(); UI.form({ coll: c, rec: q ? { [key]: q } : {}, onSaved: r => setVal(w, r.id) }); };
+    document.addEventListener('mousedown', outside, true); window.addEventListener('resize', close);
+    btn.setAttribute('aria-expanded', 'true');
+    draw(); inp.focus();
   }
   function inputHtml(f, v, id, small) {
     const a = ' id="' + id + '" data-k="' + f.k + '"';
@@ -77,7 +131,7 @@
       case 'year': return '<input class="inp" type="number" min="1990" max="2100" step="1"' + a + ' value="' + e(v || '') + '">';
       case 'bool': return '<label class="check"><input type="checkbox"' + a + (v ? ' checked' : '') + '> Có</label>';
       case 'select': { const opts = Sc.options(f).slice(); if (v && !opts.some(o => o[0] === v)) opts.push([v, v + ' (giá trị cũ)']); return '<select class="sel"' + a + '>' + (f.required && f.def ? '' : '<option value="">— Chọn —</option>') + opts.filter(o => o[0] !== '').map(o => '<option value="' + e(o[0]) + '"' + (o[0] === v ? ' selected' : '') + '>' + e(o[1]) + '</option>').join('') + '</select>'; }
-      case 'ref': return '<select class="sel"' + a + '><option value="">— ' + (f.ref === 'canbo' ? 'Chưa phân công' : 'Không chọn') + ' —</option>' + refOptions(f, v).map(o => '<option value="' + e(o[0]) + '"' + (o[0] === v ? ' selected' : '') + '>' + e(o[1]) + '</option>').join('') + '</select>';
+      case 'ref': return UI.refPickHtml(f, v, id);
       case 'multi': return '<div class="checks"' + a + '>' + Sc.options(f).map(o => '<label class="check"><input type="checkbox" value="' + e(o[0]) + '"' + ((v || []).includes(o[0]) ? ' checked' : '') + '> ' + e(o[1]) + '</label>').join('') + '</div>';
       default: return '<input class="inp" type="text"' + a + ' value="' + e(v || '') + '" autocomplete="off">';
     }
@@ -122,6 +176,7 @@
     root.innerHTML = '<form class="form" novalidate><div class="errbox hide" role="alert"></div>' + secs.map(s => (s.t ? '<div class="fsec"' + (s.key ? ' data-sec-key="' + s.key + '"' : '') + '>' + e(s.t) + '</div>' : '') + s.keys.filter(k => !hide.has(k)).map(k => fieldBox(Sc.field(o.coll, k))).join('')).join('') + '</form>';
     const form = $('form', root);
     bindMoney(form);
+    UI.bindRefPick(form);
     form.addEventListener('input', () => { dirty = true; });
     form.addEventListener('change', () => { dirty = true; });
     form.addEventListener('submit', x => { x.preventDefault(); save(); });

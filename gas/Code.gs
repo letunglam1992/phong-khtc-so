@@ -46,6 +46,7 @@ function doPost(e) {
     if (a === 'inboxRetry') return out_(thuLai_(req.id));
     if (a === 'inboxResolve') return out_(danhDau_(req));
     if (a === 'aiTest') return out_(thuAI_());
+    if (a === 'aiChat') return out_(troChuyen_(req));
     return out_({ ok: false, error: 'Không rõ thao tác' });
   } catch (err) {
     return out_({ ok: false, error: String(err && err.message || err) });
@@ -167,17 +168,18 @@ function moTaAI_() {
   if (p.getProperty('CF_ACCOUNT_ID') && p.getProperty('CF_API_TOKEN')) return 'Cloudflare Workers AI (khóa riêng)';
   return 'Worker ' + (p.getProperty('CF_WORKER_URL') || CF_WORKER_MAC_DINH).replace(/^https?:\/\//, '');
 }
-function goiAI_(system, user) {
+function goiAI_(system, user) { return goiAITin_([{ role: 'system', content: system }, { role: 'user', content: user }], 3000); }
+/** Gửi hội thoại tới AI Cloudflare (Worker hoặc REST). msgs: [{role, content}] */
+function goiAITin_(msgs, maxTok) {
   var p = props_(), acc = p.getProperty('CF_ACCOUNT_ID'), tok = p.getProperty('CF_API_TOKEN'), r, j, text;
-  var msgs = [{ role: 'system', content: system }, { role: 'user', content: user }];
   if (acc && tok) {
     var model = p.getProperty('CF_AI_MODEL') || '@cf/google/gemma-4-26b-a4b-it';
     r = UrlFetchApp.fetch('https://api.cloudflare.com/client/v4/accounts/' + acc + '/ai/v1/chat/completions', { method: 'post', contentType: 'application/json', muteHttpExceptions: true,
-      headers: { Authorization: 'Bearer ' + tok }, payload: JSON.stringify({ model: model, messages: msgs, max_tokens: 3000, temperature: 0.1, chat_template_kwargs: { enable_thinking: false } }) });
+      headers: { Authorization: 'Bearer ' + tok }, payload: JSON.stringify({ model: model, messages: msgs, max_tokens: maxTok || 3000, temperature: 0.1, chat_template_kwargs: { enable_thinking: false } }) });
     j = JSON.parse(r.getContentText() || '{}');
     text = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message.content : '';
   } else {
-    r = UrlFetchApp.fetch(p.getProperty('CF_WORKER_URL') || CF_WORKER_MAC_DINH, { method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: JSON.stringify({ messages: msgs, max_tokens: 3000 }) });
+    r = UrlFetchApp.fetch(p.getProperty('CF_WORKER_URL') || CF_WORKER_MAC_DINH, { method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: JSON.stringify({ messages: msgs, max_tokens: maxTok || 3000 }) });
     j = JSON.parse(r.getContentText() || '{}');
     text = j.text || '';
   }
@@ -189,6 +191,16 @@ function goiAI_(system, user) {
 function thuAI_() {
   try { var t = goiAI_('Chỉ trả lời đúng một từ.', 'Trả lời: OK'); return { ok: true, ai: moTaAI_(), reply: t.slice(0, 50) }; }
   catch (e) { return { ok: false, ai: moTaAI_(), error: String(e.message || e) }; }
+}
+
+/** Hộp chat / đọc văn bản trên máy gọi AI qua máy chủ (khi trình duyệt không gọi thẳng được Worker). */
+function troChuyen_(req) {
+  var msgs = (req.messages || []).filter(function (m) { return m && typeof m.content === 'string' && ['system', 'user', 'assistant'].indexOf(m.role) >= 0; })
+    .map(function (m) { return { role: m.role, content: m.content.slice(0, 20000) }; });
+  if (!msgs.length) return { ok: false, error: 'Thiếu nội dung hỏi.' };
+  if (JSON.stringify(msgs).length > 60000) return { ok: false, error: 'Nội dung gửi AI quá dài.' };
+  try { return { ok: true, text: goiAITin_(msgs, Math.min(+req.max_tokens || 1200, 4000)), model: moTaAI_() }; }
+  catch (e) { return { ok: false, tam: !!e.tam, error: String(e.message || e) }; }
 }
 
 /* ---- Đọc văn bản trong hàng đợi ---- */

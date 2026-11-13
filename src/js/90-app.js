@@ -72,6 +72,7 @@
     try { await S.init(); }
     catch (er) { app.innerHTML = '<div style="padding:40px;max-width:640px;margin:auto"><h2>Không mở được kho dữ liệu của trình duyệt</h2><p>' + e(er.message || er) + '</p><p>Hãy thử mở bằng Chrome, Edge hoặc Firefox ở cửa sổ thường (không phải cửa sổ ẩn danh).</p></div>'; return; }
     const first = await A.Seed.firstRun();
+    let gop = 0; try { gop = await L.gopTrung(); } catch (x) { console.warn(x); }
     document.documentElement.setAttribute('data-theme', S.cfg.theme === 'dark' ? 'dark' : 'light');
     if (S.cfg.nam === undefined) S.cfg.nam = +U.today().slice(0, 4);
     app.innerHTML = '<aside class="side" aria-label="Menu chính"><div class="brand"><div class="brand-mark" aria-hidden="true">KH<br>TC</div><div class="brand-txt">Phòng KH-TC số<small>Sở Nông nghiệp và Môi trường Sơn La</small></div></div><nav class="nav">' +
@@ -107,6 +108,7 @@
     const biz = S.count('nhiemvu') + S.count('duan') + S.count('ngansach') + S.count('vanban') + S.count('taisan');
     const last = S.cfg.lastBackup ? U.diffDays(U.today(), S.cfg.lastBackup.slice(0, 10)) : null;
     if (!first && biz > 0 && (last === null || last >= 7)) setTimeout(() => UI.toast(last === null ? 'Chưa từng sao lưu dữ liệu trên máy này.' : 'Đã ' + last + ' ngày chưa sao lưu dữ liệu.', '', { label: 'Sao lưu ngay', fn: () => A.backupNow(true) }), 1200);
+    if (gop) setTimeout(() => UI.toast('Đã gộp ' + gop + ' bản ghi trùng tên (cán bộ, đơn vị, chức năng) do đồng bộ từ máy khác; mọi liên kết chuyển sang bản giữ lại.', 'ok'), 900);
     if (S.adapter.noFiles) UI.toast('Trình duyệt chặn IndexedDB nên phần mềm chạy ở chế độ lưu dự phòng: không đính kèm được tệp, dung lượng giới hạn khoảng 5 MB.', 'bad');
   };
   if (typeof document !== 'undefined') { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', A.start); else A.start(); }

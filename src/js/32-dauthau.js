@@ -68,3 +68,26 @@
     return out.sort((a, b) => a.d < b.d ? -1 : 1);
   };
 })(App);
+/* Liên kết nguồn kinh phí (dòng dự toán) ↔ gói thầu ↔ hợp đồng */
+(function (A) {
+  const U = A.U, S = A.Store, L = A.L;
+  L.hdNsId = h => h.nsId || ((S.get('goithau', h.goiThauId) || {}).nsId) || '';
+  L.nsLienKet = nsId => {
+    const r = S.get('ngansach', nsId); if (!r) return null;
+    const gts = S.all('goithau').filter(g => g.nsId === nsId), hds = S.all('hopdong').filter(h => L.hdNsId(h) === nsId), hx = hds.map(h => ({ h, x: L.hd(h) }));
+    const node = L.nsTree(+r.nam, r.donViId).flat.find(n => n.r.id === nsId), tong = node ? node.sum.tong : L.nsTong(r), gn = node ? node.sum.giaiNgan : U.num(r.giaiNgan);
+    const o = { r, gts, hds, hx, tong, gn, giaGT: U.sum(gts.filter(g => g.trangThai !== 'huy'), g => g.giaGoiThau), giaHD: U.sum(hx.filter(o => o.h.trangThai !== 'chamdut'), o => o.x.giaTriHL), daTT: U.sum(hx, o => o.x.thanhToan), canhBao: [] };
+    o.chuaBoTri = o.tong - Math.max(o.giaHD, U.sum(gts.filter(g => !['dakyhd', 'huy'].includes(g.trangThai)), g => U.num(g.giaTrung) || U.num(g.giaGoiThau)) + o.giaHD);
+    if (o.giaHD > o.tong + 0.5) o.canhBao.push({ sev: 3, t: 'Tổng giá trị hợp đồng (' + U.fmtShort(o.giaHD) + ') vượt kinh phí được sử dụng của dòng dự toán (' + U.fmtShort(o.tong) + ')' });
+    else if (o.giaGT > o.tong + 0.5) o.canhBao.push({ sev: 2, t: 'Tổng giá gói thầu (' + U.fmtShort(o.giaGT) + ') vượt kinh phí được sử dụng (' + U.fmtShort(o.tong) + ')' });
+    if (o.daTT > o.gn + 0.5) o.canhBao.push({ sev: 1, t: 'Đã thanh toán hợp đồng ' + U.fmtShort(o.daTT) + ' nhưng số giải ngân của dòng dự toán mới ' + U.fmtShort(o.gn) + ' — cần cập nhật số giải ngân' });
+    return o;
+  };
+  // Đưa cảnh báo nguồn kinh phí vào danh sách việc cần xử lý đấu thầu
+  const base = L.dtViec;
+  L.dtViec = f => {
+    const out = base(f), ids = new Set(L.dtLoc(f).gts.map(g => g.nsId).concat(L.dtLoc(f).hds.map(L.hdNsId)).filter(Boolean));
+    ids.forEach(id => { const lk = L.nsLienKet(id); if (lk) lk.canhBao.forEach(c => out.push({ sev: c.sev, loai: 'dauthau', title: 'Nguồn kinh phí: ' + U.trunc(A.Schema.C.ngansach.title(lk.r), 90), detail: c.t, coll: 'ngansach', id })); });
+    return out.sort((a, b) => b.sev - a.sev);
+  };
+})(App);

@@ -16,6 +16,19 @@
       (tt.length ? '<div class="small soft mb">Tiến trình đã ghi: ' + tt.map(x => e(x.buoc) + (x.ngay ? ' (' + U.fmtDate(x.ngay) + ')' : '')).join(' → ') + '</div>' : '');
   };
 
+  // Khối "nguồn kinh phí" trong chi tiết gói thầu / hợp đồng / dòng dự toán
+  A.nsLKHtml = (nsId, mode) => {
+    const lk = nsId ? L.nsLienKet(nsId) : null, fs = U.fmtShort;
+    if (!lk) return mode === 'ns' ? '' : '<div class="note mb">Chưa gắn dòng dự toán nguồn kinh phí. Bấm Sửa → chọn "Dòng dự toán nguồn kinh phí" để theo dõi gói thầu, thanh toán theo nguồn.</div>';
+    const cb = lk.canhBao.map(c => '<div class="issue s' + c.sev + '" style="cursor:default"><span class="lv"></span><span><span class="t">' + e(c.t) + '</span></span></div>').join('');
+    const head = '<div class="kpis mb">' + [['acc', 'Kinh phí được sử dụng', fs(lk.tong), 'Đã giải ngân ' + fs(lk.gn) + ' (' + U.fmtPct(U.pct(lk.gn, lk.tong)) + ')'], ['info', 'Gói thầu dùng nguồn này', lk.gts.length, 'Tổng giá gói thầu ' + fs(lk.giaGT)], ['teal', 'Hợp đồng', lk.hds.length, 'Giá trị ' + fs(lk.giaHD) + ' (' + U.fmtPct(U.pct(lk.giaHD, lk.tong), 0) + ' nguồn)'], ['ok', 'Đã thanh toán hợp đồng', fs(lk.daTT), 'Kinh phí chưa bố trí gói thầu, HĐ: ' + fs(Math.max(0, lk.chuaBoTri))]].map(k => '<div class="kpi ' + k[0] + ' static"><span class="k-l">' + e(k[1]) + '</span><span class="k-v"><small>' + k[2] + '</small></span><span class="k-s">' + e(k[3]) + '</span></div>').join('') + '</div>';
+    const tbl = (lk.gts.length || lk.hds.length) ? '<div class="tbl-wrap mb"><table class="tbl"><thead><tr><th>Gói thầu / hợp đồng</th><th class="num">Giá gói thầu</th><th class="num">Giá trị HĐ</th><th class="num">Đã thanh toán</th><th>Tình trạng</th></tr></thead><tbody>' +
+      lk.gts.map(g => { const hs = lk.hx.filter(o => o.h.goiThauId === g.id); return '<tr><td class="wrap"><a href="#" data-open="goithau:' + g.id + '">' + e(U.trunc(g.ten, 90)) + '</a>' + hs.map(o => '<div class="t2">HĐ <a href="#" data-open="hopdong:' + o.h.id + '">' + e(o.h.so || '') + '</a> · ' + e(o.h.nhaThau || '') + '</div>').join('') + '</td><td class="num">' + U.fmtMoney(g.giaGoiThau) + '</td><td class="num">' + (hs.length ? U.fmtMoney(U.sum(hs, o => o.x.giaTriHL)) : '—') + '</td><td class="num">' + (hs.length ? U.fmtMoney(U.sum(hs, o => o.x.thanhToan)) : '—') + '</td><td>' + UI.chip(L.gt(g).st, L.gt(g).label) + '</td></tr>'; }).join('') +
+      lk.hx.filter(o => !lk.gts.some(g => g.id === o.h.goiThauId)).map(o => '<tr><td class="wrap">HĐ <a href="#" data-open="hopdong:' + o.h.id + '">' + e(o.h.so || '') + '</a> ' + e(U.trunc(o.h.ten || '', 70)) + '</td><td class="num">—</td><td class="num">' + U.fmtMoney(o.x.giaTriHL) + '</td><td class="num">' + U.fmtMoney(o.x.thanhToan) + '</td><td>' + UI.chip(o.x.st, o.x.label) + '</td></tr>').join('') + '</tbody></table></div>' : '';
+    if (mode === 'ns') return (lk.gts.length || lk.hds.length) ? '<div class="card mb"><div class="card-h"><h3>Gói thầu, hợp đồng sử dụng nguồn kinh phí này</h3></div><div class="card-b">' + head + cb + tbl + '</div></div>' : '';
+    return '<div class="card mb"><div class="card-h"><h3>Nguồn kinh phí</h3><div class="sub"><a href="#" data-open="ngansach:' + lk.r.id + '">' + e(U.trunc(A.Schema.C.ngansach.title(lk.r), 120)) + '</a> — ' + e(A.Schema.refName('donvi', lk.r.donViId)) + ' năm ' + e(lk.r.nam || '') + '</div></div><div class="card-b">' + head + cb + '</div></div>';
+  };
+
   function tongQuan(root, T) {
     const f = { duan: T.duan, cb: T.cb }, t = L.dtTong(f), viec = L.dtViec(f), lich = L.dtLich(f, 60);
     const daOpts = [['', 'Tất cả chương trình, dự án']].concat(S.all('duan').filter(d => S.all('goithau').some(g => g.duAnId === d.id) || S.all('hopdong').some(h => h.duAnId === d.id)).map(d => [d.id, U.trunc(d.ten, 70)]));
