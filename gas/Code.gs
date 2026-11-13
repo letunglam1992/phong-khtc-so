@@ -10,6 +10,7 @@
  *  2. Bên trái → Dịch vụ (Services) → thêm "Drive API" (để nhận dạng chữ PDF scan, ảnh chụp).
  *  3. Cài đặt dự án → Thuộc tính tập lệnh (Script properties), tùy chọn:
  *       CF_WORKER_URL  — địa chỉ Worker AI dùng chung (mặc định Worker rasoatvanban của anh/chị)
+ *       CF_WORKER_MODELS — thứ tự mô hình thử qua Worker, cách nhau bằng |, để trống phần đầu = mô hình mặc định của Worker
  *       hoặc gọi thẳng Cloudflare: CF_ACCOUNT_ID, CF_API_TOKEN (quyền Workers AI: Read), CF_AI_MODEL
  *  4. Triển khai → Triển khai mới → Ứng dụng web → Thực thi với tư cách: Tôi; Ai có quyền: Bất kỳ ai.
  *  5. Chạy hàm caiDatVanBanDen một lần (cấp quyền, bật quét tự động 15 phút).
@@ -170,6 +171,7 @@ function moTaAI_() {
 }
 function goiAI_(system, user) { return goiAITin_([{ role: 'system', content: system }, { role: 'user', content: user }], 3000); }
 /** Gửi hội thoại tới AI Cloudflare (Worker hoặc REST). msgs: [{role, content}] */
+var MO_HINH_VUA_DUNG = '';
 function goiAITin_(msgs, maxTok) {
   var p = props_(), acc = p.getProperty('CF_ACCOUNT_ID'), tok = p.getProperty('CF_API_TOKEN'), r, j, text;
   if (acc && tok) {
@@ -179,17 +181,26 @@ function goiAITin_(msgs, maxTok) {
     j = JSON.parse(r.getContentText() || '{}');
     text = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message.content : '';
   } else {
-    r = UrlFetchApp.fetch(p.getProperty('CF_WORKER_URL') || CF_WORKER_MAC_DINH, { method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: JSON.stringify({ messages: msgs, max_tokens: maxTok || 3000 }) });
-    j = JSON.parse(r.getContentText() || '{}');
-    text = j.text || '';
+    // Worker: thử lần lượt các mô hình Worker cho phép khi mô hình trước lỗi máy chủ (vd. 3030 Internal Server Error) hoặc không trả nội dung
+    var dsMoHinh = (p.getProperty('CF_WORKER_MODELS') || '|@cf/zai-org/glm-4.7-flash|@cf/google/gemma-4-26b-a4b-it').split('|'), loi = [];
+    for (var i = 0; i < dsMoHinh.length; i++) {
+      var body = { messages: msgs, max_tokens: maxTok || 3000 }; if (dsMoHinh[i]) body.model = dsMoHinh[i];
+      r = UrlFetchApp.fetch(p.getProperty('CF_WORKER_URL') || CF_WORKER_MAC_DINH, { method: 'post', contentType: 'application/json', muteHttpExceptions: true, payload: JSON.stringify(body) });
+      try { j = JSON.parse(r.getContentText() || '{}'); } catch (x) { j = {}; }
+      text = String(j.text || '').trim();
+      if (r.getResponseCode() < 300 && text) { MO_HINH_VUA_DUNG = j.model || dsMoHinh[i] || ''; break; }
+      if (r.getResponseCode() === 429 || r.getResponseCode() === 401) break;
+      loi.push((dsMoHinh[i] || 'mặc định').replace(/^@cf\/[^/]+\//, '') + ': ' + (j.error ? String(j.error).slice(0, 120) : 'HTTP ' + r.getResponseCode()));
+    }
+    if (!text && loi.length) j = { error: loi.join(' | ') };
   }
   var code = r.getResponseCode();
   if (code === 429 || code === 503) { var e = new Error('AI Cloudflare đang hết hạn mức hoặc quá tải (HTTP ' + code + ')'); e.tam = true; throw e; }
-  if (code >= 300 || !text) throw new Error('AI không trả nội dung (HTTP ' + code + (j.error ? ': ' + JSON.stringify(j.error).slice(0, 200) : '') + ')');
+  if (code >= 300 || !text) throw new Error('AI không trả nội dung (HTTP ' + code + (j.error ? ': ' + (typeof j.error === 'string' ? j.error : JSON.stringify(j.error)).slice(0, 400) : '') + ')');
   return String(text);
 }
 function thuAI_() {
-  try { var t = goiAI_('Chỉ trả lời đúng một từ.', 'Trả lời: OK'); return { ok: true, ai: moTaAI_(), reply: t.slice(0, 50) }; }
+  try { var t = goiAI_('Chỉ trả lời đúng một từ.', 'Trả lời: OK'); return { ok: true, ai: moTaAI_(), model: MO_HINH_VUA_DUNG, reply: t.slice(0, 50) }; }
   catch (e) { return { ok: false, ai: moTaAI_(), error: String(e.message || e) }; }
 }
 
@@ -199,7 +210,7 @@ function troChuyen_(req) {
     .map(function (m) { return { role: m.role, content: m.content.slice(0, 20000) }; });
   if (!msgs.length) return { ok: false, error: 'Thiếu nội dung hỏi.' };
   if (JSON.stringify(msgs).length > 60000) return { ok: false, error: 'Nội dung gửi AI quá dài.' };
-  try { return { ok: true, text: goiAITin_(msgs, Math.min(+req.max_tokens || 1200, 4000)), model: moTaAI_() }; }
+  try { var t = goiAITin_(msgs, Math.min(+req.max_tokens || 1200, 4000)); return { ok: true, text: t, model: MO_HINH_VUA_DUNG || moTaAI_() }; }
   catch (e) { return { ok: false, tam: !!e.tam, error: String(e.message || e) }; }
 }
 

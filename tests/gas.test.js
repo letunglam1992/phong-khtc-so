@@ -76,3 +76,10 @@ test('aiChat: hộp chat gọi AI qua máy chủ (khi trình duyệt bị Worker
   assert.match(e.post({ action: 'aiChat', messages: [] }).error, /Thiếu/);
   assert.match(e.post({ key: 'SAI', action: 'aiChat', messages: [{ role: 'user', content: 'b' }] }).error, /Sai mã/);
 });
+test('Worker: mô hình mặc định lỗi 3030 → tự thử mô hình kế tiếp', () => {
+  const e = env({ ai: b => b.model ? { code: 200, json: { text: 'OK từ ' + b.model, model: b.model } } : { code: 502, json: { error: '3030: Internal Server Error' } } });
+  const r = e.post({ action: 'aiChat', messages: [{ role: 'user', content: 'x' }] });
+  assert.equal(r.ok, true); assert.equal(r.model, '@cf/zai-org/glm-4.7-flash'); assert.equal(e.fetches.length, 2);
+  const e2 = env({ ai: () => ({ code: 502, json: { error: '3030: Internal Server Error' } }) });
+  assert.match(e2.post({ action: 'aiChat', messages: [{ role: 'user', content: 'x' }] }).error, /mặc định: 3030.*glm-4\.7-flash: 3030.*gemma-4-26b-a4b-it: 3030/);
+});

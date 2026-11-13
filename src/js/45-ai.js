@@ -31,11 +31,22 @@
       const quaMayChu = async ly => {   // dự phòng: gọi AI qua máy chủ Apps Script (không bị chặn CORS)
         const j = await A.VBD.gas({ action: 'aiChat', messages, max_tokens: o.max_tokens || 1200 }).catch(er => { throw new Error(ly + ' Gọi qua máy chủ Apps Script cũng lỗi: ' + er.message); });
         AI.duongDi = 'gas'; if (o.tinh !== false) { const v = docHM(); v.so++; ghiHM(v); }
-        return { text: String(j.text || '').trim(), model: j.model || '', tenMoHinh: 'qua máy chủ Apps Script' };
+        return { text: String(j.text || '').trim(), model: j.model || '', tenMoHinh: (/^@cf\//.test(j.model || '') ? String(j.model).replace(/^@cf\/[^/]+\//, '') + ' · ' : '') + 'qua máy chủ Apps Script' };
       };
       const coMC = A.VBD && A.VBD.coMayChu && A.VBD.coMayChu();
       if (AI.duongDi === 'gas' && coMC) return quaMayChu('');
-      try { r = await fetch(c.url, op); d = await r.json().catch(() => ({})); }
+      // Thử lần lượt các mô hình Worker cho phép khi mô hình trước lỗi máy chủ (vd. 3030) hoặc không trả nội dung
+      const dsMH = c.model ? [c.model] : ['', '@cf/zai-org/glm-4.7-flash', '@cf/google/gemma-4-26b-a4b-it'], loiMH = [];
+      try {
+        for (const mh of dsMH) {
+          const b2 = Object.assign({}, body); if (mh) b2.model = mh; else delete b2.model;
+          r = await fetch(c.url, Object.assign({}, op, { body: JSON.stringify(b2) })); d = await r.json().catch(() => ({}));
+          if (r.ok && String(d.text || '').trim()) break;
+          if (r.status === 429 || r.status === 401 || r.status === 403 || r.status === 400) break;
+          loiMH.push((mh || 'mặc định').replace(/^@cf\/[^/]+\//, '') + ': ' + (d.error ? String(d.error).slice(0, 100) : 'HTTP ' + r.status));
+        }
+        if (!(r.ok && String(d.text || '').trim()) && loiMH.length > 1) d = Object.assign({}, d, { error: loiMH.join(' | ') });
+      }
       catch (er) {
         if (er && er.name === 'TimeoutError') throw new Error('AI không phản hồi kịp (quá thời gian chờ).');
         // "Failed to fetch": thường do Worker chỉ cho phép một số tên miền (biến ALLOWED_ORIGIN) → thử qua máy chủ
