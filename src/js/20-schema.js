@@ -47,6 +47,7 @@
     ttQT: [['', '—'], ['chuaden', 'Chưa đến kỳ quyết toán'], ['chualap', 'Chưa lập hồ sơ'], ['datrinh', 'Đã trình thẩm tra'], ['daduyet', 'Đã phê duyệt quyết toán']],
     ttMoc: [['chua', 'Chưa thực hiện'], ['dang', 'Đang thực hiện'], ['hoanthanh', 'Đã hoàn thành'], ['khongad', 'Không áp dụng']],
     ttGT: [['nhucau', 'Nhu cầu mua sắm'], ['dutoan', 'Đã duyệt dự toán'], ['trinhkh', 'Đã trình thẩm định KHLCNT'], ['khlcnt', 'Đã duyệt KHLCNT'], ['danglcnt', 'Đang lựa chọn nhà thầu'], ['cokq', 'Đã có kết quả LCNT'], ['dakyhd', 'Đã ký hợp đồng'], ['huy', 'Hủy, không thực hiện']],
+    cachTinhTH: [['sau', 'Không tính ngày bắt đầu (Điều 147 BLDS): 01/11 + 30 ngày → 01/12'], ['gom', 'Tính cả ngày bắt đầu: 01/11 + 30 ngày → 30/11']],
     ttHD: [['dang', 'Đang thực hiện'], ['nghiemthu', 'Đã nghiệm thu'], ['thanhly', 'Đã thanh lý'], ['tamdung', 'Tạm dừng'], ['chamdut', 'Chấm dứt trước hạn']],
     ttCB: [['danglam', 'Đang công tác'], ['nghi', 'Nghỉ, chuyển công tác']],
     // Theo Phụ biểu 0A.01-T.STC "Tổng hợp hiện trạng tài sản nhà, đất"
@@ -418,7 +419,9 @@
       F('loaiHD', 'Loại hợp đồng', 'select', { list: 'loaiHopDong' }),
       F('giaTri', 'Giá trị hợp đồng (đồng)', 'money', { table: true }),
       F('ngayBD', 'Ngày bắt đầu thực hiện', 'date'),
-      F('ngayKT', 'Thời hạn hoàn thành hợp đồng', 'date', { table: true, help: 'Nếu có phụ lục gia hạn, nhập hạn mới và ghi chú phụ lục' }),
+      F('thoiGianTH', 'Thời gian thực hiện hợp đồng', 'text', { help: 'Ví dụ: 30 ngày, 6 tháng — tự tính thời hạn hoàn thành' }),
+      F('cachTinhTH', 'Cách tính thời hạn', 'select', { opt: 'cachTinhTH', def: 'sau' }),
+      F('ngayKT', 'Thời hạn hoàn thành hợp đồng', 'date', { table: true, help: 'Tự tính từ ngày bắt đầu (hoặc ngày ký) và thời gian thực hiện; sửa tay được. Gia hạn thì ghi ở phụ lục.' }),
       F('tamUng', 'Đã tạm ứng (đồng)', 'money'),
       F('tamUngThuHoi', 'Đã thu hồi tạm ứng (đồng)', 'money'),
       F('baoLanhTU', 'Bảo lãnh tạm ứng (đồng)', 'money'),
@@ -446,6 +449,23 @@
       if (U.num(r.tamUngThuHoi) > U.num(r.tamUng) + 0.5) e.push('Số đã thu hồi tạm ứng lớn hơn số đã tạm ứng.');
       if (r.trangThai === 'thanhly' && !r.thanhLyNgay) e.push('Hợp đồng đã thanh lý nhưng chưa ghi ngày thanh lý.');
       return e;
+    },
+    // Tự tính thời hạn hoàn thành: ngày bắt đầu (hoặc ngày ký) + thời gian thực hiện
+    afterRender(form) {
+      const el = k => form.querySelector('[data-k="' + k + '"]'), kt = el('ngayKT'), fld = form.querySelector('[data-fld="ngayKT"]');
+      if (!kt || !el('thoiGianTH')) return;
+      const note = document.createElement('div'); note.className = 'help'; note.setAttribute('data-tinh', ''); fld.appendChild(note);
+      let tuDong = !kt.value;   // ô đang trống hoặc giá trị do phần mềm tính → được tính lại
+      const tinh = () => {
+        const tu = (el('ngayBD') && el('ngayBD').value) || (el('ngayKy') && el('ngayKy').value), chu = el('thoiGianTH').value, ca = el('cachTinhTH') && el('cachTinhTH').value === 'gom';
+        const v = A.L.congThoiHan(tu, chu, ca);
+        if (!v) { note.textContent = chu && !tu ? 'Nhập ngày bắt đầu hoặc ngày ký để tự tính thời hạn.' : ''; return; }
+        note.textContent = 'Tự tính: ' + U.fmtDate(tu) + ' + ' + chu.trim() + ' = ' + U.fmtDate(v) + (ca ? ' (tính cả ngày bắt đầu)' : ' (ngày đầu không tính — Điều 147, 148 BLDS 2015)') + (kt.value && kt.value !== v && !tuDong ? ' · đang giữ ngày nhập tay ' + U.fmtDate(kt.value) + ' — xóa ô để dùng ngày tự tính' : '');
+        if (tuDong || !kt.value) { kt.value = v; tuDong = true; kt.dispatchEvent(new Event('change', { bubbles: true })); }
+      };
+      ['ngayBD', 'ngayKy', 'thoiGianTH', 'cachTinhTH'].forEach(k => { const x = el(k); if (x) { x.addEventListener('input', tinh); x.addEventListener('change', tinh); } });
+      kt.addEventListener('input', () => { tuDong = !kt.value; tinh(); });
+      tinh();
     },
     normalize(r) { (r.thanhToan || []).sort((a, b) => a.ngay < b.ngay ? -1 : 1); (r.nghiemThu || []).sort((a, b) => a.ngay < b.ngay ? -1 : 1); if (r.thanhLyNgay && (!r.trangThai || r.trangThai === 'dang' || r.trangThai === 'nghiemthu')) r.trangThai = 'thanhly'; },
     warnOnly: true

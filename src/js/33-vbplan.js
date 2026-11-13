@@ -15,15 +15,6 @@
     return ten ? best(S.all('hopdong').filter(h => !nhaThau || !h.nhaThau || giong(h.nhaThau, nhaThau) > 0.5), h => h.ten || '', ten, 0.6) : null;
   };
   L.vbTimDA = ten => best(S.all('duan'), d => d.ten, ten, 0.5);
-  // "60 ngày", "12 tháng" + ngày bắt đầu → ngày kết thúc (ước tính để người duyệt kiểm tra).
-  // Ngày đầu không tính, thời hạn tháng kết thúc vào ngày tương ứng của tháng cuối (Điều 147, 148 Bộ luật Dân sự 2015).
-  L.vbCongThoiGian = (tu, chu) => {
-    if (!U.isISO(tu) || !chu) return '';
-    const n = String(chu).match(/(\d+)\s*ngày/i), t = String(chu).match(/(\d+)\s*tháng/i);
-    if (n) return U.addDays(tu, +n[1]);
-    if (t) { const y0 = +tu.slice(0, 4), m0 = +tu.slice(5, 7) - 1 + +t[1], y = y0 + Math.floor(m0 / 12), m = m0 % 12 + 1; return y + '-' + U.pad(m) + '-' + U.pad(Math.min(+tu.slice(8, 10), U.lastDayOfMonth(y, m))); }
-    return '';
-  };
   const pickList = (k, v) => { if (!v) return ''; const l = A.list(k); const m = l.find(x => U.norm(x) === U.norm(v)) || l.find(x => U.norm(v).includes(U.norm(x)) || U.norm(x).includes(U.norm(v))); return m || v; };
   const choicesOf = (coll, label) => [['', 'Tạo mới']].concat(S.all(coll).map(r => [r.id, U.trunc(label ? label(r) : Sc.C[coll].title(r), 90)]));
   const vbTen = r => [r.so_van_ban, r.ngay_van_ban ? U.fmtDate(r.ngay_van_ban) : ''].filter(Boolean).join(' ngày ');
@@ -57,8 +48,8 @@
       const h = r.hop_dong || {}, cu = L.vbTimHD(h.so_hop_dong || so, h.ten, h.nha_thau), gt = L.vbTimGT(h.ten_goi_thau || h.ten) || (h.nha_thau ? S.all('goithau').find(g => g.nhaThau && giong(g.nhaThau, h.nha_thau) > 0.7 && !S.all('hopdong').some(x => x.goiThauId === g.id)) : null);
       const bd = h.ngay_bat_dau || h.ngay_ky || '', kt = h.ngay_ket_thuc || L.vbCongThoiGian(bd, h.thoi_gian_thuc_hien);
       ops.push({ key: 'hd', title: cu ? 'Cập nhật hợp đồng đã có' : 'Thêm hợp đồng', coll: 'hopdong', id: cu ? cu.id : '', choices: choicesOf('hopdong'),
-        fields: { so: h.so_hop_dong || so || '', ngayKy: h.ngay_ky || ngay || '', ten: h.ten || r.trich_yeu || '', goiThauId: (cu && cu.goiThauId) || (gt ? gt.id : ''), duAnId: (cu && cu.duAnId) || (gt && gt.duAnId) || (da ? da.id : ''), nhaThau: h.nha_thau || '', giaTri: h.gia_tri || '', loaiHD: pickList('loaiHopDong', h.loai_hop_dong), ngayBD: bd, ngayKT: kt, baoLanhTH: h.bao_lanh_thuc_hien || '', baoLanhTHHan: h.bao_lanh_thuc_hien_den || '', ghiChu: [(cu && cu.ghiChu) || '', h.tam_ung ? 'Mức tạm ứng theo hợp đồng: ' + U.fmtMoney(h.tam_ung) + ' đồng.' : '', !h.ngay_ket_thuc && kt ? 'Thời hạn ước tính từ "' + h.thoi_gian_thuc_hien + '" kể từ ' + U.fmtDate(bd) + ' (ngày đầu không tính) — cần đối chiếu điều khoản hiệu lực của hợp đồng.' : ''].filter(Boolean).join(' ') },
-        keys: ['so', 'ngayKy', 'ten', 'goiThauId', 'duAnId', 'nhaThau', 'giaTri', 'loaiHD', 'ngayBD', 'ngayKT', 'baoLanhTH', 'baoLanhTHHan', 'canBoId', 'ghiChu'], push: [], dinhKem: dk, on: true, sau: gt && gt.trangThai !== 'dakyhd' ? { coll: 'goithau', id: gt.id, rec: { trangThai: 'dakyhd' }, note: 'Chuyển gói thầu "' + U.trunc(gt.ten, 60) + '" sang "Đã ký hợp đồng"' } : null });
+        fields: { so: h.so_hop_dong || so || '', ngayKy: h.ngay_ky || ngay || '', ten: h.ten || r.trich_yeu || '', goiThauId: (cu && cu.goiThauId) || (gt ? gt.id : ''), duAnId: (cu && cu.duAnId) || (gt && gt.duAnId) || (da ? da.id : ''), nhaThau: h.nha_thau || '', giaTri: h.gia_tri || '', loaiHD: pickList('loaiHopDong', h.loai_hop_dong), ngayBD: bd, thoiGianTH: h.thoi_gian_thuc_hien || '', ngayKT: kt, baoLanhTH: h.bao_lanh_thuc_hien || '', baoLanhTHHan: h.bao_lanh_thuc_hien_den || '', ghiChu: [(cu && cu.ghiChu) || '', h.tam_ung ? 'Mức tạm ứng theo hợp đồng: ' + U.fmtMoney(h.tam_ung) + ' đồng.' : '', !h.ngay_ket_thuc && kt ? 'Thời hạn ước tính từ "' + h.thoi_gian_thuc_hien + '" kể từ ' + U.fmtDate(bd) + ' (ngày đầu không tính) — cần đối chiếu điều khoản hiệu lực của hợp đồng.' : ''].filter(Boolean).join(' ') },
+        keys: ['so', 'ngayKy', 'ten', 'goiThauId', 'duAnId', 'nhaThau', 'giaTri', 'loaiHD', 'ngayBD', 'thoiGianTH', 'ngayKT', 'baoLanhTH', 'baoLanhTHHan', 'canBoId', 'ghiChu'], push: [], dinhKem: dk, on: true, sau: gt && gt.trangThai !== 'dakyhd' ? { coll: 'goithau', id: gt.id, rec: { trangThai: 'dakyhd' }, note: 'Chuyển gói thầu "' + U.trunc(gt.ten, 60) + '" sang "Đã ký hợp đồng"' } : null });
     }
     const hdOp = (key, title, h, push, fields, keys) => ops.push({ key, title: (h ? '' : '[Chưa tìm thấy hợp đồng — chọn hợp đồng] ') + title, coll: 'hopdong', id: h ? h.id : '', mustExist: true, choices: choicesOf('hopdong').slice(1), fields: fields || {}, keys: keys || [], push, dinhKem: dk, on: !!h });
     if (r.loai === 'phu_luc_hd') { const p = r.phu_luc || {}, h = L.vbTimHD(p.so_hop_dong); hdOp('pl', 'Ghi phụ lục hợp đồng', h, [{ k: 'phuLuc', label: 'Phụ lục', row: { so: p.so_phu_luc || so || '', ngay, noiDung: p.noi_dung || r.trich_yeu || '', giaTriDC: p.gia_tri_dieu_chinh || '', giaHanDen: p.gia_han_den || '' } }]); }

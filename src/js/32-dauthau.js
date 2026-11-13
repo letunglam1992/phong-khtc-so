@@ -91,3 +91,24 @@
     return out.sort((a, b) => b.sev - a.sev);
   };
 })(App);
+
+/* Tính thời hạn hoàn thành hợp đồng từ ngày bắt đầu và thời gian thực hiện ("30 ngày", "6 tháng", "1 năm", "30") */
+(function (A) {
+  const U = A.U, L = A.L;
+  // caNgayDau: true = tính cả ngày bắt đầu (01/11 + 30 ngày → 30/11);
+  // mặc định không tính ngày bắt đầu, thời hạn tháng/năm kết thúc vào ngày tương ứng (Điều 147, 148 Bộ luật Dân sự 2015): 01/11 + 30 ngày → 01/12
+  L.congThoiHan = (tu, chu, caNgayDau) => {
+    if (!U.isISO(tu) || chu === undefined || chu === null || String(chu).trim() === '') return '';
+    const s = U.norm(chu), tru = caNgayDau ? 1 : 0;
+    const so = (s.match(/(\d+)/) || [])[1]; if (!so) return '';
+    const n = +so;
+    if (/thang/.test(s) || /nam\b/.test(s)) {
+      const thang = /thang/.test(s) ? n : n * 12, y0 = +tu.slice(0, 4), m0 = +tu.slice(5, 7) - 1 + thang, y = y0 + Math.floor(m0 / 12), m = m0 % 12 + 1;
+      const d = y + '-' + U.pad(m) + '-' + U.pad(Math.min(+tu.slice(8, 10), U.lastDayOfMonth(y, m)));
+      return tru ? U.addDays(d, -1) : d;
+    }
+    if (/tuan/.test(s)) return U.addDays(tu, n * 7 - tru);
+    return U.addDays(tu, n - tru);   // "30 ngày" hoặc chỉ ghi số
+  };
+  L.vbCongThoiGian = (tu, chu) => L.congThoiHan(tu, chu, false);
+})(App);

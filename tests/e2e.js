@@ -161,7 +161,7 @@ ok(await ev(()=>App.L.gnDeXuat(2026,{}).some(x=>/Nguy cơ không giải ngân h�
 ok(await ev(()=>App.L.alerts(2026).some(a=>a.loai==='giaingan'&&a.sev===3)),'cảnh báo giải ngân mức cao trên bảng điều hành');
 await p.screenshot({path:SHOTS+'/e_giaingan_tq.png',fullPage:true});
 // Đặt mục tiêu giải ngân
-await p.click('[data-mt]');await p.waitForSelector('#mt9');await p.fill('#mt5','40');await p.fill('#mt9','70');await p.fill('#mt11','100');await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(300);
+await p.click('[data-mt]');await p.waitForSelector('#mt9');await p.waitForTimeout(300);await p.fill('#mt5','40');await p.fill('#mt9','70');await p.fill('#mt11','100');await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(300);
 ok(await ev(()=>{const m=App.L.gnMucTieu(2026);return m.tuDat&&m.vals[9]===70&&m.vals[7]===40&&m.vals[11]===100}),'lưu mục tiêu lũy kế (tháng trống lấy theo tháng trước) '+await ev(()=>JSON.stringify(App.Store.cfg.gnMucTieu)));
 // Cập nhật nhanh số giải ngân
 await p.click('[data-tab="cn"]');await p.waitForTimeout(250);
@@ -215,6 +215,15 @@ await ev(()=>App.open('goithau',App.Store.all('goithau')[0].id));await p.waitFor
 await p.keyboard.press('Escape');await p.waitForTimeout(150);
 await ev(()=>{App.vs.dtTab={t:'hd'};App.render()});await p.waitForTimeout(200);ok(/4\.500\.000\.000/.test(await txt())&&/đã gia hạn/.test(await txt()),'danh sách hợp đồng: giá trị sau phụ lục, đánh dấu đã gia hạn');
 await ev(()=>{App.vs.dtTab={t:'tq'}});
+// Tự tính thời hạn hoàn thành hợp đồng
+await ev(()=>App.UI.form({coll:'hopdong'}));await p.waitForSelector('[data-k="thoiGianTH"]');
+await p.fill('[data-k="ngayKy"]','2026-11-01');await p.fill('[data-k="thoiGianTH"]','30 ngày');await p.waitForTimeout(80);
+ok(await p.inputValue('[data-k="ngayKT"]')==='2026-12-01'&&/01\/11\/2026 \+ 30 ngày = 01\/12\/2026/.test(await p.textContent('[data-fld="ngayKT"]')),'ký 01/11 + 30 ngày → hoàn thành 01/12/2026 (ngày đầu không tính)');
+await p.selectOption('[data-k="cachTinhTH"]','gom');await p.waitForTimeout(80);ok(await p.inputValue('[data-k="ngayKT"]')==='2026-11-30','chọn "tính cả ngày bắt đầu" → 30/11/2026');
+await p.selectOption('[data-k="cachTinhTH"]','sau');await p.fill('[data-k="thoiGianTH"]','3 tháng');await p.waitForTimeout(80);ok(await p.inputValue('[data-k="ngayKT"]')==='2027-02-01','3 tháng → 01/02/2027');
+await p.fill('[data-k="ngayBD"]','2026-11-05');await p.waitForTimeout(80);ok(await p.inputValue('[data-k="ngayKT"]')==='2027-02-05','có ngày bắt đầu thì tính từ ngày bắt đầu');
+await p.fill('[data-k="ngayKT"]','2027-03-01');await p.fill('[data-k="thoiGianTH"]','45 ngày');await p.waitForTimeout(80);ok(await p.inputValue('[data-k="ngayKT"]')==='2027-03-01'&&/đang giữ ngày nhập tay/.test(await p.textContent('[data-fld="ngayKT"]')),'ngày nhập tay không bị ghi đè, có gợi ý ngày tự tính');
+await p.locator('.ov').last().locator('.modal-f .btn:not(.primary)').click();await p.waitForTimeout(150);if(await p.$('.ov'))await p.keyboard.press('Escape');
 
 console.log('# 9b. Tài sản nhà, đất — Phụ biểu 0A.01-T.STC (tệp thật)');
 await go('taisan');

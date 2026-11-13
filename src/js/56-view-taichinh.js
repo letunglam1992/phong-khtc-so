@@ -24,7 +24,8 @@
     { t: 'Kết quả lựa chọn nhà thầu', keys: ['nhaThau', 'giaTrung', 'qdKQSo', 'qdKQNgay'] },
     { t: 'Theo dõi', keys: ['canBoId', 'dinhKem', 'ghiChu'] }];
   Sc.C.hopdong.sections = [
-    { t: 'Hợp đồng', keys: ['so', 'ngayKy', 'ten', 'goiThauId', 'duAnId', 'nhaThau', 'loaiHD', 'giaTri', 'nsId', 'ngayBD', 'ngayKT'] },
+    { t: 'Hợp đồng', keys: ['so', 'ngayKy', 'ten', 'goiThauId', 'duAnId', 'nhaThau', 'loaiHD', 'giaTri', 'nsId'] },
+    { t: 'Thời gian thực hiện', keys: ['ngayBD', 'thoiGianTH', 'cachTinhTH', 'ngayKT'] },
     { t: 'Bảo lãnh, tạm ứng', keys: ['baoLanhTH', 'baoLanhTHHan', 'tamUng', 'baoLanhTU', 'baoLanhTUHan', 'tamUngThuHoi'] },
     { t: 'Phụ lục, điều chỉnh hợp đồng', keys: ['phuLuc'] },
     { t: 'Thực hiện, nghiệm thu, thanh toán', keys: ['tienDoKL', 'nghiemThu', 'thanhToan'] },
@@ -367,7 +368,7 @@
   A.openers.goithau = id => UI.detail({
     coll: 'goithau', id,
     head: g => { const x = L.gt(g), hd = S.all('hopdong').filter(h => h.goiThauId === g.id); return '<div class="gap mb">' + UI.chip(x.st, x.label) + (x.note ? '<span class="chip plain ' + (x.over ? 'quahan' : 'saphan') + '">' + e(x.note) + '</span>' : '') + (x.chuaHD ? '<span class="chip plain saphan">Đã có kết quả, chưa nhập hợp đồng</span>' : '') + (U.num(g.giaTrung) && U.num(g.giaGoiThau) ? '<span class="tag">Chênh lệch so với giá gói thầu: ' + U.fmtMoney(U.num(g.giaGoiThau) - U.num(g.giaTrung)) + ' đồng (' + U.fmtPct(U.pct(U.num(g.giaGoiThau) - U.num(g.giaTrung), U.num(g.giaGoiThau))) + ')</span>' : '') + '</div>' + A.gtStepper(g) + A.nsLKHtml(g.nsId) + (hd.length ? '<div class="note mb">Hợp đồng: ' + hd.map(h => '<a href="#" data-open="hopdong:' + h.id + '">' + e(h.so) + '</a>').join(', ') + '</div>' : ''); },
-    actions: [{ label: 'Tạo hợp đồng', icon: 'plus', on: (g, a) => { a.close(true); UI.form({ coll: 'hopdong', rec: { goiThauId: g.id, duAnId: g.duAnId, nsId: g.nsId || '', nhaThau: g.nhaThau, giaTri: g.giaTrung || '', ten: g.ten, canBoId: g.canBoId, loaiHD: g.loaiHD || '' }, onSaved: async h => { if (g.trangThai !== 'dakyhd') await S.save('goithau', { id: g.id, trangThai: 'dakyhd' }); A.open('hopdong', h.id); } }); } }]
+    actions: [{ label: 'Tạo hợp đồng', icon: 'plus', on: (g, a) => { a.close(true); UI.form({ coll: 'hopdong', rec: { goiThauId: g.id, duAnId: g.duAnId, nsId: g.nsId || '', nhaThau: g.nhaThau, giaTri: g.giaTrung || '', ten: g.ten, canBoId: g.canBoId, loaiHD: g.loaiHD || '', thoiGianTH: g.tgThucHienHD || '' }, onSaved: async h => { if (g.trangThai !== 'dakyhd') await S.save('goithau', { id: g.id, trangThai: 'dakyhd' }); A.open('hopdong', h.id); } }); } }]
   });
   A.openers.hopdong = id => UI.detail({
     coll: 'hopdong', id,
