@@ -80,6 +80,9 @@ Mỗi tài sản loại **"Cơ sở nhà, đất"** (hoặc "Trụ sở, nhà l�
 
 ## 4d. Theo dõi, dự báo giải ngân dự toán (Tài chính, giải ngân)
 
+- **Mẫu biểu**: "Báo cáo tình hình thực hiện giải ngân thanh toán nguồn chi thường xuyên" (Phụ lục II): TT, Nội dung, (3) KP chuyển nguồn năm trước sang, (4) Dự toán giao đầu năm, (5) KP bổ sung trong năm, (6) Điều chỉnh tăng, (7) Điều chỉnh giảm, (8) KP thu hồi trong năm, Chỉ tiêu tiết kiệm, (9) Tổng KP được sử dụng = 3 + 4 + 5 + 6 − 7 − 8 − tiết kiệm, (10) Kinh phí đã giải ngân đến ngày…, (11) Kinh phí còn lại = 9 − 10, (12) Tỷ lệ giải ngân, Ghi chú. Tên trường trên phần mềm và tệp Excel xuất ra dùng đúng tên, thứ tự cột này; ngày số liệu đọc từ tiêu đề cột 10.
+- **Nhập lại biểu**: ghép với dòng đã có theo số thứ tự + nội dung, bỏ qua khác biệt dấu câu, nhận cả dòng được đánh lại số hoặc sửa chữ (cùng số thứ tự, cùng dòng cha, nội dung giống ≥ 75%). Dòng cũ không có trên biểu mới được **giữ nguyên** (biểu có thể chỉ gồm một phần nguồn kinh phí); muốn xóa thì đánh dấu ô "Xóa các dòng dự toán cũ…" khi nhập.
+
 - **Tổng quan giải ngân**: tỷ lệ đã giải ngân so với mục tiêu tháng (hoặc tỷ lệ thời gian), dự báo đến 31/12, số tiền cần giải ngân bình quân mỗi tháng còn lại, tiến độ theo đơn vị và theo cán bộ theo dõi, danh sách nội dung giải ngân chậm, **phương án, đề xuất chỉ đạo**. Lọc theo đơn vị, cán bộ.
 - **Cập nhật giải ngân**: lưới nhập nhanh **số lũy kế từ đầu năm** đến một ngày cho nhiều dòng; chỉ lưu dòng có thay đổi, cảnh báo khi số vượt kinh phí được sử dụng.
 - **Lịch sử giải ngân**: các mốc cập nhật, số tăng giữa hai mốc; trong chi tiết từng dòng có lịch sử riêng.

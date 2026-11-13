@@ -187,7 +187,7 @@ ok(await ev(()=>{const r=App.Store.get('ngansach',window.__rid);return r.gnHist.
 await p.click('[data-tab="ct"]');await p.waitForTimeout(200);
 const xf=await dl(()=>p.click('[data-xls]'));ok(fs.statSync(xf).size>5000,'xuất Excel cây dự toán: '+path.basename(xf));
 const X=require('xlsx');const wbo=X.readFile(xf),aoa=X.utils.sheet_to_json(wbo.Sheets[wbo.SheetNames[0]],{header:1});
-ok(aoa[aoa.length-1][11]===48983549974,'tệp Excel xuất ra: dòng tổng cột "Đã giải ngân" = 48.983.549.974');
+ok(aoa[aoa.length-1][10]===48983549974&&/Kinh phí đã giải ngân đến/.test(aoa[3][10])&&aoa[4][10]==='10'&&aoa[3][4]==='KP bổ sung trong năm','tệp Excel xuất ra theo đúng mẫu biểu (cột 10 = đã giải ngân): dòng tổng cột "Đã giải ngân" = 48.983.549.974');
 await p.click('[data-tab="nhom"]');await p.waitForTimeout(200);ok(/không thường xuyên/.test(await txt()),'so sánh dự toán – thực hiện – quyết toán theo nhóm kinh phí');
 await p.click('[data-tab="ct"]');
 
@@ -541,5 +541,25 @@ await ev(()=>App.go('nhiemvu'));await p.waitForTimeout(200);await p.focus('tbody
 ok(await ev(()=>[...document.querySelectorAll('button')].filter(b=>!b.textContent.trim()&&!b.getAttribute('aria-label')).length)===0,'mọi nút chỉ có biểu tượng đều có nhãn đọc màn hình');
 await ev(()=>App.go('lichsu'));await p.waitForTimeout(200);ok((await p.$$eval('tbody tr',e=>e.length))>5,'nhật ký ghi nhận các thao tác');
 
+if(process.env.VPS){
+console.log('# 18. Biểu giải ngân mới (mẫu Phụ lục II, VP Sở): nhập sau biểu tháng 10, ghép dòng, giữ lịch sử');
+const c3=await b.newContext({viewport:{width:1440,height:900}});const q=await c3.newPage();await q.clock.setFixedTime(NGAY);q.on('pageerror',e=>errs.push(e.message));await q.goto(URL);await q.waitForSelector('.nav-item');
+const nhap=async(f,ngay,xoa)=>{await q.click('.nav-item[data-r="ngansach"]');await q.waitForTimeout(200);const [fc]=await Promise.all([q.waitForEvent('filechooser'),(async()=>{await q.click('[data-imp]');await q.waitForSelector('[data-pick]');await q.click('[data-pick]')})()]);await fc.setFiles(f);await q.waitForSelector('#ib_dv');await q.waitForTimeout(300);if(ngay)await q.fill('#ib_d',ngay);if(xoa)await q.check('#ib_xoa');const t=(await q.textContent('.modal')).replace(/\s+/g,' ');await q.click('.modal-f .btn.primary');await q.waitForTimeout(500);let c='';if(await q.locator('.ov').count()>1){c=await q.locator('.ov').last().textContent();await q.locator('.ov').last().locator('.modal-f .btn.primary').click();}await q.waitForTimeout(900);return {t,c}};
+await nhap(XLS);
+const r2=await nhap(process.env.VPS);
+ok(/đọc được 83 dòng/.test(r2.t)&&/Điểmcầnđốichiếu0/.test(r2.t.replace(/\s/g,'')),'biểu mới: 83 dòng, số học trên biểu khớp (0 điểm lệch)');
+ok(/Ngày trên biểu \(18\/11\/2026\) sau hôm nay/.test(r2.t),'lấy ngày số liệu 18/11/2026 từ tiêu đề cột giải ngân, nhắc vì sau hôm nay');
+ok(/72 dòng khớp/.test(r2.c)&&/11 dòng mới/.test(r2.c)&&/16 dòng cũ không có trên biểu được giữ nguyên/.test(r2.c),'ghép 72/83 dòng với dữ liệu tháng 10 (bỏ qua khác dấu câu, đánh lại số); giữ 16 dòng cũ (CTMTQG…)');
+const v=await q.evaluate(()=>{const L=App.L,S=App.Store;const all=S.all('ngansach');const r=all.find(x=>/xử lý chất thải rắn sinh hoạt tại Nhà máy/.test(x.noiDung));const dt=all.find(x=>/Đề tài nghiên cứu khoa học/.test(x.noiDung)&&x.stt==='3.9');const q2=all.find(x=>/khu vực cấm, tạm thời cấm/.test(x.noiDung));return {n:all.length,hist:r.gnHist.map(h=>h.ngay).join(','),bs:dt&&dt.boSung===0?'grp':'', gc:(all.find(x=>/Xây dựng giá đất cụ thể hàng năm 2026/.test(x.noiDung))||{}).ghiChuBieu, bsLeaf:all.filter(x=>x.boSung>0).length, ns38:(all.find(x=>x.stt==='3.8')||{}).noiDung}});
+ok(v.n===99,'tổng 99 dòng = 88 cũ + 11 mới (không sinh trùng): '+v.n);
+ok(v.hist==='2026-10-20,2026-11-18','dòng khớp giữ lịch sử, thêm mốc 18/11: '+v.hist);
+ok(v.bsLeaf>=10,'đọc được cột "KP Bổ sung trong năm" ('+v.bsLeaf+' dòng có số bổ sung)');
+ok(v.gc==='Phòng Quản lý tài nguyên đất','đọc cột "Ghi chú" (phòng thực hiện) vào "Ghi chú trên biểu"');
+ok(/Khoản 123- Chuyển đổi số/.test(v.ns38),'dòng 3.8 cập nhật tên theo biểu mới (khoản 123)');
+const r3=await nhap(process.env.VPS,'2026-11-12',true);
+ok(/16 dòng cũ không còn trên biểu sẽ bị xóa/.test(r3.c)&&await q.evaluate(()=>App.Store.count('ngansach'))===83,'chọn "xóa dòng cũ không có trên biểu" → còn đúng 83 dòng');
+ok(await q.evaluate(()=>{const g=App.L.giaiNgan(2026,{});return g.tong===289310504739&&g.gn===50540020474}),'tổng KP được sử dụng 289.310.504.739, đã giải ngân 50.540.020.474 — trùng dòng I của biểu');
+await c3.close();
+}
 console.log('\nLỗi JavaScript trong suốt quá trình: '+(errs.length?errs.slice(0,8).join('\n'):'không có'));
 console.log('KẾT QUẢ: '+pass+' đạt, '+fail+' không đạt');await b.close();process.exit(fail||errs.length?1:0)})().catch(e=>{console.error('CRASH',e);process.exit(2)});
