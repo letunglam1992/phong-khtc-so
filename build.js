@@ -13,7 +13,8 @@ shared.forEach(f => {
 });
 fs.writeFileSync(path.join(__dirname, 'gas/Code.gs'), gas);
 const sharedJs = shared.map(f => '/* ===== shared/' + f + ' ===== */\n' + R('src/shared/' + f)).join('\n');
-const js = sharedJs + '\n' + fs.readdirSync(jsDir).filter(f => f.endsWith('.js')).sort().map(f => '/* ===== ' + f + ' ===== */\n' + R('src/js/' + f)).join('\n');
+const ngayBuild = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' });
+const js = 'var __BUILD_DATE__ = ' + JSON.stringify(ngayBuild) + ';\n' + sharedJs + '\n' + fs.readdirSync(jsDir).filter(f => f.endsWith('.js')).sort().map(f => '/* ===== ' + f + ' ===== */\n' + R('src/js/' + f)).join('\n');
 const safe = s => s.replace(/<\/script/gi, '<\\/script');
 const html = `<!DOCTYPE html>
 <html lang="vi" data-theme="light">

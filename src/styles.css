@@ -87,6 +87,15 @@ a{color:var(--accent)}
 .tbtn{height:36px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-radius:var(--r-md);border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-weight:500;font-size:13px}
 .tbtn:hover{background:rgba(255,255,255,.17)}
 .tbtn.icon{width:36px;padding:0;justify-content:center}
+.tbtn:disabled{opacity:.45;cursor:default}.tbtn:disabled:hover{background:rgba(255,255,255,.08)}
+.top-nav{display:flex;gap:8px;align-items:center;flex:none;padding-top:4px}
+#brand{cursor:pointer;border-radius:var(--r-md)}#brand:hover .brand-mark{filter:brightness(1.12)}#brand:focus-visible{outline:2px solid var(--accent);outline-offset:-4px}
+/* Giới thiệu, bản quyền */
+.about-h{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}.about-h h4{font-size:17px;margin:2px 0 4px}
+.about-ic{width:52px;height:52px;border-radius:12px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
+.about-t{width:100%;border-collapse:collapse;font-size:14px}.about-t th,.about-t td{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:10px 12px;text-align:left;vertical-align:top}
+.about-t th{width:38%;font-weight:600;color:var(--muted);background:var(--hover)}
+.about-c{margin-top:14px;line-height:1.5}
 .tbtn select{background:transparent;border:0;color:#fff;font-weight:600;cursor:pointer;outline:none}
 .tbtn select option{color:#1c2521}
 .tbtn.search{min-width:210px;justify-content:flex-start;color:var(--on-h-soft)}
@@ -363,6 +372,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
   .tbtn.search{min-width:0;width:40px;padding:0;justify-content:center}.tbtn.search span,.tbtn kbd{display:none}
   .toolbar .sel{flex:1 1 44%;min-width:0}.toolbar .search{flex:1 1 100%;max-width:none}.toolbar .sp{display:none}
   .top-tools{width:100%}
+  .top-nav .tbtn:not(.icon) span{display:none}.top-nav .tbtn:not(.icon){width:40px;padding:0;justify-content:center}
   .ov{padding:0}.modal,.modal.lg,.modal.sm{max-width:none;min-height:100vh;border-radius:0}
   .dl{grid-template-columns:minmax(0,1fr);gap:2px 0}.dl dd{margin-bottom:8px}
   .paper{padding:20px 16px;font-size:12pt}

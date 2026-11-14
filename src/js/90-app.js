@@ -13,11 +13,15 @@
   A.route = 'tongquan'; A.params = null;
 
   A.open = (coll, id) => { const f = A.openers[coll]; if (f) f(id); };
-  A.go = (route, params) => {
+  // Lịch sử điều hướng cho nút "Quay lại" (đồng bộ với nút Back của trình duyệt, điện thoại)
+  A.hist = [];
+  A.go = (route, params, quayLai) => {
     if (!A.views[route]) route = 'tongquan';
+    const moi = route !== A.route && !quayLai;
+    if (moi) { A.hist.push(A.route); if (A.hist.length > 50) A.hist.shift(); }
     A.route = route; A.params = params || null;
     UI.closeAll();
-    try { history.replaceState(null, '', '#' + route); } catch (x) { }
+    try { if (moi) history.pushState({ r: route }, '', '#' + route); else history.replaceState({ r: route }, '', '#' + route); } catch (x) { }
     $('.app').classList.remove('drawer');
     A.render(); window.scrollTo(0, 0);
     const main = $('#content'); if (main) main.focus({ preventScroll: true });
@@ -30,6 +34,7 @@
     $('#t-eye').textContent = A.cfg('tenDonVi') + ' · ' + A.cfg('coQuan');
     document.title = v.title + ' — ' + A.cfg('tenDonVi');
     $$('.nav-item').forEach(b => { const on = b.dataset.r === A.route; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+    const bk = $('#back'); if (bk) bk.disabled = !A.hist.length;
     const p = A.params; A.params = null;
     try { v.render(root, p); } catch (er) { console.error(er); root.innerHTML = '<div class="card"><div class="card-b"><h3>Trang này gặp lỗi khi hiển thị</h3><p class="soft">' + e(er.message) + '</p><p class="small muted">Dữ liệu không bị ảnh hưởng. Hãy sao lưu ở Thiết lập và báo lại nội dung lỗi này.</p></div></div>'; }
     try { badgeCache = (A.dashAlerts ? A.dashAlerts(A.year()) : L.alerts(A.year())).filter(a => a.sev === 3).length; } catch (x) { badgeCache = 0; }
@@ -66,6 +71,18 @@
   }
   A.openSearch = openSearch;
 
+  /* ---------- Giới thiệu, bản quyền ---------- */
+  A.about = () => {
+    const bd = typeof __BUILD_DATE__ === 'string' ? __BUILD_DATE__ : '', nam = bd ? bd.slice(-4) : U.today().slice(0, 4);
+    UI.modal({
+      title: 'Giới thiệu, bản quyền', size: 'sm',
+      body: '<div class="about-h"><div class="about-ic" aria-hidden="true">' + ic('wallet', 26) + '</div><div><h4>Phòng Kế hoạch - Tài chính số</h4><p class="small soft">Sở Nông nghiệp và Môi trường tỉnh Sơn La · Điều hành nhiệm vụ, theo dõi dự toán, giải ngân, đấu thầu, hợp đồng và tài sản công.</p></div></div>' +
+        '<table class="about-t"><tr><th>Phiên bản</th><td>' + e(A.VERSION) + (bd ? ' · Bản cập nhật ngày ' + e(bd) : '') + '</td></tr><tr><th>Tác giả, bản quyền</th><td><b>Lê Tùng Lâm</b> – Sở Nông nghiệp và Môi trường tỉnh Sơn La</td></tr><tr><th>Liên hệ</th><td>Điện thoại: <a href="tel:0987559092">0987559092</a></td></tr></table>' +
+        '<p class="small soft about-c">© ' + nam + ' Lê Tùng Lâm. All rights reserved.<br>Phần mềm được bảo hộ quyền tác giả. Nghiêm cấm sao chép, sửa đổi, phân phối, dịch ngược hoặc khai thác thương mại khi chưa được chủ sở hữu cho phép.</p>',
+      buttons: [{ label: 'Đóng', cls: 'primary', on: m => m.close() }]
+    });
+  };
+
   /* ---------- Khởi động ---------- */
   A.start = async () => {
     const app = $('#app');
@@ -75,10 +92,10 @@
     let gop = 0; try { gop = await L.gopTrung(); } catch (x) { console.warn(x); }
     document.documentElement.setAttribute('data-theme', S.cfg.theme === 'dark' ? 'dark' : 'light');
     if (S.cfg.nam === undefined) S.cfg.nam = +U.today().slice(0, 4);
-    app.innerHTML = '<aside class="side" aria-label="Menu chính"><div class="brand"><div class="brand-mark" aria-hidden="true">KH<br>TC</div><div class="brand-txt">Phòng KH-TC số<small>Sở Nông nghiệp và Môi trường Sơn La</small></div></div><nav class="nav">' +
+    app.innerHTML = '<aside class="side" aria-label="Menu chính"><div class="brand" id="brand" role="button" tabindex="0" title="Về Bảng điều hành" aria-label="Về màn hình chính"><div class="brand-mark" aria-hidden="true">KH<br>TC</div><div class="brand-txt">Phòng KH-TC số<small>Sở Nông nghiệp và Môi trường Sơn La</small></div></div><nav class="nav">' +
       NAV.map(g => '<div class="nav-sec">' + g[0] + '</div>' + g[1].map(i => '<button class="nav-item" data-r="' + i[0] + '" title="' + e(i[1]) + '">' + ic(i[2], 19) + '<span class="lbl">' + i[1] + '</span>' + (i[0] === 'vanbanden' ? '<span class="badge hide" id="nav-vbd" aria-label="Văn bản chờ duyệt"></span>' : '') + (i[0] === 'troly' ? '<span class="badge hide" id="nav-badge" aria-label="Số việc cần xử lý ngay"></span>' : '') + '</button>').join('')).join('') +
       '</nav><div class="side-foot"><span class="who" id="who"></span><button class="btn icon collapse-btn" id="collapse" aria-label="Thu gọn hoặc mở rộng menu" title="Thu gọn menu">' + ic('chevL', 17) + '</button></div></aside>' +
-      '<div class="main"><header class="top"><button class="tbtn icon menu-btn" id="menu" aria-label="Mở menu">' + ic('menu', 19) + '</button><div class="top-title"><div class="top-eyebrow" id="t-eye"></div><h1 id="t-title"></h1><div class="top-sub" id="t-sub"></div></div><div class="top-tools"><label class="tbtn" title="Năm dữ liệu đang xem">' + ic('calendar', 16) + '<span class="sr">Năm dữ liệu</span><select id="year" aria-label="Năm dữ liệu"></select></label><button class="tbtn search" id="search">' + ic('search', 16) + '<span>Tìm toàn bộ dữ liệu…</span><kbd>Ctrl K</kbd></button><button class="tbtn" id="quickadd">' + ic('plus', 16) + 'Thêm nhanh</button><button class="tbtn icon" id="backup" aria-label="Sao lưu dữ liệu" title="Sao lưu dữ liệu ra tệp JSON">' + ic('download', 17) + '</button><button class="tbtn icon" id="theme" aria-label="Đổi giao diện sáng, tối" title="Giao diện sáng / tối">' + ic('moon', 17) + '</button></div></header><main class="content" id="content" tabindex="-1"></main></div>';
+      '<div class="main"><header class="top"><button class="tbtn icon menu-btn" id="menu" aria-label="Mở menu">' + ic('menu', 19) + '</button><div class="top-nav"><button class="tbtn" id="back" title="Quay lại màn hình trước" disabled>' + ic('chevL', 16) + '<span>Quay lại</span></button><button class="tbtn icon" id="home" aria-label="Về màn hình chính" title="Về Bảng điều hành">' + ic('home', 17) + '</button></div><div class="top-title"><div class="top-eyebrow" id="t-eye"></div><h1 id="t-title"></h1><div class="top-sub" id="t-sub"></div></div><div class="top-tools"><label class="tbtn" title="Năm dữ liệu đang xem">' + ic('calendar', 16) + '<span class="sr">Năm dữ liệu</span><select id="year" aria-label="Năm dữ liệu"></select></label><button class="tbtn search" id="search">' + ic('search', 16) + '<span>Tìm toàn bộ dữ liệu…</span><kbd>Ctrl K</kbd></button><button class="tbtn" id="quickadd">' + ic('plus', 16) + 'Thêm nhanh</button><button class="tbtn icon" id="backup" aria-label="Sao lưu dữ liệu" title="Sao lưu dữ liệu ra tệp JSON">' + ic('download', 17) + '</button><button class="tbtn icon" id="about" aria-label="Giới thiệu, bản quyền" title="Giới thiệu, bản quyền">' + ic('info', 17) + '</button><button class="tbtn icon" id="theme" aria-label="Đổi giao diện sáng, tối" title="Giao diện sáng / tối">' + ic('moon', 17) + '</button></div></header><main class="content" id="content" tabindex="-1"></main></div>';
     if (S.cfg.collapsed) app.classList.add('collapsed');
     UI.on(app, 'click', '.nav-item', b => A.go(b.dataset.r));
     $('#collapse').onclick = () => { app.classList.toggle('collapsed'); S.setCfg({ collapsed: app.classList.contains('collapsed') }); };
@@ -86,6 +103,12 @@
     app.addEventListener('click', x => { if (x.target === app && app.classList.contains('drawer')) app.classList.remove('drawer'); });
     $('#year').onchange = x => { S.cfg.nam = x.target.value ? +x.target.value : null; S.setCfg({ nam: S.cfg.nam }); };
     $('#search').onclick = openSearch;
+    const veNha = () => A.go('tongquan');
+    $('#brand').onclick = veNha; $('#brand').onkeydown = x => { if (x.key === 'Enter' || x.key === ' ') { x.preventDefault(); veNha(); } };
+    $('#home').onclick = veNha;
+    $('#back').onclick = () => { if (A.hist.length) history.back(); };
+    window.addEventListener('popstate', () => { const r = location.hash.replace('#', ''); if (A.hist.length && A.hist[A.hist.length - 1] === r) A.hist.pop(); else if (r !== A.route) A.hist.push(A.route); A.go(r, null, true); });
+    $('#about').onclick = A.about;
     $('#backup').onclick = () => A.backupNow(true);
     $('#theme').onclick = () => { const d = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', d); S.setCfg({ theme: d }); };
     $('#quickadd').onclick = () => {
@@ -98,6 +121,7 @@
     S.on(() => rerender());
     const h = location.hash.replace('#', '');
     A.route = A.views[h] ? h : 'tongquan';
+    try { history.replaceState({ r: A.route }, '', '#' + A.route); } catch (x) { }
     A.render();
     S.trimHistory().catch(() => { });
     if (A.autoSync) setTimeout(() => A.autoSync().catch(er => console.warn(er)), 800);
