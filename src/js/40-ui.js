@@ -450,7 +450,7 @@
     const guide = [['Cột', 'Bắt buộc', 'Kiểu dữ liệu / giá trị cho phép']].concat(fs.map(f => [f.label, f.required ? 'Có' : '', f.type === 'date' ? 'Ngày dạng dd/mm/yyyy' : f.type === 'money' ? 'Số (đồng)' : f.type === 'percent' ? 'Số 0–100' : f.type === 'year' ? 'Năm, ví dụ 2026' : f.type === 'bool' ? 'x hoặc Có' : (f.type === 'select' || f.type === 'multi') ? Sc.options(f).filter(o => o[0] !== '').map(o => o[1]).join(' / ') : f.type === 'ref' ? 'Tên đúng như trong phần mềm (' + Sc.C[f.ref].label + ')' : f.type === 'refs' ? 'Nhiều tên, cách nhau bằng dấu chấm phẩy (' + Sc.C[f.ref].label + ')' : 'Văn bản']));
     UI.xlsx('mau-nhap-' + U.norm(sc.label).replace(/[^a-z0-9]+/g, '-') + '.xlsx', [{ name: 'Du lieu', aoa: [fs.map(f => f.label)], widths: fs.map(() => 24) }, { name: 'Huong dan', aoa: guide, widths: [36, 10, 90] }]);
   };
-  UI.pickFile = accept => new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => res(i.files[0] || null); i.click(); });
+  UI.pickFile = (accept, multi) => new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; if (multi) i.multiple = true; i.onchange = () => res(multi ? Array.from(i.files) : (i.files[0] || null)); i.click(); });
   UI.readWorkbook = async file => XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
   // Chuyển giá trị ô Excel → giá trị trường. Trả {v} hoặc {err}
   function xParse(f, cell) {
