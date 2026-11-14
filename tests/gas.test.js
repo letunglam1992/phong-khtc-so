@@ -160,3 +160,22 @@ test('sao lưu hằng ngày: tạo tệp theo ngày, ghi đè trong ngày, giữ
   assert.equal(e.post({ action: 'backupGet', id: ds.items[0].id }).payload.data.nhiemvu[0].ten, 'Việc');
   assert.match(e.post({ action: 'backupAuto', on: true }).msg, /23 giờ/); assert.ok(e.triggers.some(t => t.getHandlerFunction() === 'saoLuuHangNgay'));
 });
+
+test('nhắc việc thứ Hai: bật trigger, gửi bản tổng hợp và thư riêng cán bộ có việc', () => {
+  const e = env({ ngay: '2026-11-16' });
+  const hd = { id: 'h1', so: '12/HĐ', ten: 'Đo đạc', nhaThau: 'Công ty X', ngayKT: '2026-11-30', trangThai: 'dang', canBoId: 'c1', tamUng: 100, tamUngThuHoi: 0, baoLanhTUHan: '2026-11-20', updatedAt: '2026-11-10T00:00:00Z' };
+  const ns = { id: 'n1', nam: 2026, donViId: 'd1', stt: '(1)', noiDung: 'Thuê phần mềm', duToan: 1000000000, giaiNgan: 0, ngayGN: '2026-10-31', canBoId: 'c2', updatedAt: '2026-11-10T00:00:00Z' };
+  const cbs = [{ id: 'c1', hoTen: 'Lâm', email: 'lam@x.vn', updatedAt: '1' }, { id: 'c2', hoTen: 'Thực', email: 'thuc@x.vn', updatedAt: '1' }, { id: 'c3', hoTen: 'Nga', email: 'nga@x.vn', updatedAt: '1' }];
+  e.post({ action: 'syncDelta', since: 0, changes: [{ c: 'hopdong', v: hd }, { c: 'ngansach', v: ns }, { c: 'donvi', v: { id: 'd1', ten: 'VP Sở', updatedAt: '1' } }].concat(cbs.map(v => ({ c: 'canbo', v }))) });
+  const s = e.post({ action: 'remindSet', on: true, emails: 'tp@x.vn, sai-dia-chi', guiCanBo: true, sapHet: 30, gnLech: 20 });
+  assert.equal(s.ok, true); assert.ok(e.triggers.some(t => t.getHandlerFunction() === 'nhacViecThuHai'));
+  e.g.nhacViecThuHai();
+  const to = e.mails.map(m => m.to).sort();
+  assert.deepEqual(to, ['lam@x.vn', 'thuc@x.vn', 'tp@x.vn']);   // Nga không có việc → không gửi
+  const chung = e.mails.find(m => m.to === 'tp@x.vn');
+  assert.match(chung.subject, /1 hợp đồng, 1 bảo lãnh, 1 nội dung giải ngân chậm/);
+  assert.match(chung.htmlBody, /Còn 14 ngày/); assert.match(chung.htmlBody, /Thuê phần mềm/);
+  const lam = e.mails.find(m => m.to === 'lam@x.vn'); assert.doesNotMatch(lam.htmlBody, /Thuê phần mềm/);
+  e.mails.length = 0; const t = e.post({ action: 'remindTest' }); assert.deepEqual(e.mails.map(m => m.to), ['tp@x.vn']); assert.equal(t.ok, true);
+  e.post({ action: 'remindSet', on: false }); assert.ok(!e.triggers.some(t => t.getHandlerFunction() === 'nhacViecThuHai'));
+});

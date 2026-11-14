@@ -3,7 +3,7 @@ const fs = require('fs'), path = require('path'), vm = require('vm');
 const SRC = () => fs.readFileSync(path.join(__dirname, '../gas/Code.gs'), 'utf8').replace("var MA_BI_MAT = 'DOI-MA-NAY-TRUOC-KHI-DUNG';", "var MA_BI_MAT = 'KHOA';");
 function env(opt) {
   opt = opt || {};
-  let seq = 0; const files = [], folders = [], props = {}, triggers = [], fetches = [], docs = {};
+  let seq = 0; const files = [], folders = [], props = {}, triggers = [], fetches = [], docs = {}, mails = [];
   class Blob { constructor(d, mime, name) { this.d = d; this.mime = mime; this.name = name; } getDataAsString() { return typeof this.d === 'string' ? this.d : Buffer.from(this.d).toString('utf8'); } setContentType(m) { this.mime = m; return this; } getBytes() { return Buffer.from(this.getDataAsString()); } }
   class Folder { constructor(name, parent) { this.id = 'D' + (++seq) + 'xxxxxxxxxxxx'; this.name = name; this.parent = parent; folders.push(this); }
     getId() { return this.id; } getName() { return this.name; } getUrl() { return 'https://drive.google.com/drive/folders/' + this.id; } isTrashed() { return false; }
@@ -31,12 +31,13 @@ function env(opt) {
       base64DecodeWebSafe: s => Array.from(Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64')),
       formatDate: (d, tz, f) => opt.ngay || d.toISOString().slice(0, 10) },
     DocumentApp: { openById: id => ({ getBody: () => ({ getText: () => docs[id] || '' }) }) },
-    ScriptApp: { getProjectTriggers: () => triggers, deleteTrigger: t => triggers.splice(triggers.indexOf(t), 1), newTrigger: h => ({ timeBased: () => ({ everyMinutes: () => ({ create: () => triggers.push({ getHandlerFunction: () => h }) }), everyDays: () => ({ atHour: () => ({ create: () => triggers.push({ getHandlerFunction: () => h }) }) }) }) }) },
+    ScriptApp: { WeekDay: { MONDAY: 'MONDAY' }, getProjectTriggers: () => triggers, deleteTrigger: t => triggers.splice(triggers.indexOf(t), 1), newTrigger: h => ({ timeBased: () => ({ everyMinutes: () => ({ create: () => triggers.push({ getHandlerFunction: () => h }) }), everyDays: () => ({ atHour: () => ({ create: () => triggers.push({ getHandlerFunction: () => h }) }) }), onWeekDay: () => ({ atHour: () => ({ create: () => triggers.push({ getHandlerFunction: () => h }) }) }) }) }) },
+    MailApp: { sendEmail: o => { mails.push(o); } },
     UrlFetchApp: { fetch: (url, o) => { const body = JSON.parse(o.payload); fetches.push({ url, body }); const r = opt.ai ? opt.ai(body, url) : { code: 200, json: { text: '{"loai":"khac"}' } }; return { getResponseCode: () => r.code, getContentText: () => JSON.stringify(r.json) }; } },
     Drive: opt.noDrive ? undefined : { Files: { create: (meta, blob) => { const id = 'OCR' + (++seq); docs[id] = opt.ocrText || ''; return { id }; }, remove: id => { delete docs[id]; } } }
   };
   vm.createContext(g); vm.runInContext(SRC(), g);
   const post = b => JSON.parse(g.doPost({ postData: { contents: JSON.stringify(Object.assign({ app: 'khtc-so-son-la', key: 'KHOA' }, b)) } }).s);
-  return { g, post, files, folders, props, triggers, fetches, mk, root };
+  return { g, post, files, folders, props, triggers, fetches, mk, root, mails };
 }
 module.exports = { env };

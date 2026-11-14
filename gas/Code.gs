@@ -54,6 +54,9 @@ function doPost(e) {
     if (a === 'backupList') return ql ? out_(dsSaoLuu_()) : cam();
     if (a === 'backupGet') return ql ? out_(laySaoLuu_(req.id)) : cam();
     if (a === 'backupAuto') return ql ? out_({ ok: true, msg: caiSaoLuuTuDong_(!!req.on), state: dsSaoLuu_() }) : cam();
+    if (a === 'remindGet') return ql ? out_({ ok: true, state: trangThaiNhacViec_() }) : cam();
+    if (a === 'remindSet') return ql ? out_(caiNhacViec_(req)) : cam();
+    if (a === 'remindTest') return ql ? out_(guiNhacViec_(true)) : cam();
     if (a === 'inboxGet') return out_(hangDoi_());
     if (a === 'inboxSetFolder') return ql ? out_(datThuMuc_(req.folder)) : cam();
     if (a === 'inboxSetAuto') return ql ? out_({ ok: true, msg: caiDatTrigger_(!!req.on), state: hangDoi_() }) : cam();
@@ -226,6 +229,46 @@ function caiSaoLuuTuDong_(on) {
 }
 /** Trigger hằng ngày. */
 function saoLuuHangNgay() { Logger.log(JSON.stringify(saoLuu_('tự động'))); }
+
+/* ---- Nhắc việc qua email sáng thứ Hai ---- */
+// Script Property NHAC_VIEC: { on, emails: 'a@x, b@y', guiCanBo, sapHet, gnLech, mucTieu: {nam:[12]}, url, coQuan }
+function nhacViecCfg_() { try { return JSON.parse(props_().getProperty('NHAC_VIEC') || '{}'); } catch (e) { return {}; } }
+function dangBatNhacViec_() { return ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'nhacViecThuHai'; }); }
+function caiNhacViec_(req) {
+  var c = nhacViecCfg_();
+  ['emails', 'url', 'coQuan'].forEach(function (k) { if (req[k] !== undefined) c[k] = String(req[k] || '').slice(0, 1000); });
+  if (req.guiCanBo !== undefined) c.guiCanBo = !!req.guiCanBo;
+  if (req.sapHet !== undefined) c.sapHet = Math.max(1, Math.min(180, Number(req.sapHet) || 30));
+  if (req.gnLech !== undefined) c.gnLech = Math.max(1, Math.min(100, Number(req.gnLech) || 20));
+  if (req.mucTieu !== undefined) c.mucTieu = req.mucTieu || {};
+  c.on = !!req.on;
+  props_().setProperty('NHAC_VIEC', JSON.stringify(c));
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'nhacViecThuHai') ScriptApp.deleteTrigger(t); });
+  if (c.on) ScriptApp.newTrigger('nhacViecThuHai').timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(7).create();
+  return { ok: true, msg: c.on ? 'Đã bật gửi email nhắc việc khoảng 7–8 giờ sáng thứ Hai hằng tuần.' : 'Đã tắt email nhắc việc.', state: trangThaiNhacViec_() };
+}
+function trangThaiNhacViec_() { var c = nhacViecCfg_(); return { on: dangBatNhacViec_(), emails: c.emails || '', guiCanBo: !!c.guiCanBo, sapHet: c.sapHet || 30, gnLech: c.gnLech || 20, lanGui: props_().getProperty('NHAC_VIEC_LAN_GUI') || '', ketQua: props_().getProperty('NHAC_VIEC_KET_QUA') || '' }; }
+function hopThu_(s) { return String(s || '').split(/[,;\s]+/).map(function (x) { return x.trim(); }).filter(function (x) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x); }); }
+/** Gửi bản tin. thu: chỉ gửi tới danh sách địa chỉ chung (dùng cho "Gửi thử"). Trả về { ok, gui: [địa chỉ], boQua } */
+function guiNhacViec_(chiChung) {
+  var c = nhacViecCfg_(), kho = docKho_(), data = {};
+  ['hopdong', 'ngansach', 'canbo', 'donvi'].forEach(function (k) { data[k] = Object.keys(kho.recs[k] || {}).map(function (id) { return kho.recs[k][id].v; }); });
+  var today = Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd'), o = { today: today, sapHet: c.sapHet || 30, gnLech: c.gnLech || 20, mucTieu: c.mucTieu || {} };
+  var gui = [], loi = [];
+  var mot = function (den, ten, cbId) {
+    var t = NhacViec.tomTat(data, Object.assign({}, o, { canBoId: cbId || '' })), th = NhacViec.thu(t, { ten: ten, today: today, url: c.url, coQuan: c.coQuan });
+    if (cbId && !th.soViec) return;   // cán bộ không có việc: không gửi
+    try { MailApp.sendEmail({ to: den, subject: '[KH-TC số] ' + th.tieuDe, htmlBody: th.html, name: 'Phòng KH-TC số' }); gui.push(den); } catch (e) { loi.push(den + ': ' + (e && e.message || e)); }
+  };
+  var chung = hopThu_(c.emails);
+  if (chung.length) mot(chung.join(','), 'anh/chị', '');
+  if (!chiChung && c.guiCanBo) data.canbo.forEach(function (cb) { var m = hopThu_(cb.email)[0]; if (m && cb.trangThai !== 'nghi' && chung.indexOf(m) < 0) mot(m, cb.hoTen, cb.id); });
+  var kq = (gui.length ? 'Đã gửi ' + gui.length + ' thư' : 'Không gửi thư nào') + (loi.length ? '; lỗi: ' + loi.join(' | ') : '') + (chung.length ? '' : '; chưa nhập địa chỉ nhận bản tổng hợp');
+  props_().setProperties({ NHAC_VIEC_LAN_GUI: new Date().toISOString(), NHAC_VIEC_KET_QUA: kq });
+  return { ok: !loi.length, gui: gui, msg: kq, state: trangThaiNhacViec_() };
+}
+/** Trigger sáng thứ Hai. */
+function nhacViecThuHai() { Logger.log(JSON.stringify(guiNhacViec_(false))); }
 
 /* ======================= 2. Văn bản đến ======================= */
 // Trạng thái: cho_doc (đã nhận, chưa đọc) | cho_duyet (đã đọc, chờ cán bộ duyệt) | loi | da_xu_ly | bo_qua
@@ -459,6 +502,90 @@ function xuLyVanBanDen() {
 }
 
 /* ======================= Mô-đun dùng chung (chép tự động khi build — không sửa tay) ======================= */
+// @@BEGIN nhac-viec
+/* ============================================================
+   nhac-viec.js — Bản tin nhắc việc (hợp đồng sắp hết hạn, bảo lãnh sắp hết hiệu lực, nội dung giải ngân chậm),
+   dùng chung trình duyệt (xem trước) và Code.gs (gửi email sáng thứ Hai). UMD: var NhacViec. ES5 để chạy được trên Apps Script.
+   Quy tắc trùng với phần mềm: thời hạn HĐ = ngày kết thúc hoặc ngày gia hạn muộn nhất ở phụ lục (L.hdHan);
+   bảo lãnh xét như L.hd; nội dung chậm = còn phải giải ngân và tỷ lệ thấp hơn mốc so sánh (mục tiêu tháng nếu đã đặt,
+   nếu không thì tỷ lệ thời gian) từ ngưỡng "gnLech" điểm % trở lên (như L.gnDong).
+   ============================================================ */
+var NhacViec = (function () {
+  'use strict';
+  function num(v) { var n = typeof v === 'number' ? v : parseFloat(String(v == null ? '' : v).replace(/\./g, '').replace(',', '.')); return isFinite(n) ? n : 0; }
+  function iso(d) { return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d); }
+  function ngay(a, b) { return Math.round((Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10)) - Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10))) / 86400000); }
+  function dd(d) { return iso(d) ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : ''; }
+  function tien(v) { var n = num(v), a = Math.abs(n); return a >= 1e9 ? (n / 1e9).toFixed(2).replace('.', ',') + ' tỷ' : a >= 1e6 ? (n / 1e6).toFixed(1).replace('.', ',') + ' triệu' : String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' đ'; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function sum(a, f) { var t = 0; (a || []).forEach(function (x) { t += num(f(x)); }); return t; }
+  function nsTong(x) { return num(x.chuyenNguon) + num(x.duToan) + num(x.boSung) + num(x.dcTang) - num(x.dcGiam) - num(x.thuHoi) - num(x.tietKiem); }
+  function hdHan(h) { var g = (h.phuLuc || []).map(function (x) { return x.giaHanDen; }).filter(iso).sort().pop(); return g && (!h.ngayKT || g > h.ngayKT) ? g : (h.ngayKT || ''); }
+
+  /**
+   * data: { hopdong:[], ngansach:[], canbo:[], donvi:[] }
+   * o: { today:'YYYY-MM-DD', sapHet: số ngày (mặc định 30), gnLech: điểm % (mặc định 20), mucTieu: {nam:[12 số %]} , canBoId: lọc theo cán bộ }
+   * Trả về { hd:[], bl:[], gn:[], nam, asOf }
+   */
+  function tomTat(data, o) {
+    o = o || {};
+    var today = o.today, sapHet = o.sapHet || 30, gnLech = o.gnLech || 20, cb = o.canBoId || '';
+    var dv = {}; (data.donvi || []).forEach(function (d) { dv[d.id] = d.tenTat || d.ten; });
+    var cbTen = {}; (data.canbo || []).forEach(function (c) { cbTen[c.id] = c.hoTen; });
+    var out = { hd: [], bl: [], gn: [], nam: +today.slice(0, 4), asOf: '' };
+    (data.hopdong || []).forEach(function (h) {
+      if (cb && h.canBoId !== cb) return;
+      var tt = h.trangThai || 'dang', ten = (h.so || '') + (h.ten ? ' — ' + h.ten : ''), nguoi = cbTen[h.canBoId] || '';
+      var han = hdHan(h);
+      if (tt === 'dang' && iso(han)) { var con = ngay(han, today); if (con <= sapHet) out.hd.push({ ten: ten, nhaThau: h.nhaThau || '', han: han, con: con, cb: nguoi }); }
+      var chuaTL = tt !== 'thanhly' && tt !== 'chamdut', tuCon = Math.max(0, num(h.tamUng) - num(h.tamUngThuHoi));
+      var xet = function (d, loai) { if (!iso(d)) return; var c = ngay(d, today); if (c <= sapHet) out.bl.push({ ten: ten, loai: loai, han: d, con: c, cb: nguoi }); };
+      if (chuaTL && tt !== 'nghiemthu') xet(h.baoLanhTHHan, 'Bảo đảm thực hiện hợp đồng');
+      if (chuaTL && tuCon > 0.5) xet(h.baoLanhTUHan, 'Bảo lãnh tạm ứng (còn ' + tien(tuCon) + ' chưa thu hồi)');
+    });
+    out.hd.sort(function (a, b) { return a.con - b.con; }); out.bl.sort(function (a, b) { return a.con - b.con; });
+    // Giải ngân: các dòng chi tiết (không có dòng con) của năm hiện hành
+    var nam = out.nam, ns = (data.ngansach || []).filter(function (r) { return +r.nam === nam; }), cha = {};
+    ns.forEach(function (r) { if (r.parentId) cha[r.parentId] = 1; });
+    var la = ns.filter(function (r) { return !cha[r.id]; });
+    var ds = []; la.forEach(function (r) { (r.gnHist || []).forEach(function (x) { if (iso(x.ngay) && +x.ngay.slice(0, 4) === nam) ds.push(x.ngay); }); if (iso(r.ngayGN) && +r.ngayGN.slice(0, 4) === nam) ds.push(r.ngayGN); });
+    ds.sort(); var asOf = ds.length ? ds[ds.length - 1] : today; out.asOf = asOf;
+    var d0 = nam + '-01-01', soNgay = ngay(nam + '-12-31', d0) + 1, daQua = Math.max(0, Math.min(soNgay, ngay(asOf, d0) + 1)), tyLeTG = daQua / soNgay * 100;
+    var mt = (o.mucTieu || {})[nam], tuDat = mt && mt.length === 12 && mt.some(function (v) { return num(v) > 0; }), thang = +asOf.slice(5, 7);
+    var chuan = tuDat ? num(mt[thang - 1]) : tyLeTG; out.chuan = chuan; out.tuDat = !!tuDat;
+    var tong = 0, gn = 0;
+    la.forEach(function (r) {
+      var t = nsTong(r), g = num(r.giaiNgan); if (!(t > 0)) return;
+      if (!cb || r.canBoId === cb) { tong += t; gn += g; }
+      var ty = g / t * 100, conLai = t - g;
+      if (conLai > 0.5 && ty - chuan <= -gnLech && (!cb || r.canBoId === cb)) out.gn.push({ ten: (r.stt ? r.stt + ' ' : '') + r.noiDung, dv: dv[r.donViId] || '', tong: t, gn: g, con: conLai, ty: ty, cb: cbTen[r.canBoId] || '' });
+    });
+    out.gn.sort(function (a, b) { return b.con - a.con; });
+    out.tong = tong; out.daGN = gn; out.tyLe = tong ? gn / tong * 100 : 0;
+    return out;
+  }
+
+  /** Thư HTML (và tiêu đề) từ kết quả tomTat. o: { ten: tên người nhận, coQuan, url } */
+  function thu(t, o) {
+    o = o || {};
+    var n = t.hd.length + t.bl.length + t.gn.length;
+    var td = 'Nhắc việc tuần ' + dd(o.today || '') + ': ' + t.hd.length + ' hợp đồng, ' + t.bl.length + ' bảo lãnh, ' + t.gn.length + ' nội dung giải ngân chậm';
+    var th = 'style="border:1px solid #d9d9d9;padding:6px 8px;background:#f3f5f2;text-align:left;font-size:13px"', tdS = 'style="border:1px solid #d9d9d9;padding:6px 8px;font-size:13px;vertical-align:top"', tdR = 'style="border:1px solid #d9d9d9;padding:6px 8px;font-size:13px;text-align:right;white-space:nowrap"';
+    var bang = function (cols, rows) { return '<table style="border-collapse:collapse;width:100%;margin:6px 0 16px">' + '<tr>' + cols.map(function (c) { return '<th ' + th + '>' + c + '</th>'; }).join('') + '</tr>' + rows.join('') + '</table>'; };
+    var conTxt = function (c) { return c < 0 ? '<b style="color:#b42318">Quá ' + (-c) + ' ngày</b>' : c === 0 ? '<b style="color:#b42318">Hôm nay</b>' : 'Còn ' + c + ' ngày'; };
+    var h = '<div style="font-family:Arial,sans-serif;color:#1c2521;max-width:900px">';
+    h += '<p>Kính gửi ' + esc(o.ten || 'anh/chị') + ',</p><p>Phần mềm Phòng KH-TC số tổng hợp các việc cần chú ý trong tuần' + (o.coQuan ? ' (' + esc(o.coQuan) + ')' : '') + ':</p>';
+    if (!n) h += '<p style="color:#2e7d32"><b>Không có hợp đồng sắp hết hạn, bảo lãnh sắp hết hiệu lực hay nội dung giải ngân chậm.</b></p>';
+    if (t.hd.length) h += '<h3 style="font-size:15px;margin:12px 0 4px">1. Hợp đồng sắp hết hạn, quá hạn (' + t.hd.length + ')</h3>' + bang(['Hợp đồng', 'Nhà thầu', 'Thời hạn', 'Tình trạng', 'Cán bộ'], t.hd.map(function (x) { return '<tr><td ' + tdS + '>' + esc(x.ten) + '</td><td ' + tdS + '>' + esc(x.nhaThau) + '</td><td ' + tdS + '>' + dd(x.han) + '</td><td ' + tdS + '>' + conTxt(x.con) + '</td><td ' + tdS + '>' + esc(x.cb) + '</td></tr>'; }));
+    if (t.bl.length) h += '<h3 style="font-size:15px;margin:12px 0 4px">2. Bảo lãnh sắp hết hiệu lực (' + t.bl.length + ')</h3>' + bang(['Hợp đồng', 'Loại bảo lãnh', 'Hiệu lực đến', 'Tình trạng', 'Cán bộ'], t.bl.map(function (x) { return '<tr><td ' + tdS + '>' + esc(x.ten) + '</td><td ' + tdS + '>' + esc(x.loai) + '</td><td ' + tdS + '>' + dd(x.han) + '</td><td ' + tdS + '>' + conTxt(x.con) + '</td><td ' + tdS + '>' + esc(x.cb) + '</td></tr>'; }));
+    if (t.gn.length) h += '<h3 style="font-size:15px;margin:12px 0 4px">3. Nội dung giải ngân chậm năm ' + t.nam + ' (' + t.gn.length + ')</h3><p style="font-size:13px;margin:0">Số liệu đến ngày ' + dd(t.asOf) + '. Đã giải ngân ' + t.tyLe.toFixed(1).replace('.', ',') + '% (' + tien(t.daGN) + '/' + tien(t.tong) + '); mốc so sánh ' + t.chuan.toFixed(1).replace('.', ',') + '% (' + (t.tuDat ? 'mục tiêu tháng' : 'tỷ lệ thời gian') + ').</p>' +
+      bang(['Nội dung', 'Đơn vị', 'Được sử dụng', 'Đã giải ngân', 'Còn lại', 'Tỷ lệ', 'Cán bộ'], t.gn.slice(0, 40).map(function (x) { return '<tr><td ' + tdS + '>' + esc(x.ten) + '</td><td ' + tdS + '>' + esc(x.dv) + '</td><td ' + tdR + '>' + tien(x.tong) + '</td><td ' + tdR + '>' + tien(x.gn) + '</td><td ' + tdR + '>' + tien(x.con) + '</td><td ' + tdR + '>' + x.ty.toFixed(1).replace('.', ',') + '%</td><td ' + tdS + '>' + esc(x.cb) + '</td></tr>'; })) + (t.gn.length > 40 ? '<p style="font-size:13px">… và ' + (t.gn.length - 40) + ' nội dung khác.</p>' : '');
+    h += (o.url ? '<p><a href="' + esc(o.url) + '">Mở phần mềm để xem chi tiết</a></p>' : '') + '<p style="color:#667;font-size:12px">Thư gửi tự động mỗi sáng thứ Hai từ dữ liệu đã đồng bộ lên máy chủ. Số liệu chỉ đúng tới lần đồng bộ gần nhất.</p></div>';
+    return { tieuDe: td, html: h, soViec: n };
+  }
+  return { tomTat: tomTat, thu: thu, hdHan: hdHan };
+})();
+// @@END nhac-viec
 // @@BEGIN ai-tien-ich
 /* ============================================================
    ai-tien-ich.js — Tiện ích gọi AI Cloudflare qua Worker, dùng chung trình duyệt và Code.gs (UMD: var AiTI)

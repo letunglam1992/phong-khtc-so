@@ -148,6 +148,7 @@
   function theQuanLy() {
     if (!MC.coCauHinh() || MC.vaiTro() !== 'quanly') return '';
     return '<div class="card" data-tk><div class="card-h"><h3>Tài khoản cán bộ</h3><span class="grow"></span><button class="btn sm primary" data-tk-add>' + ic('plus', 15) + 'Thêm tài khoản</button><div class="sub">Quản lý: toàn quyền · Cán bộ: sửa nhiệm vụ, dự toán, gói thầu, hợp đồng… do mình phụ trách hoặc chưa giao · Chỉ xem: xem, báo cáo, hỏi AI</div></div><div class="card-b" data-tk-ds><span class="small muted">Đang tải…</span></div></div>' +
+      '<div class="card" data-nv><div class="card-h"><h3>Email nhắc việc sáng thứ Hai</h3><div class="sub">Máy chủ gửi bản tin: hợp đồng sắp hết hạn, bảo lãnh sắp hết hiệu lực, nội dung giải ngân chậm — tính từ dữ liệu đã đồng bộ</div></div><div class="card-b" data-nv-b><span class="small muted">Đang tải…</span></div></div>' +
       '<div class="card" data-sl><div class="card-h"><h3>Sao lưu trên Google Drive</h3><div class="sub">Máy chủ chép toàn bộ dữ liệu đã đồng bộ sang thư mục KHTC_So_SAO_LUU mỗi ngày, giữ 30 bản</div></div><div class="card-b" data-sl-b><span class="small muted">Đang tải…</span></div></div>';
   }
   async function veTaiKhoan(root) {
@@ -167,6 +168,25 @@
       $('[data-tk-add]', root).onclick = () => form(null);
       $$('[data-tk-sua]', box).forEach(b => b.onclick = () => form(j.users.find(u => u.tenDN === b.dataset.tkSua)));
     } catch (er) { box.innerHTML = '<div class="note bad">' + e(er.message) + '</div>'; }
+  }
+  // Mục 8: email nhắc việc — cấu hình lưu trên máy chủ (Script Properties), máy chủ tự gửi lúc 7–8 giờ sáng thứ Hai
+  const nvDuLieu = () => ({ hopdong: S.all('hopdong'), ngansach: S.all('ngansach'), canbo: S.all('canbo'), donvi: S.all('donvi') });
+  async function veNhacViec(root) {
+    const box = $('[data-nv-b]', root); if (!box) return;
+    try {
+      const j = (await MC.goi({ action: 'remindGet' })).state, coEmail = S.all('canbo').filter(c => c.trangThai !== 'nghi' && /@/.test(c.email || '')).length;
+      box.innerHTML = '<label class="check"><input type="checkbox" id="nv_on"' + (j.on ? ' checked' : '') + '> Bật gửi email mỗi sáng thứ Hai</label>' +
+        '<div class="form mt"><div class="fld full"><label for="nv_em">Địa chỉ nhận bản tổng hợp toàn Phòng</label><input class="inp" id="nv_em" value="' + e(j.emails) + '" placeholder="vd: lanhdao@…, truongphong@…"><div class="help">Nhiều địa chỉ cách nhau bằng dấu phẩy.</div></div>' +
+        '<div class="fld full"><label class="check"><input type="checkbox" id="nv_cb"' + (j.guiCanBo ? ' checked' : '') + '> Gửi thêm cho từng cán bộ phần việc mình theo dõi</label><div class="help">' + coEmail + ' cán bộ đang làm việc có thư điện tử (nhập ở trang Cán bộ, phân công). Cán bộ không có việc cần nhắc thì không nhận thư.</div></div>' +
+        '<div class="fld"><label for="nv_sh">Nhắc trước khi hết hạn (ngày)</label><input class="inp" type="number" min="1" max="180" id="nv_sh" value="' + (j.sapHet || A.nguong('hdSapHet')) + '"></div><div class="fld"><label for="nv_gl">Giải ngân chậm từ (điểm %)</label><input class="inp" type="number" min="1" max="100" id="nv_gl" value="' + (j.gnLech || A.nguong('gnLech')) + '"></div></div>' +
+        '<div class="gap mt"><button class="btn primary" data-nv-luu>Lưu cấu hình</button><button class="btn" data-nv-xem>' + ic('eye', 15) + 'Xem trước thư</button><button class="btn" data-nv-thu>' + ic('send', 15) + 'Gửi thử ngay</button></div>' +
+        '<div class="small muted mt">Lần gửi gần nhất: ' + (j.lanGui ? U.fmtDateTime(j.lanGui) + ' — ' + e(j.ketQua) : 'chưa có') + '</div>' +
+        '<div class="note mt small">Lần đầu bật, Google sẽ hỏi cấp quyền gửi thư: mở Apps Script, chạy hàm <b>nhacViecThuHai</b> một lần và cho phép. Mỗi tài khoản Gmail gửi được khoảng 100 thư/ngày.</div>';
+      const doc = () => ({ on: $('#nv_on', box).checked, emails: $('#nv_em', box).value.trim(), guiCanBo: $('#nv_cb', box).checked, sapHet: +$('#nv_sh', box).value, gnLech: +$('#nv_gl', box).value, mucTieu: S.cfg.gnMucTieu || {}, coQuan: A.cfg('tenDonVi') + ' — ' + A.cfg('coQuan'), url: /^https?:/.test(location.protocol) ? location.origin + location.pathname : '' });
+      $('[data-nv-luu]', box).onclick = async () => { try { const r = await MC.goi(Object.assign({ action: 'remindSet' }, doc())); UI.toast(r.msg, 'ok'); veNhacViec(root); } catch (er) { UI.fail(er); } };
+      $('[data-nv-thu]', box).onclick = async () => { try { if (MC.choGui()) await MC.dongBo(); await MC.goi(Object.assign({ action: 'remindSet' }, doc())); const r = await MC.goi({ action: 'remindTest' }); UI.toast(r.msg, r.ok ? 'ok' : 'bad'); veNhacViec(root); } catch (er) { UI.fail(er); } };
+      $('[data-nv-xem]', box).onclick = () => { const d = doc(), t = NhacViec.tomTat(nvDuLieu(), { today: U.today(), sapHet: d.sapHet, gnLech: d.gnLech, mucTieu: d.mucTieu }), th = NhacViec.thu(t, { today: U.today(), coQuan: d.coQuan }); UI.modal({ title: th.tieuDe, sub: 'Xem trước bản tổng hợp toàn Phòng, tính từ dữ liệu trên máy này', size: 'lg', body: '<div style="background:#fff;color:#1c2521;padding:16px;border-radius:8px">' + th.html + '</div>', buttons: [{ label: 'Đóng', cls: 'primary', on: a => a.close() }] }); };
+    } catch (er) { box.innerHTML = '<div class="note bad">' + e(er.message) + (/Không rõ thao tác/.test(er.message) ? ' — máy chủ chưa có tính năng này: dán lại gas/Code.gs mới và Triển khai phiên bản mới.' : '') + '</div>'; }
   }
   async function veSaoLuu(root) {
     const box = $('[data-sl-b]', root); if (!box) return;
@@ -220,7 +240,7 @@
     });
     const td = $('[data-mc-tudong]', div); if (td) td.onchange = x => S.setCfg({ dbTuDong: x.target.checked });
     $$('[data-sync]', div).forEach(b => b.onclick = () => A.syncCu && A.syncCu(b.dataset.sync));
-    veTaiKhoan(div); veSaoLuu(div);
+    veTaiKhoan(div); veSaoLuu(div); veNhacViec(div);
   };
   let daKhoiDong = false;
   MC.khoiDongMot = () => { if (daKhoiDong) return; daKhoiDong = true; MC.khoiDong(); };
