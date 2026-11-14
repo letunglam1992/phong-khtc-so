@@ -102,6 +102,7 @@
     S.trimHistory().catch(() => { });
     if (A.autoSync) setTimeout(() => A.autoSync().catch(er => console.warn(er)), 800);
     if (A.VBD) setTimeout(() => A.VBD.autoCheck(), 1500);
+    if (A.MC) A.MC.khoiDongMot();
     if (A.chat) A.chat.mount();
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
     // Nhắc sao lưu: có dữ liệu nghiệp vụ và quá 7 ngày chưa sao lưu

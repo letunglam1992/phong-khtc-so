@@ -11,19 +11,9 @@
   const VB = A.VBD = { state: null, loading: false, err: '' };
 
   /* ---------- Máy chủ Apps Script ---------- */
-  const coMayChu = () => /^(https:\/\/script\.google(usercontent)?\.com\/|http:\/\/localhost[:/])/.test((S.cfg.syncUrl || '').trim()) && !!S.cfg.syncKey;   // localhost: máy chủ thử nghiệm
+  const coMayChu = () => !!(A.MC && A.MC.coCauHinh());   // máy chủ, đăng nhập: 62-dong-bo.js
   VB.coMayChu = coMayChu;
-  VB.gas = async body => {
-    const url = (S.cfg.syncUrl || '').trim();
-    if (!coMayChu()) throw new Error('Chưa cấu hình máy chủ Apps Script (Thiết lập → Đồng bộ qua Google Apps Script).');
-    let r;
-    try { r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ key: S.cfg.syncKey, app: A.APP_ID }, body)), redirect: 'follow', credentials: 'omit', cache: 'no-store' }); }
-    catch (er) { throw new Error('Không kết nối được máy chủ Apps Script: ' + (er.message || er)); }
-    if (!r.ok) throw new Error('Máy chủ trả mã ' + r.status);
-    const j = await r.json().catch(() => { throw new Error('Máy chủ không trả dữ liệu hợp lệ — kiểm tra đã triển khai Code.gs bản mới (Deploy → New version).'); });
-    if (!j.ok) throw new Error(j.error || 'Máy chủ từ chối yêu cầu');
-    return j;
-  };
+  VB.gas = body => A.MC.goi(body);
   VB.refresh = async (action, extra) => {
     VB.loading = true; VB.err = '';
     try { const j = await VB.gas(Object.assign({ action: action || 'inboxGet' }, extra || {})); VB.state = apDung(j.state || j); if (j.msg) UI.toast(j.msg, 'ok'); return j; }

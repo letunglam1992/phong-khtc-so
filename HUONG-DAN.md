@@ -146,6 +146,18 @@ Lưu ý: máy đọc có thể sai — luôn đối chiếu với văn bản g�
   1. Cloudflare → Workers & Pages → `rasoatvanban` → Settings → Variables and Secrets → sửa `ALLOWED_ORIGIN`, thêm `,https://phong-khtc-so.vercel.app` (cách nhau bằng dấu phẩy, không có dấu `/` ở cuối) → Deploy.
   2. Đã nhập máy chủ Apps Script (bản Code.gs mới, có thao tác `aiChat`): phần mềm tự chuyển sang gọi AI qua máy chủ, không cần sửa Worker.
 
+## 4h. Máy chủ, tài khoản, đồng bộ nhiều máy, sao lưu Google Drive (Code.gs bản 3)
+
+- **Kết nối**: Thiết lập → *Máy chủ, đăng nhập, đồng bộ* → dán địa chỉ Web App. Người quản lý chọn **Mã quản trị** (trùng `MA_BI_MAT` trong Code.gs, toàn quyền). Cán bộ khác chọn **Tài khoản cán bộ** (tên đăng nhập + mật khẩu do quản lý tạo; phiên có hiệu lực 30 ngày; tự đổi mật khẩu được).
+- **Vai trò** (máy chủ kiểm tra lại, không chỉ ẩn nút trên giao diện):
+  - *Quản lý*: toàn quyền, tạo/khóa tài khoản, sao lưu, khôi phục.
+  - *Cán bộ*: thêm, sửa, xóa nhiệm vụ, văn bản, dự toán, gói thầu, hợp đồng, dự án, kế hoạch vốn **do mình phụ trách hoặc chưa giao**; không sửa danh mục cán bộ, đơn vị, tài sản…; không giao việc cho người khác.
+  - *Chỉ xem*: xem, lập báo cáo, hỏi Trợ lý AI.
+  Nhật ký cập nhật ghi đúng tên người đăng nhập.
+- **Đồng bộ theo từng bản ghi**: mỗi thay đổi vào hàng chờ; phần mềm tự đồng bộ khi mở, mỗi 3 phút và khoảng 15 giây sau khi sửa (có nút *Đồng bộ ngay*). Hai máy cùng sửa một bản ghi: giữ bản sửa sau cùng, ghi vào mục *Xung đột gần đây*. Thay đổi không đủ quyền bị máy chủ từ chối và hoàn tác trên máy. Lần đầu kết nối, toàn bộ dữ liệu trên máy được gửi lên.
+- **Sao lưu Google Drive**: máy chủ chép toàn bộ dữ liệu đã đồng bộ sang thư mục `KHTC_So_SAO_LUU` khoảng 23 giờ hằng ngày (bật ở thẻ *Sao lưu trên Google Drive* hoặc bằng hàm `caiDatVanBanDen`), giữ 30 bản gần nhất. Mỗi bản tải về được, hoặc *Khôi phục…* gộp vào dữ liệu trên máy (có bản chụp trước khi gộp) rồi đồng bộ lên.
+- **Nâng cấp từ bản 2**: dán Code.gs bản 3, Triển khai → Quản lý → Sửa → *Phiên bản mới*; chạy lại `caiDatVanBanDen` một lần để bật sao lưu hằng ngày. Dữ liệu đồng bộ cũ được chuyển sang dạng theo bản ghi tự động.
+
 ## 5. Sao lưu, khôi phục
 
 - Dữ liệu nằm trong IndexedDB của **trình duyệt trên máy đang dùng**. Xóa dữ liệu duyệt web, dùng cửa sổ ẩn danh, đổi trình duyệt hoặc đổi máy sẽ không thấy dữ liệu.
@@ -177,8 +189,8 @@ Bản ghi kéo về có nhãn nguồn và nút mở lại đúng phần mềm g�
 
 - **Bản ghi trùng tên** (cán bộ, đơn vị, đầu mục chức năng) do mỗi máy tự nạp danh mục ban đầu rồi "Tải về và gộp": phần mềm tự gộp khi mở và sau mỗi lần tải về – gộp, giữ bản sửa gần nhất, chuyển mọi liên kết sang bản giữ lại.
 
-- **Một máy, một người dùng tại một thời điểm.** Chưa có đăng nhập, chưa phân quyền. Hai người mở hai máy là hai bộ dữ liệu riêng.
-- **Đồng bộ nhiều máy (tùy chọn)** qua Google Apps Script (`gas/Code.gs`): đẩy lên – tải về toàn bộ dữ liệu, không kèm tệp đính kèm; hai người cùng sửa một bản ghi thì bản sửa sau cùng được giữ; có cảnh báo khi máy chủ đã có bản mới hơn.
+- **Không nối máy chủ thì mỗi máy là một bộ dữ liệu riêng**, không đăng nhập, không phân quyền. Nối máy chủ (mục 4h) để dùng chung, đăng nhập, phân quyền.
+- Đồng bộ, sao lưu Drive không gồm tệp đính kèm lưu trong trình duyệt (dùng liên kết Drive cho hồ sơ cần dùng chung) và không gồm nhật ký cập nhật của từng máy.
 - Tệp đính kèm lưu trong trình duyệt, tối đa 15 MB mỗi tệp. Hồ sơ lớn nên dùng liên kết (iOffice, Drive).
 - Xuất PDF bằng lệnh In của trình duyệt → "Lưu dưới dạng PDF".
 - Trợ lý điều hành chạy theo luật cố định trên dữ liệu đã nhập, không dùng AI. Hộp chat Trợ lý AI và Văn bản đến dùng AI Cloudflare: kết quả là gợi ý, cần đối chiếu.

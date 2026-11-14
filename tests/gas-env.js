@@ -9,7 +9,8 @@ function env(opt) {
     getId() { return this.id; } getName() { return this.name; } getUrl() { return 'https://drive.google.com/drive/folders/' + this.id; } isTrashed() { return false; }
     getFiles() { const l = files.filter(f => f.folder === this && !f.trashed); let i = 0; return { hasNext: () => i < l.length, next: () => l[i++] }; }
     getFoldersByName(n) { const l = folders.filter(f => f.parent === this && f.name === n); let i = 0; return { hasNext: () => i < l.length, next: () => l[i++] }; }
-    createFolder(n) { return new Folder(n, this); } createFile(b) { return mk(b.name, b.d, b.mime, this); } }
+    getFilesByName(n) { const l = files.filter(f => f.folder === this && f.name === n && !f.trashed); let i = 0; return { hasNext: () => i < l.length, next: () => l[i++] }; }
+    createFolder(n) { return new Folder(n, this); } createFile(b, c, m) { return typeof b === 'string' ? mk(b, c, m, this) : mk(b.name, b.d, b.mime, this); } }
   const root = new Folder('root');
   function mk(name, content, mime, folder) { const f = { id: 'F' + (++seq) + 'xxxxxxxxxxxx', name, content, mime: mime || 'text/plain', folder: folder || root, created: new Date(), trashed: false,
     getId() { return this.id; }, getName() { return this.name; }, getMimeType() { return this.mime; }, getSize() { return String(this.content).length; }, getUrl() { return 'https://drive.google.com/file/d/' + this.id; },
@@ -22,9 +23,15 @@ function env(opt) {
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: s => ({ setMimeType() { return this; }, s }) },
     DriveApp: { getFilesByName: n => it(files.filter(f => f.name === n && !f.trashed)), createFile: (n, c, m) => mk(n, c, m), getFoldersByName: n => it(folders.filter(f => f.name === n && f.parent === root)),
       createFolder: n => new Folder(n, root), getFolderById: id => { const f = folders.find(x => x.id === id); if (!f) throw new Error('not found'); return f; }, getFileById: id => { const f = files.find(x => x.id === id); if (!f) throw new Error('nf'); return f; } },
-    Utilities: { newBlob: (d, m, n) => new Blob(Buffer.from(d).toString('utf8'), m, n), base64Decode: s => Buffer.from(s, 'base64'), unzip: () => [] },
+    Utilities: { newBlob: (d, m, n) => new Blob(Buffer.from(Array.isArray(d) ? Buffer.from(d) : d).toString('utf8'), m, n), base64Decode: s => Buffer.from(s, 'base64'), unzip: () => [],
+      Charset: { UTF_8: 'utf8' }, DigestAlgorithm: { SHA_256: 'sha256' }, getUuid: () => require('crypto').randomUUID(), sleep() {},
+      computeDigest: (alg, s) => Array.from(require('crypto').createHash('sha256').update(String(s)).digest()),
+      computeHmacSha256Signature: (s, k) => Array.from(require('crypto').createHmac('sha256', k).update(String(s)).digest()),
+      base64EncodeWebSafe: v => Buffer.from(Array.isArray(v) ? Buffer.from(v.map(b => b & 255)) : Buffer.from(String(v), 'utf8')).toString('base64').replace(/\+/g, '-').replace(/\//g, '_'),
+      base64DecodeWebSafe: s => Array.from(Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64')),
+      formatDate: (d, tz, f) => opt.ngay || d.toISOString().slice(0, 10) },
     DocumentApp: { openById: id => ({ getBody: () => ({ getText: () => docs[id] || '' }) }) },
-    ScriptApp: { getProjectTriggers: () => triggers, deleteTrigger: t => triggers.splice(triggers.indexOf(t), 1), newTrigger: h => ({ timeBased: () => ({ everyMinutes: () => ({ create: () => triggers.push({ getHandlerFunction: () => h }) }) }) }) },
+    ScriptApp: { getProjectTriggers: () => triggers, deleteTrigger: t => triggers.splice(triggers.indexOf(t), 1), newTrigger: h => ({ timeBased: () => ({ everyMinutes: () => ({ create: () => triggers.push({ getHandlerFunction: () => h }) }), everyDays: () => ({ atHour: () => ({ create: () => triggers.push({ getHandlerFunction: () => h }) }) }) }) }) },
     UrlFetchApp: { fetch: (url, o) => { const body = JSON.parse(o.payload); fetches.push({ url, body }); const r = opt.ai ? opt.ai(body, url) : { code: 200, json: { text: '{"loai":"khac"}' } }; return { getResponseCode: () => r.code, getContentText: () => JSON.stringify(r.json) }; } },
     Drive: opt.noDrive ? undefined : { Files: { create: (meta, blob) => { const id = 'OCR' + (++seq); docs[id] = opt.ocrText || ''; return { id }; }, remove: id => { delete docs[id]; } } }
   };

@@ -8,12 +8,12 @@ test('xác thực: sai mã, sai ứng dụng', () => {
   const e = env();
   assert.match(e.post({ key: 'SAI', action: 'info' }).error, /Sai mã bí mật/);
   assert.match(JSON.parse(e.g.doPost({ postData: { contents: JSON.stringify({ app: 'khac', key: 'KHOA' }) } }).s).error, /Sai ứng dụng/);
-  assert.equal(e.post({ action: 'info' }).version, 2);
+  assert.equal(e.post({ action: 'info' }).version, 3);
 });
 test('đồng bộ: đẩy, tải, chống ghi đè', () => {
   const e = env(), pl = { app: 'khtc-so-son-la', data: { nhiemvu: [] }, exportedBy: 'A' };
   assert.equal(e.post({ action: 'push', baseRev: 0, payload: pl }).rev, 1);
-  assert.equal(e.post({ action: 'pull' }).payload.exportedBy, 'A');
+  assert.deepEqual(e.post({ action: 'pull' }).payload.data, { nhiemvu: [] });
   assert.equal(e.post({ action: 'push', baseRev: 0, payload: pl }).conflict, true);
   assert.equal(e.post({ action: 'push', baseRev: 0, force: true, payload: pl }).rev, 2);
 });
@@ -103,4 +103,60 @@ test('Worker trả khối JSON chỉ có suy luận (content null) → thử mô
   const e = env({ ai: b => b.model === '@cf/zai-org/glm-4.7-flash' ? { code: 200, json: { text: 'Có 2 gói thầu [1].', model: b.model } } : { code: 200, json: { text: raw, model: b.model || 'x' } } });
   const r = e.post({ action: 'aiChat', messages: [{ role: 'system', content: 'S' }, { role: 'user', content: 'x' }] });
   assert.equal(r.text, 'Có 2 gói thầu [1].'); assert.equal(e.fetches.length, 3); assert.equal(e.fetches[2].body.max_tokens, 3500);
+});
+
+// ---------- Đồng bộ theo bản ghi, tài khoản, sao lưu ----------
+const rec = (id, ten, at, extra) => Object.assign({ id, ten, updatedAt: at, updatedBy: 'x' }, extra || {});
+test('đồng bộ theo bản ghi: hai máy, gộp thay đổi, xung đột giữ bản sửa sau cùng, xóa', () => {
+  const e = env();
+  let a = e.post({ action: 'syncDelta', since: 0, changes: [{ c: 'nhiemvu', v: rec('n1', 'Việc 1', '2026-11-10T01:00:00Z') }, { c: 'nhiemvu', v: rec('n2', 'Việc 2', '2026-11-10T01:00:00Z') }, { c: 'lichsu', v: rec('l1', 'x', 'z') }] });
+  assert.equal(a.rev, 1); assert.equal(a.changes.length, 0, 'không trả lại bản ghi vừa gửi');
+  const b = e.post({ action: 'syncDelta', since: 0, changes: [{ c: 'goithau', v: rec('g1', 'Gói 1', '2026-11-10T02:00:00Z') }] });
+  assert.equal(b.changes.length, 2, 'máy B nhận 2 việc của máy A'); assert.ok(!b.changes.some(x => x.c === 'lichsu'), 'không đồng bộ nhật ký');
+  // A và B cùng sửa n1 sau lần đồng bộ: B sửa sau → giữ bản B
+  e.post({ action: 'syncDelta', since: b.rev, changes: [{ c: 'nhiemvu', v: rec('n1', 'Việc 1 (B sửa)', '2026-11-10T05:00:00Z') }] });
+  a = e.post({ action: 'syncDelta', since: 1, changes: [{ c: 'nhiemvu', v: rec('n1', 'Việc 1 (A sửa)', '2026-11-10T04:00:00Z') }], deletes: [{ c: 'nhiemvu', id: 'n2', at: '2026-11-10T04:00:00Z' }] });
+  assert.equal(a.conflicts.length, 1); assert.equal(a.conflicts[0].giu, 'maychu');
+  assert.equal(a.changes.find(x => x.v.id === 'n1').v.ten, 'Việc 1 (B sửa)', 'máy A nhận bản B (mới hơn)');
+  assert.ok(a.changes.some(x => x.c === 'goithau'));
+  const c = e.post({ action: 'syncDelta', since: 0 });
+  assert.ok(c.deletes.some(x => x.id === 'n2') && !c.changes.some(x => x.v.id === 'n2'), 'máy mới nhận lệnh xóa n2');
+  assert.equal(e.post({ action: 'pull' }).payload.data.nhiemvu.length, 1, 'tải toàn bộ (định dạng sao lưu) vẫn dùng được');
+});
+test('tài khoản: tạo, đăng nhập, phân quyền cán bộ / chỉ xem, phiên giả bị từ chối', () => {
+  const e = env();
+  assert.match(e.post({ action: 'userSet', tenDN: 'kien', ten: 'Trịnh Trung Kiên', vaiTro: 'canbo', canBoId: 'cb_kien', matKhau: 'ngan' }).error, /ít nhất 8/);
+  assert.equal(e.post({ action: 'userSet', tenDN: 'kien', ten: 'Trịnh Trung Kiên', vaiTro: 'canbo', canBoId: 'cb_kien', matKhau: 'matkhau-kien-1' }).ok, true);
+  e.post({ action: 'userSet', tenDN: 'lanhdao', ten: 'Lãnh đạo Sở', vaiTro: 'xem', matKhau: 'matkhau-xem-1' });
+  const post = b => JSON.parse(e.g.doPost({ postData: { contents: JSON.stringify(Object.assign({ app: 'khtc-so-son-la' }, b)) } }).s);
+  assert.match(post({ action: 'login', tenDN: 'kien', matKhau: 'sai-mat-khau' }).error, /Sai tên đăng nhập/);
+  const lg = post({ action: 'login', tenDN: 'Kien', matKhau: 'matkhau-kien-1' });
+  assert.equal(lg.ok, true); assert.equal(lg.user.vaiTro, 'canbo');
+  // quản trị tạo dữ liệu: 1 việc của Kiên, 1 việc của người khác, 1 cán bộ
+  e.post({ action: 'syncDelta', since: 0, changes: [{ c: 'nhiemvu', v: rec('n1', 'Việc Kiên', 't1', { chuTriId: 'cb_kien' }) }, { c: 'nhiemvu', v: rec('n2', 'Việc người khác', 't1', { chuTriId: 'cb_nga' }) }, { c: 'canbo', v: rec('cb_kien', 'Kiên', 't1') }] });
+  const r = post({ token: lg.token, action: 'syncDelta', since: 1, changes: [{ c: 'nhiemvu', v: rec('n1', 'Kiên sửa', 't2', { chuTriId: 'cb_kien' }) }, { c: 'nhiemvu', v: rec('n2', 'Kiên sửa việc người khác', 't2', { chuTriId: 'cb_nga' }) }, { c: 'canbo', v: rec('cb_kien', 'Kiên đổi tên', 't2') }, { c: 'nhiemvu', v: rec('n3', 'Việc mới của Kiên', 't2', { chuTriId: 'cb_kien' }) }] });
+  assert.deepEqual(r.rejected.map(x => x.id).sort(), ['cb_kien', 'n2'], 'cán bộ không sửa được việc người khác, danh mục cán bộ');
+  assert.equal(r.user.ten, 'Trịnh Trung Kiên');
+  const xem = post({ action: 'login', tenDN: 'lanhdao', matKhau: 'matkhau-xem-1' });
+  const r2 = post({ token: xem.token, action: 'syncDelta', since: 0, changes: [{ c: 'nhiemvu', v: rec('n1', 'Lãnh đạo sửa', 't3', { chuTriId: 'cb_kien' }) }] });
+  assert.equal(r2.rejected.length, 1); assert.ok(r2.changes.length >= 3, 'chỉ xem vẫn tải được dữ liệu');
+  assert.match(post({ token: xem.token, action: 'inboxUpload', name: 'a.txt', data: 'eA==' }).error, /không được/);
+  assert.match(post({ token: lg.token, action: 'userList' }).error || '', /^$/); assert.match(post({ token: lg.token, action: 'userSet', tenDN: 'abc', vaiTro: 'quanly', matKhau: '12345678' }).error, /Chỉ quản lý/);
+  assert.equal(post({ token: lg.token.slice(0, -3) + 'abc', action: 'info' }).auth, true, 'phiên bị sửa → từ chối');
+  e.post({ action: 'userSet', tenDN: 'kien', ten: 'Trịnh Trung Kiên', vaiTro: 'canbo', canBoId: 'cb_kien', khoa: true });
+  assert.equal(post({ token: lg.token, action: 'info' }).auth, true, 'tài khoản bị khóa → phiên mất hiệu lực');
+});
+test('sao lưu hằng ngày: tạo tệp theo ngày, ghi đè trong ngày, giữ 30 bản, lấy lại', () => {
+  const e = env({ ngay: '2026-11-14' });
+  assert.match(e.post({ action: 'backupNow' }).error, /chưa có dữ liệu/);
+  e.post({ action: 'syncDelta', since: 0, changes: [{ c: 'nhiemvu', v: rec('n1', 'Việc', 't') }] });
+  assert.equal(e.post({ action: 'backupNow' }).ten, 'khtc-so-sao-luu-2026-11-14.json'); e.post({ action: 'backupNow' });
+  const fd = e.folders.find(f => f.name === 'KHTC_So_SAO_LUU');
+  assert.equal(e.files.filter(f => f.folder === fd && !f.trashed).length, 1, 'cùng ngày ghi đè');
+  for (let i = 1; i <= 32; i++) e.mk('khtc-so-sao-luu-2026-09-' + String(i).padStart(2, '0').replace(/^3/, '0') + (i > 30 ? 'x' : '') + '.json', '{}', 'application/json', fd);
+  e.post({ action: 'backupNow' });
+  assert.equal(e.files.filter(f => f.folder === fd && !f.trashed && /^khtc-so-sao-luu-\d{4}-\d{2}-\d{2}\.json$/.test(f.name)).length, 30, 'giữ 30 bản');
+  const ds = e.post({ action: 'backupList' }); assert.equal(ds.items[0].ten, 'khtc-so-sao-luu-2026-11-14.json');
+  assert.equal(e.post({ action: 'backupGet', id: ds.items[0].id }).payload.data.nhiemvu[0].ten, 'Việc');
+  assert.match(e.post({ action: 'backupAuto', on: true }).msg, /23 giờ/); assert.ok(e.triggers.some(t => t.getHandlerFunction() === 'saoLuuHangNgay'));
 });

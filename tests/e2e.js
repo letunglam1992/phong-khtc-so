@@ -424,22 +424,49 @@ await go('nhiemvu');await p.selectOption('[data-f="src"]','tdnv');await p.waitFo
 await p.click('tbody tr.click');await p.waitForSelector('.modal .tabs');ok(/Đồng bộ từ phần mềm Điều hành nhiệm vụ/.test(await p.textContent('.modal'))&&await p.$('.modal a[href="https://theodoinhiemvu.vercel.app/"]')!==null,'chi tiết có nhãn nguồn và nút mở phần mềm gốc');
 await p.screenshot({path:SHOTS+'/e_ext.png'});await p.keyboard.press('Escape');await p.selectOption('[data-f="src"]','');
 
-console.log('# 15. Đồng bộ nhiều máy (dịch vụ của phần mềm)');
-await go('thietlap');await p.fill('#tl_su','http://localhost:8765/sync');await p.fill('#tl_sk','KHOA-THU');await p.click('[data-sync="push"]');await p.waitForTimeout(900);
-ok(await ev(()=>App.Store.cfg.syncRev)===1,'đẩy lên: bản số 1');
-const ctx2=await b.newContext();const p2=await ctx2.newPage();await p2.clock.setFixedTime(NGAY);await p2.goto(URL);await p2.waitForSelector('.nav-item');
-await p2.evaluate(async()=>{await App.Store.setCfg({syncUrl:'http://localhost:8765/sync',syncKey:'KHOA-THU'})});
-await p2.click('.nav-item[data-r="thietlap"]');await p2.click('[data-sync="pull"]');await p2.waitForTimeout(1500);
-ok(await p2.evaluate(()=>App.Store.count('duan'))===168&&await p2.evaluate(()=>App.Store.count('ngansach'))===88,'máy thứ hai tải về: 168 dự án, 88 dòng dự toán');
-await p2.evaluate(async()=>{await App.Store.save('nhiemvu',{ten:'Việc thêm ở máy 2',nam:2026,trangThai:'chua',phoiHopIds:[]})});await p2.click('[data-sync="push"]');await p2.waitForTimeout(900);
-await go('thietlap');await p.click('[data-sync="push"]');await p.waitForTimeout(600);
-ok(/Dữ liệu trên máy chủ đã thay đổi/.test(await p.textContent('.ov')),'máy 1 đẩy đè → được cảnh báo xung đột');
-await p.click('.modal-f .btn:not(.danger)');await p.click('[data-sync="pull"]');await p.waitForTimeout(1500);
-ok(await ev(()=>App.Store.all('nhiemvu').some(t=>t.ten==='Việc thêm ở máy 2')),'tải về và gộp: nhận việc thêm ở máy 2');
+console.log('# 15. Máy chủ Code.gs thật: đồng bộ theo bản ghi, tài khoản, phân quyền, sao lưu Drive');
+const GAS='http://localhost:8765/gas';
+await go('thietlap');await p.fill('#mc_url',GAS);await p.click('[data-cach="ma"]');await p.waitForTimeout(150);await p.fill('#mc_url',GAS);await p.fill('#mc_key','KHOA');await p.click('[data-mc="key"]');await p.waitForTimeout(2500);
+ok(await ev(()=>App.Store.cfg.dbRev>=1&&App.MC.choGui()===0),'mã quản trị: kết nối, gửi toàn bộ dữ liệu lần đầu, không còn thay đổi chờ gửi');
+ok(/Đang dùng: .*Quản lý \(mã quản trị\)/.test(await txt()),'hiện người dùng: quản lý (mã quản trị)');
+const kienId=await ev(()=>App.Store.all('canbo').find(c=>c.tenGoi==='Kiên').id);
+await p.click('[data-tk-add]');await p.waitForSelector('#tk_dn');await p.fill('#tk_dn','kien');await p.selectOption('#tk_cb',kienId);await p.selectOption('#tk_vt','canbo');await p.fill('#tk_mk','matkhau-kien-1');await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(700);
+ok(/Trịnh Trung Kiên/.test(await p.textContent('[data-tk-ds]')),'quản lý tạo tài khoản cán bộ Kiên (gắn cán bộ phụ trách)');
+await ev(async()=>{await App.MC.goi({action:'userSet',tenDN:'lanhdao',ten:'Lãnh đạo Sở',vaiTro:'xem',matKhau:'matkhau-xem-1'})});
+// Máy 2: cán bộ Kiên đăng nhập
+const ctx2=await b.newContext();const p2=await ctx2.newPage();await p2.clock.setFixedTime(new Date(NGAY.getTime()+3600e3));p2.on('pageerror',e=>errs.push('p2 '+e.message));await p2.goto(URL);await p2.waitForSelector('.nav-item');
+await p2.click('.nav-item[data-r="thietlap"]');await p2.waitForTimeout(200);await p2.fill('#mc_url',GAS);await p2.fill('#mc_tdn','kien');await p2.fill('#mc_mk','sai-mat-khau');await p2.click('[data-mc="login"]');await p2.waitForTimeout(1500);
+ok(/Sai tên đăng nhập hoặc mật khẩu/.test((await p2.$$eval('.toast',e=>e.map(x=>x.textContent))).join(' ')),'sai mật khẩu → báo lỗi');
+await p2.fill('#mc_url',GAS);await p2.fill('#mc_tdn','kien');await p2.fill('#mc_mk','matkhau-kien-1');await p2.click('[data-mc="login"]');await p2.waitForTimeout(3000);
+ok(await p2.evaluate(()=>App.Store.count('duan'))===168&&await p2.evaluate(()=>App.Store.count('ngansach'))===88&&await p2.evaluate(()=>App.Store.user())==='Trịnh Trung Kiên','máy 2 (Kiên) đăng nhập, nhận toàn bộ dữ liệu: 168 dự án, 88 dòng dự toán; nhật ký ghi tên Kiên');
+const nKien=await ev(()=>App.Store.all('nhiemvu').find(t=>t.chuTriId===App.Store.all('canbo').find(c=>c.tenGoi==='Kiên').id&&!t.ext).id);
+const nKhac=await ev(()=>{const k=App.Store.all('canbo').find(c=>c.tenGoi==='Kiên').id;const t=App.Store.all('nhiemvu').find(t=>t.chuTriId&&t.chuTriId!==k&&!t.ext);return t&&t.id});
+await p.evaluate(id=>window.__nk=id,nKien);await p2.evaluate(([a,b])=>{window.__nk=a;window.__nx=b},[nKien,nKhac]);
+const r2=await p2.evaluate(async()=>{const out={};const khac=App.Store.all('canbo').find(c=>c.id!==App.Store.cfg.mcUser.canBoId).id;try{await App.Store.save('nhiemvu',{ten:'Giao cho người khác',nam:2026,chuTriId:khac,phoiHopIds:[]})}catch(e){out.loi=e.message}try{if(window.__nx)await App.Store.save('nhiemvu',{id:window.__nx,tienDo:10});else out.loi2=out.loi}catch(e){out.loi2=e.message}await App.Store.save('nhiemvu',{ten:'Việc mới Kiên tự thêm',nam:2026,trangThai:'chua',chuTriId:App.Store.cfg.mcUser.canBoId,phoiHopIds:[]});return out});
+ok(/chỉ sửa được bản ghi do mình phụ trách/.test(r2.loi||'')&&/chỉ sửa được bản ghi do mình phụ trách/.test(r2.loi2||''),'cán bộ không giao việc cho người khác, không sửa việc của người khác (chặn ngay trên máy)');
+// Xung đột: quản lý sửa việc của Kiên, Kiên cũng sửa (muộn hơn 1 giờ)
+await ev(async()=>{await App.Store.save('nhiemvu',{id:window.__nk,tienDo:50});await App.MC.dongBo()});
+const k2=await p2.evaluate(async()=>{await App.Store.save('nhiemvu',{id:window.__nk,tienDo:70});return App.MC.dongBo()});
+ok(k2&&k2.xungDot===1,'hai máy cùng sửa một nhiệm vụ → báo 1 xung đột, giữ bản sửa sau cùng (của Kiên)');
+await ev(()=>App.MC.dongBo());
+ok(await ev(()=>App.Store.get('nhiemvu',window.__nk).tienDo===70&&App.Store.all('nhiemvu').some(t=>t.ten==='Việc mới Kiên tự thêm'&&t.updatedBy==='Trịnh Trung Kiên')),'máy 1 nhận bản của Kiên và việc mới do Kiên thêm (ghi đúng người)');
+// Xóa đồng bộ sang máy khác
+await ev(async()=>{const t=App.Store.all('nhiemvu').find(t=>t.ten==='Việc mới Kiên tự thêm');await App.Store.remove('nhiemvu',t.id);await App.MC.dongBo()});
+await p2.evaluate(()=>App.MC.dongBo());ok(!(await p2.evaluate(()=>App.Store.all('nhiemvu').some(t=>t.ten==='Việc mới Kiên tự thêm'))),'xóa trên máy 1 → máy 2 cũng xóa');
 await ctx2.close();
+// Máy 3: tài khoản chỉ xem
+const ctx3=await b.newContext();const p3=await ctx3.newPage();await p3.goto(URL);await p3.waitForSelector('.nav-item');
+await p3.evaluate(async g=>{await App.Store.setCfg({syncUrl:g});const j=await App.MC.goi({action:'login',tenDN:'lanhdao',matKhau:'matkhau-xem-1'});await App.Store.setCfg({mcToken:j.token,mcUser:j.user});App.MC.apVaiTro();await App.MC.dongBo()},GAS);
+const r3=await p3.evaluate(async()=>{try{await App.Store.save('nhiemvu',{ten:'x',nam:2026,phoiHopIds:[]});return 'saved'}catch(e){return e.message}});
+ok(/chỉ xem/.test(r3)&&await p3.evaluate(()=>document.documentElement.classList.contains('vai-xem'))&&await p3.evaluate(()=>App.Store.count('ngansach'))===88,'tài khoản chỉ xem: xem đủ dữ liệu, không thêm sửa được, ẩn nút thêm');
+await ctx3.close();
+// Sao lưu Drive
+await go('thietlap');await p.waitForTimeout(1200);await p.click('[data-sl-ngay]');await p.waitForTimeout(1500);
+ok(/Đã sao lưu: khtc-so-sao-luu-\d{4}-\d{2}-\d{2}\.json/.test((await p.$$eval('.toast',e=>e.map(x=>x.textContent))).join(' '))&&await p.$$eval('[data-sl-tai]',e=>e.length)===1,'sao lưu ngay lên thư mục KHTC_So_SAO_LUU, hiện trong danh sách');
+await p.screenshot({path:SHOTS+'/e_maychu.png',fullPage:true});
 
 console.log('# 15b. Văn bản đến: thư mục Drive (Code.gs thật trên bộ giả lập) và đọc trên máy');
-await ev(async()=>{await App.Store.setCfg({syncUrl:'http://localhost:8765/gas',syncKey:'KHOA'});App.VBD.state=null;App.VBD.err=''});
+await ev(async()=>{App.VBD.state=null;App.VBD.err=''});
 await go('vanbanden');await p.waitForTimeout(900);
 ok(/KHTC_So_VAN_BAN_DEN/.test(await txt()),'kết nối máy chủ: tự tạo thư mục KHTC_So_VAN_BAN_DEN');
 const QDK='UBND TỈNH SƠN LA\nSỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG\nSố: 812/QĐ-SNNMT\nSơn La, ngày 05 tháng 11 năm 2026\nQUYẾT ĐỊNH\nPhê duyệt kế hoạch lựa chọn nhà thầu nhiệm vụ Đo đạc thử nghiệm\nĐiều 1. Phê duyệt kế hoạch lựa chọn nhà thầu như sau:\n- Tên gói thầu: Gói thầu số 01: Đo đạc, lập bản đồ địa chính thử\n- Giá gói thầu: 12.345.678.000 đồng\n- Hình thức lựa chọn nhà thầu: Đấu thầu rộng rãi trong nước\n- Loại hợp đồng: Trọn gói\n- Thời gian thực hiện hợp đồng: 360 ngày';

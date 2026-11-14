@@ -1,6 +1,7 @@
 /**
- * Phòng KH-TC số — máy chủ Google Apps Script (phiên bản 2)
- *  1. Đồng bộ dữ liệu giữa các máy (đẩy lên / tải về toàn bộ, chống ghi đè khi máy chủ có bản mới hơn).
+ * Phòng KH-TC số — máy chủ Google Apps Script (phiên bản 3)
+ *  1. Đồng bộ theo từng bản ghi giữa các máy; tài khoản cán bộ, phân quyền (quản lý / cán bộ / chỉ xem);
+ *     sao lưu toàn bộ dữ liệu sang thư mục KHTC_So_SAO_LUU mỗi ngày, giữ 30 bản.
  *  2. Văn bản đến: tự quét thư mục Google Drive, nhận dạng chữ (Drive OCR cho bản scan), gọi AI Cloudflare
  *     bóc tách thông tin (gói thầu, KHLCNT, kết quả LCNT, hợp đồng, phụ lục, nghiệm thu, thanh lý, dự toán),
  *     đưa vào hàng đợi "Chờ duyệt". Phần mềm chỉ ghi vào dữ liệu khi cán bộ duyệt.
@@ -13,19 +14,21 @@
  *       CF_WORKER_MODELS — thứ tự mô hình thử qua Worker, cách nhau bằng | (để trống phần đầu = mô hình mặc định của Worker)
  *       hoặc gọi thẳng Cloudflare: CF_ACCOUNT_ID, CF_API_TOKEN (quyền Workers AI: Read), CF_AI_MODEL
  *  4. Triển khai → Triển khai mới → Ứng dụng web → Thực thi với tư cách: Tôi; Ai có quyền: Bất kỳ ai.
- *  5. Chạy hàm caiDatVanBanDen một lần (cấp quyền, bật quét tự động 15 phút).
+ *  5. Chạy hàm caiDatVanBanDen một lần (cấp quyền, bật quét văn bản đến 15 phút, bật sao lưu hằng ngày).
  *  6. Dán URL .../exec và MA_BI_MAT vào phần mềm: Thiết lập → Đồng bộ qua Google Apps Script.
+ *     MA_BI_MAT là mã quản trị (toàn quyền). Cán bộ khác dùng tài khoản riêng do quản lý tạo trong phần mềm.
  * Mỗi lần sửa tệp này: Triển khai → Quản lý triển khai → Sửa → Phiên bản mới (giữ nguyên URL).
  */
 var MA_BI_MAT = 'DOI-MA-NAY-TRUOC-KHI-DUNG';
 var APP_ID = 'khtc-so-son-la';
-var PHIEN_BAN_MAY_CHU = 2;
+var PHIEN_BAN_MAY_CHU = 3;
 var TEN_TEP = 'khtc-so-son-la-du-lieu.json';          // dữ liệu đồng bộ (giữ tên cũ để tương thích phiên bản 1)
 var TEN_TEP_HANG_DOI = 'khtc-so-van-ban-den.json';     // hàng đợi văn bản đến
 var TEN_THU_MUC_VB = 'KHTC_So_VAN_BAN_DEN';            // thư mục nhận văn bản (tự tạo nếu chưa chọn)
 var TEN_THU_MUC_DA_DOC = 'Đã đọc';
 var CF_WORKER_MAC_DINH = 'https://rasoatvanban.letunglam1992.workers.dev';
 var QUET_MOI_PHUT = 15, TOI_DA_MOI_LAN = 5, GIU_DA_XU_LY = 60, FILE_TOI_DA_MB = 20;
+var TEN_THU_MUC_SAO_LUU = 'KHTC_So_SAO_LUU', GIU_SAO_LUU = 30;   // sao lưu hằng ngày trên Drive
 
 /* ======================= Cổng vào ======================= */
 function doPost(e) {
@@ -34,19 +37,28 @@ function doPost(e) {
     var req = JSON.parse(e.postData.contents);
     if (req.app !== APP_ID) return out_({ ok: false, error: 'Sai ứng dụng' });
     if (MA_BI_MAT === 'DOI-MA-' + 'NAY-TRUOC-KHI-DUNG') return out_({ ok: false, error: 'Chưa đổi MA_BI_MAT trong Code.gs' });   // ghép chuỗi để lệnh "Thay thế tất cả" không sửa nhầm dòng này
-    if (req.key !== MA_BI_MAT) return out_({ ok: false, error: 'Sai mã bí mật — mã ở Thiết lập phải trùng MA_BI_MAT trong Code.gs, và Code.gs phải được Triển khai phiên bản mới sau khi sửa' });
     var a = req.action || 'info';
-    if (a === 'inboxProcess') return out_(xuLy_({ max: Math.min(+req.max || TOI_DA_MOI_LAN, TOI_DA_MOI_LAN), id: req.id || '' }));
-    if (a === 'inboxRetry') return out_(thuLai_(req.id));
+    if (a === 'login') return out_(dangNhap_(req));
+    var nd = xacThuc_(req);
+    if (!nd) return out_({ ok: false, auth: true, error: req.token ? 'Phiên đăng nhập hết hạn hoặc tài khoản bị khóa — hãy đăng nhập lại.' : 'Sai mã bí mật — mã ở Thiết lập phải trùng MA_BI_MAT trong Code.gs, và Code.gs phải được Triển khai phiên bản mới sau khi sửa' });
+    var ghi = nd.vaiTro !== 'xem', ql = nd.vaiTro === 'quanly';
+    var cam = function () { return out_({ ok: false, error: 'Tài khoản "' + nd.ten + '" (' + nd.vaiTro + ') không được thực hiện thao tác này.' }); };
+    if (a === 'inboxProcess') return ghi ? out_(xuLy_({ max: Math.min(+req.max || TOI_DA_MOI_LAN, TOI_DA_MOI_LAN), id: req.id || '' })) : cam();
+    if (a === 'inboxRetry') return ghi ? out_(thuLai_(req.id)) : cam();
     if (a === 'aiChat') return out_(troChuyen_(req));
     lock.waitLock(25000);
-    if (a === 'info') return out_(info_());
-    if (a === 'pull' || a === 'push') return out_(dongBo_(req));
+    if (a === 'info') { var i0 = info_(); i0.user = { tenDN: nd.tenDN, ten: nd.ten, vaiTro: nd.vaiTro, canBoId: nd.canBoId }; return out_(i0); }
+    if (a === 'pull' || a === 'push' || a === 'syncDelta') return out_(dongBo_(req, nd));
+    if (a === 'userList' || a === 'userSet' || a === 'userDel' || a === 'userPass') return out_(quanLyNguoiDung_(req, nd));
+    if (a === 'backupNow') return ql ? out_(saoLuu_('làm ngay bởi ' + nd.ten)) : cam();
+    if (a === 'backupList') return ql ? out_(dsSaoLuu_()) : cam();
+    if (a === 'backupGet') return ql ? out_(laySaoLuu_(req.id)) : cam();
+    if (a === 'backupAuto') return ql ? out_({ ok: true, msg: caiSaoLuuTuDong_(!!req.on), state: dsSaoLuu_() }) : cam();
     if (a === 'inboxGet') return out_(hangDoi_());
-    if (a === 'inboxSetFolder') return out_(datThuMuc_(req.folder));
-    if (a === 'inboxSetAuto') return out_({ ok: true, msg: caiDatTrigger_(!!req.on), state: hangDoi_() });
-    if (a === 'inboxUpload') return out_(taiLen_(req));
-    if (a === 'inboxResolve') return out_(danhDau_(req));
+    if (a === 'inboxSetFolder') return ql ? out_(datThuMuc_(req.folder)) : cam();
+    if (a === 'inboxSetAuto') return ql ? out_({ ok: true, msg: caiDatTrigger_(!!req.on), state: hangDoi_() }) : cam();
+    if (a === 'inboxUpload') return ghi ? out_(taiLen_(req)) : cam();
+    if (a === 'inboxResolve') return ghi ? out_(danhDau_(req)) : cam();
     if (a === 'aiTest') return out_(thuAI_());
     return out_({ ok: false, error: 'Không rõ thao tác' });
   } catch (err) {
@@ -64,19 +76,156 @@ function info_() {
     ai: moTaAI_(), driveOcr: typeof Drive !== 'undefined' && !!Drive.Files, tuDong: dangBatTrigger_(), summary: tomTat_(q) };
 }
 
-/* ======================= 1. Đồng bộ dữ liệu ======================= */
+/* ======================= 1. Đồng bộ dữ liệu theo bản ghi, tài khoản, sao lưu ======================= */
+// Kho trên Drive (TEN_TEP): { fmt: 2, rev, recs: { coll: { id: { v: bản ghi, r: rev ghi } } }, del: { coll: { id: { at, r } } } }
+var KHONG_DONG_BO = { lichsu: 1, _dongbo: 1, vbden: 1 };
+// Trường xác định cán bộ phụ trách bản ghi (vai trò "cán bộ" chỉ sửa được bản ghi của mình hoặc chưa giao)
+var CHU_SO_HUU = { nhiemvu: 'chuTriId', vanban: 'chuTriId', ngansach: 'canBoId', goithau: 'canBoId', hopdong: 'canBoId', duan: 'canBoId', von: 'canBoId' };
 function tepDuLieu_() { var it = DriveApp.getFilesByName(TEN_TEP); return it.hasNext() ? it.next() : null; }
-function dongBo_(req) {
-  var p = props_(), rev = Number(p.getProperty('rev') || 0);
-  if (req.action === 'pull') { var f = tepDuLieu_(); return { ok: true, rev: rev, savedAt: p.getProperty('savedAt'), payload: f ? JSON.parse(f.getBlob().getDataAsString('UTF-8')) : null }; }
-  if (!req.payload || req.payload.app !== APP_ID || !req.payload.data) return { ok: false, error: 'Dữ liệu gửi lên không đúng cấu trúc' };
-  if (!req.force && rev > 0 && Number(req.baseRev || 0) !== rev) return { ok: false, conflict: true, rev: rev, savedAt: p.getProperty('savedAt'), savedBy: p.getProperty('savedBy') };
-  var text = JSON.stringify(req.payload), file = tepDuLieu_();
-  if (file) file.setContent(text); else DriveApp.createFile(TEN_TEP, text, 'application/json');
-  rev += 1;
-  p.setProperties({ rev: String(rev), savedAt: new Date().toISOString(), savedBy: String(req.payload.exportedBy || '') });
-  return { ok: true, rev: rev, savedAt: p.getProperty('savedAt') };
+function docKho_() {
+  var f = tepDuLieu_(), o = f ? JSON.parse(f.getBlob().getDataAsString('UTF-8') || '{}') : {};
+  if (o.fmt === 2) return o;
+  var kho = { fmt: 2, rev: Number(props_().getProperty('rev') || 0), recs: {}, del: {} };
+  if (o && o.data) Object.keys(o.data).forEach(function (c) { if (KHONG_DONG_BO[c]) return; kho.recs[c] = {}; (o.data[c] || []).forEach(function (v) { if (v && v.id) kho.recs[c][v.id] = { v: v, r: kho.rev || 1 }; }); });
+  if (!kho.rev && o.data) kho.rev = 1;
+  return kho;
 }
+function ghiKho_(kho, by) {
+  var text = JSON.stringify(kho), f = tepDuLieu_();
+  if (f) f.setContent(text); else DriveApp.createFile(TEN_TEP, text, 'application/json');
+  props_().setProperties({ rev: String(kho.rev), savedAt: new Date().toISOString(), savedBy: String(by || '') });
+}
+function khoThanhGoi_(kho) {   // định dạng tệp sao lưu của phần mềm
+  var data = {}; Object.keys(kho.recs).forEach(function (c) { data[c] = Object.keys(kho.recs[c]).map(function (id) { return kho.recs[c][id].v; }); });
+  return { app: APP_ID, version: 'may-chu', schema: 1, exportedAt: new Date().toISOString(), exportedBy: 'Máy chủ', config: {}, data: data, files: [] };
+}
+function duocSua_(nd, c, cu, moi) {
+  if (nd.vaiTro === 'quanly') return true;
+  if (nd.vaiTro !== 'canbo') return false;
+  var k = CHU_SO_HUU[c]; if (!k) return false;
+  var chu = cu ? cu[k] : '', chuMoi = moi ? moi[k] : '';
+  return (!chu || chu === nd.canBoId) && (!moi || !chuMoi || chuMoi === nd.canBoId);
+}
+function dongBo_(req, nd) {
+  var kho = docKho_();
+  if (req.action === 'pull') return { ok: true, rev: kho.rev, savedAt: props_().getProperty('savedAt'), payload: kho.rev ? khoThanhGoi_(kho) : null };
+  if (req.action === 'push') {   // ghi đè toàn bộ — chỉ quản lý
+    if (nd.vaiTro !== 'quanly') return { ok: false, error: 'Chỉ tài khoản quản lý được ghi đè toàn bộ dữ liệu.' };
+    if (!req.payload || req.payload.app !== APP_ID || !req.payload.data) return { ok: false, error: 'Dữ liệu gửi lên không đúng cấu trúc' };
+    if (!req.force && kho.rev > 0 && Number(req.baseRev || 0) !== kho.rev) return { ok: false, conflict: true, rev: kho.rev, savedAt: props_().getProperty('savedAt'), savedBy: props_().getProperty('savedBy') };
+    kho.rev += 1; var recs = {};
+    Object.keys(req.payload.data).forEach(function (c) { if (KHONG_DONG_BO[c]) return; recs[c] = {}; (req.payload.data[c] || []).forEach(function (v) { if (v && v.id) recs[c][v.id] = { v: v, r: kho.rev }; }); });
+    Object.keys(kho.recs).forEach(function (c) { Object.keys(kho.recs[c]).forEach(function (id) { if (!recs[c] || !recs[c][id]) { kho.del[c] = kho.del[c] || {}; kho.del[c][id] = { at: new Date().toISOString(), r: kho.rev }; } }); });
+    kho.recs = recs; ghiKho_(kho, req.payload.exportedBy || nd.ten);
+    return { ok: true, rev: kho.rev, savedAt: props_().getProperty('savedAt') };
+  }
+  // syncDelta: nhận thay đổi của máy này, trả thay đổi của máy khác kể từ "since"
+  var since = Number(req.since || 0), ganDay = {}, xungDot = [], tuChoi = [], doi = false, revMoi = kho.rev + 1;
+  (req.changes || []).forEach(function (ch) {
+    var c = ch.c, v = ch.v; if (!c || !v || !v.id || KHONG_DONG_BO[c]) return;
+    kho.recs[c] = kho.recs[c] || {};
+    var cu = kho.recs[c][v.id];
+    if (!duocSua_(nd, c, cu && cu.v, v)) { tuChoi.push({ c: c, id: v.id, ly: 'Không có quyền sửa bản ghi này', v: cu ? cu.v : null }); return; }
+    if (cu && cu.r > since && String(cu.v.updatedAt || '') !== String(v.updatedAt || '')) {
+      // Máy khác đã sửa sau lần đồng bộ trước của máy này: giữ bản sửa sau cùng
+      var giuMay = String(v.updatedAt || '') > String(cu.v.updatedAt || '');
+      xungDot.push({ c: c, id: v.id, giu: giuMay ? 'may' : 'maychu', mayAt: v.updatedAt, mayBy: v.updatedBy, khacAt: cu.v.updatedAt, khacBy: cu.v.updatedBy });
+      if (!giuMay) return;
+    }
+    if (kho.del[c] && kho.del[c][v.id]) delete kho.del[c][v.id];
+    kho.recs[c][v.id] = { v: v, r: revMoi }; ganDay[c + '|' + v.id] = 1; doi = true;
+  });
+  (req.deletes || []).forEach(function (x) {
+    if (!x || !x.c || !x.id || KHONG_DONG_BO[x.c]) return;
+    var cu = kho.recs[x.c] && kho.recs[x.c][x.id];
+    if (cu && !duocSua_(nd, x.c, cu.v, null)) { tuChoi.push({ c: x.c, id: x.id, ly: 'Không có quyền xóa bản ghi này', v: cu.v }); return; }
+    if (cu && cu.r > since && String(cu.v.updatedAt || '') > String(x.at || '')) { xungDot.push({ c: x.c, id: x.id, giu: 'maychu', khacAt: cu.v.updatedAt, khacBy: cu.v.updatedBy, xoa: true }); return; }
+    if (cu) delete kho.recs[x.c][x.id];
+    kho.del[x.c] = kho.del[x.c] || {}; kho.del[x.c][x.id] = { at: x.at || new Date().toISOString(), r: revMoi }; ganDay[x.c + '|' + x.id] = 1; doi = true;
+  });
+  if (doi) { kho.rev = revMoi; ghiKho_(kho, nd.ten); }
+  var changes = [], deletes = [];
+  Object.keys(kho.recs).forEach(function (c) { Object.keys(kho.recs[c]).forEach(function (id) { var o = kho.recs[c][id]; if (o.r > since && !ganDay[c + '|' + id]) changes.push({ c: c, v: o.v }); }); });
+  Object.keys(kho.del).forEach(function (c) { Object.keys(kho.del[c]).forEach(function (id) { var o = kho.del[c][id]; if (o.r > since && !ganDay[c + '|' + id]) deletes.push({ c: c, id: id, at: o.at }); }); });
+  return { ok: true, rev: kho.rev, changes: changes, deletes: deletes, conflicts: xungDot, rejected: tuChoi, user: { ten: nd.ten, vaiTro: nd.vaiTro, canBoId: nd.canBoId || '' } };
+}
+
+/* ---- Tài khoản, phân quyền ---- */
+// Script Property NGUOI_DUNG: { tenDN: { ten, vaiTro: 'quanly'|'canbo'|'xem', canBoId, salt, hash, khoa } }
+function dsNguoiDung_() { try { return JSON.parse(props_().getProperty('NGUOI_DUNG') || '{}'); } catch (e) { return {}; } }
+function bam_(s) { return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8)); }
+function ky_(s) { return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(s, MA_BI_MAT + '|phien')); }
+function capPhien_(tenDN) { var exp = Date.now() + 30 * 86400000, p = tenDN + '|' + exp; return Utilities.base64EncodeWebSafe(p, Utilities.Charset.UTF_8) + '.' + ky_(p); }
+function xacThuc_(req) {
+  if (req.key && req.key === MA_BI_MAT) return { tenDN: '', ten: String(req.by || 'Quản trị'), vaiTro: 'quanly', canBoId: '' };
+  if (!req.token) return null;
+  var parts = String(req.token).split('.'); if (parts.length !== 2) return null;
+  var p; try { p = Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString('UTF-8'); } catch (e) { return null; }
+  if (ky_(p) !== parts[1]) return null;
+  var x = p.split('|'), u = dsNguoiDung_()[x[0]];
+  if (!u || u.khoa || Number(x[1]) < Date.now()) return null;
+  return { tenDN: x[0], ten: u.ten, vaiTro: u.vaiTro, canBoId: u.canBoId || '' };
+}
+function dangNhap_(req) {
+  var u = dsNguoiDung_()[String(req.tenDN || '').trim().toLowerCase()];
+  if (!u || u.khoa || bam_(u.salt + '|' + String(req.matKhau || '')) !== u.hash) { Utilities.sleep(800); return { ok: false, error: 'Sai tên đăng nhập hoặc mật khẩu, hoặc tài khoản đang bị khóa.' }; }
+  var t = String(req.tenDN).trim().toLowerCase();
+  return { ok: true, token: capPhien_(t), user: { tenDN: t, ten: u.ten, vaiTro: u.vaiTro, canBoId: u.canBoId || '' } };
+}
+function quanLyNguoiDung_(req, nd) {
+  var ds = dsNguoiDung_();
+  if (req.action === 'userList') return { ok: true, users: Object.keys(ds).map(function (k) { var u = ds[k]; return { tenDN: k, ten: u.ten, vaiTro: u.vaiTro, canBoId: u.canBoId || '', khoa: !!u.khoa }; }) };
+  if (req.action === 'userPass') {   // người dùng tự đổi mật khẩu
+    var me = ds[nd.tenDN]; if (!me) return { ok: false, error: 'Tài khoản quản trị (mã bí mật) không đổi mật khẩu ở đây.' };
+    if (bam_(me.salt + '|' + String(req.matKhauCu || '')) !== me.hash) return { ok: false, error: 'Mật khẩu hiện tại không đúng.' };
+    if (String(req.matKhau || '').length < 8) return { ok: false, error: 'Mật khẩu mới cần ít nhất 8 ký tự.' };
+    me.salt = Utilities.getUuid(); me.hash = bam_(me.salt + '|' + req.matKhau); props_().setProperty('NGUOI_DUNG', JSON.stringify(ds)); return { ok: true };
+  }
+  if (nd.vaiTro !== 'quanly') return { ok: false, error: 'Chỉ quản lý được quản lý tài khoản.' };
+  var t = String(req.tenDN || '').trim().toLowerCase();
+  if (!/^[a-z0-9._-]{3,30}$/.test(t)) return { ok: false, error: 'Tên đăng nhập 3–30 ký tự: chữ không dấu, số, dấu chấm, gạch.' };
+  if (req.action === 'userDel') { delete ds[t]; props_().setProperty('NGUOI_DUNG', JSON.stringify(ds)); return { ok: true }; }
+  if (['quanly', 'canbo', 'xem'].indexOf(req.vaiTro) < 0) return { ok: false, error: 'Vai trò không hợp lệ.' };
+  var u = ds[t] || { salt: Utilities.getUuid() };
+  if (!ds[t] && String(req.matKhau || '').length < 8) return { ok: false, error: 'Mật khẩu ban đầu cần ít nhất 8 ký tự.' };
+  if (req.matKhau) { if (String(req.matKhau).length < 8) return { ok: false, error: 'Mật khẩu cần ít nhất 8 ký tự.' }; u.salt = Utilities.getUuid(); u.hash = bam_(u.salt + '|' + req.matKhau); }
+  u.ten = String(req.ten || t).slice(0, 80); u.vaiTro = req.vaiTro; u.canBoId = String(req.canBoId || ''); u.khoa = !!req.khoa;
+  ds[t] = u; props_().setProperty('NGUOI_DUNG', JSON.stringify(ds));
+  return { ok: true };
+}
+
+/* ---- Sao lưu hằng ngày trên Drive ---- */
+function thuMucSaoLuu_() { var it = DriveApp.getFoldersByName(TEN_THU_MUC_SAO_LUU); return it.hasNext() ? it.next() : DriveApp.createFolder(TEN_THU_MUC_SAO_LUU); }
+function saoLuu_(ghiChu) {
+  var kho = docKho_(); if (!kho.rev) return { ok: false, error: 'Máy chủ chưa có dữ liệu đồng bộ để sao lưu.' };
+  var fd = thuMucSaoLuu_(), ten = 'khtc-so-sao-luu-' + Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'yyyy-MM-dd') + '.json';
+  var cu = fd.getFilesByName(ten), text = JSON.stringify(khoThanhGoi_(kho));
+  if (cu.hasNext()) cu.next().setContent(text); else fd.createFile(ten, text, 'application/json');
+  // giữ GIU_SAO_LUU bản gần nhất
+  var ds = [], it = fd.getFiles(); while (it.hasNext()) { var f = it.next(); if (/^khtc-so-sao-luu-\d{4}-\d{2}-\d{2}\.json$/.test(f.getName())) ds.push(f); }
+  ds.sort(function (a, b) { return a.getName() < b.getName() ? 1 : -1; }).slice(GIU_SAO_LUU).forEach(function (f) { f.setTrashed(true); });
+  props_().setProperty('SAO_LUU_LUC', new Date().toISOString());
+  return { ok: true, ten: ten, rev: kho.rev, ghiChu: ghiChu || '' };
+}
+function dsSaoLuu_() {
+  var fd = thuMucSaoLuu_(), ds = [], it = fd.getFiles();
+  while (it.hasNext()) { var f = it.next(); if (/^khtc-so-sao-luu-/.test(f.getName())) ds.push({ id: f.getId(), ten: f.getName(), ngay: f.getName().slice(16, 26), kb: Math.round(f.getSize() / 1024) }); }
+  ds.sort(function (a, b) { return a.ten < b.ten ? 1 : -1; });
+  return { ok: true, items: ds, folder_url: fd.getUrl(), tuDong: ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'saoLuuHangNgay'; }), luc: props_().getProperty('SAO_LUU_LUC') };
+}
+function laySaoLuu_(id) {
+  var f; try { f = DriveApp.getFileById(id); } catch (e) { return { ok: false, error: 'Không tìm thấy bản sao lưu.' }; }
+  if (!/^khtc-so-sao-luu-/.test(f.getName())) return { ok: false, error: 'Tệp không phải bản sao lưu của phần mềm.' };
+  return { ok: true, ten: f.getName(), payload: JSON.parse(f.getBlob().getDataAsString('UTF-8')) };
+}
+function caiSaoLuuTuDong_(on) {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'saoLuuHangNgay') ScriptApp.deleteTrigger(t); });
+  if (!on) return 'Đã tắt sao lưu tự động.';
+  ScriptApp.newTrigger('saoLuuHangNgay').timeBased().everyDays(1).atHour(23).create();
+  return 'Đã bật sao lưu tự động lúc khoảng 23 giờ hằng ngày, giữ ' + GIU_SAO_LUU + ' bản gần nhất.';
+}
+/** Trigger hằng ngày. */
+function saoLuuHangNgay() { Logger.log(JSON.stringify(saoLuu_('tự động'))); }
 
 /* ======================= 2. Văn bản đến ======================= */
 // Trạng thái: cho_doc (đã nhận, chưa đọc) | cho_duyet (đã đọc, chờ cán bộ duyệt) | loi | da_xu_ly | bo_qua
@@ -302,7 +451,7 @@ function caiDatTrigger_(on) {
   return 'Đã bật tự động đọc văn bản đến mỗi ' + QUET_MOI_PHUT + ' phút.';
 }
 /** Chạy tay một lần để cấp quyền và bật quét tự động. */
-function caiDatVanBanDen() { thuMucVB_(); Logger.log(caiDatTrigger_(true)); Logger.log(JSON.stringify(thuAI_())); }
+function caiDatVanBanDen() { thuMucVB_(); Logger.log(caiDatTrigger_(true)); Logger.log(caiSaoLuuTuDong_(true)); Logger.log(JSON.stringify(thuAI_())); }
 /** Trigger gọi định kỳ. */
 function xuLyVanBanDen() {
   var r = xuLy_({ max: TOI_DA_MOI_LAN });

@@ -279,7 +279,7 @@
   async function sync(action, force) {
     const url = (S.cfg.syncUrl || '').trim(), key = S.cfg.syncKey || '';
     if (!/^https:\/\//i.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)/i.test(url)) { UI.toast('Chưa có địa chỉ dịch vụ đồng bộ hợp lệ (https://…).', 'bad'); return; }
-    const call = async body => { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(Object.assign({ key, app: A.APP_ID }, body)), redirect: 'follow' }); if (!r.ok) throw new Error('Máy chủ trả mã ' + r.status); const j = await r.json(); if (!j.ok && !j.conflict) throw new Error(j.error || 'Máy chủ từ chối'); return j; };
+    const call = body => A.MC.goi(body);   // xác thực bằng mã quản trị hoặc phiên đăng nhập (62-dong-bo.js)
     try {
       if (action === 'push') {
         const payload = await S.exportAll(false);
@@ -291,12 +291,13 @@
         if (!j.payload) { UI.toast('Máy chủ chưa có dữ liệu. Hãy đẩy lên trước.', 'bad'); return; }
         const err = S.validateBackup(j.payload); if (err) throw new Error(err);
         await S.snapshot('Trước khi tải dữ liệu từ máy chủ');
-        const keep = { syncUrl: S.cfg.syncUrl, syncKey: S.cfg.syncKey, nguoiDung: S.cfg.nguoiDung, theme: S.cfg.theme };
+        const keep = { syncUrl: S.cfg.syncUrl, syncKey: S.cfg.syncKey, mcToken: S.cfg.mcToken, mcUser: S.cfg.mcUser, nguoiDung: S.cfg.nguoiDung, theme: S.cfg.theme };
         const stat = await S.importAll(j.payload, 'merge'); await S.setCfg(Object.assign(keep, { syncRev: j.rev, syncAt: U.nowStamp() }));
         UI.toast('Đã tải và gộp: ' + stat.them + ' bản ghi mới, ' + stat.capNhat + ' cập nhật, ' + stat.boQua + ' giữ nguyên.', 'ok');
       }
     } catch (er) { UI.fail(new Error('Đồng bộ lỗi — ' + er.message + '. Kiểm tra địa chỉ, mã bí mật và kết nối mạng.')); }
   }
+  A.syncCu = sync;
   A.views.thietlap = {
     title: 'Thiết lập và dữ liệu', sub: 'Thông tin đơn vị, ngưỡng cảnh báo, danh mục, sao lưu, khôi phục, đồng bộ',
     render(root) {
