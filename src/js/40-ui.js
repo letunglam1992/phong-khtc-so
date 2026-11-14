@@ -64,7 +64,9 @@
   function refOptions(f, cur) {
     let list = S.all(f.ref);
     if (f.ref === 'canbo') list = list.filter(c => c.trangThai !== 'nghi' || c.id === cur || (Array.isArray(cur) && cur.includes(c.id)));
-    return list.map(r => [r.id, f.ref === 'canbo' ? r.hoTen : f.ref === 'donvi' ? r.ten : f.ref === 'ngansach' ? U.trunc(Sc.C.ngansach.title(r), 100) + ' — ' + (Sc.refName('donvi', r.donViId) || '') + ' ' + (r.nam || '') : U.trunc(Sc.C[f.ref].title(r), 110)]).sort((a, b) => f.ref === 'danhmuc' || f.ref === 'ngansach' ? 0 : U.cmp(a[1], b[1]));
+    // phần tử thứ 3: tên đầy đủ, chỉ dùng trong danh sách thả xuống của ô chọn (không cắt ngắn)
+    const duoi = r => f.ref === 'ngansach' ? ' — ' + (Sc.refName('donvi', r.donViId) || '') + ' ' + (r.nam || '') : '';
+    return list.map(r => { if (f.ref === 'canbo') return [r.id, r.hoTen]; if (f.ref === 'donvi') return [r.id, r.ten]; const t = Sc.C[f.ref].title(r); return [r.id, U.trunc(t, f.ref === 'ngansach' ? 100 : 110) + duoi(r), t + duoi(r)]; }).sort((a, b) => f.ref === 'danhmuc' || f.ref === 'ngansach' ? 0 : U.cmp(a[1], b[1]));
   }
   UI.refOptions = refOptions;
   /* Ô chọn bản ghi liên kết có tìm kiếm, thêm mới, sửa (thay cho <select> dài).
@@ -72,8 +74,8 @@
   const REF_ADD = ['donvi', 'canbo', 'duan', 'goithau', 'ngansach', 'vanban', 'hopdong'];
   const refEmpty = f => '— ' + (f.ref === 'canbo' ? 'Chưa phân công' : 'Không chọn') + ' —';
   UI.refPickHtml = (f, v, id) => {
-    const lab = v ? (refOptions(f, v).find(o => o[0] === v) || [v, '(đã xóa)'])[1] : refEmpty(f);
-    return '<div class="refpick" data-ref="' + e(f.ref) + '"><input type="hidden" data-k="' + f.k + '" value="' + e(v || '') + '"><button type="button" class="sel refpick-btn" id="' + id + '" aria-haspopup="listbox" aria-expanded="false"><span class="rp-l">' + e(lab) + '</span></button>' +
+    const o = v ? (refOptions(f, v).find(o => o[0] === v) || [v, '(đã xóa)']) : [v, refEmpty(f)], lab = o[1];
+    return '<div class="refpick" data-ref="' + e(f.ref) + '"><input type="hidden" data-k="' + f.k + '" value="' + e(v || '') + '"><button type="button" class="sel refpick-btn" id="' + id + '"' + (o[2] ? ' title="' + e(o[2]) + '"' : '') + ' aria-haspopup="listbox" aria-expanded="false"><span class="rp-l">' + e(lab) + '</span></button>' +
       (REF_ADD.includes(f.ref) ? '<button type="button" class="btn icon sm rp-edit" title="Sửa bản ghi đang chọn" aria-label="Sửa ' + e(Sc.C[f.ref].label) + ' đang chọn"' + (v ? '' : ' hidden') + '>' + ic('edit', 15) + '</button>' : '') + '</div>';
   };
   UI.bindRefPick = root => {
@@ -83,7 +85,8 @@
   function setVal(w, id) {
     const hid = $('input[type=hidden]', w), c = w.dataset.ref, f = { ref: c };
     hid.value = id || '';
-    $('.rp-l', w).textContent = id ? ((refOptions(f, id).find(o => o[0] === id) || [id, Sc.refName(c, id)])[1]) : refEmpty(f);
+    const o = id ? (refOptions(f, id).find(o => o[0] === id) || [id, Sc.refName(c, id)]) : [id, refEmpty(f)];
+    $('.rp-l', w).textContent = o[1]; $('.refpick-btn', w).title = o[2] || '';
     const ed = $('.rp-edit', w); if (ed) ed.hidden = !id;
     hid.dispatchEvent(new Event('change', { bubbles: true }));
   }
@@ -93,15 +96,15 @@
     const all = refOptions(f, cur), sc = Sc.C[c];
     const pop = UI.el('<div class="rp-pop" role="dialog" aria-label="Chọn ' + e(sc.label) + '"><input class="inp" type="search" placeholder="Gõ để tìm ' + e(sc.label.toLowerCase()) + '…" aria-label="Tìm"><div class="rp-list" role="listbox"></div>' + (REF_ADD.includes(c) ? '<button type="button" class="rp-add">' + ic('plus', 15) + '<span>Thêm ' + e(sc.label.toLowerCase()) + ' mới</span></button>' : '') + '</div>');
     document.body.appendChild(pop);
-    const r0 = btn.getBoundingClientRect(), wd = Math.max(r0.width, 320), below = window.innerHeight - r0.bottom;
+    const r0 = btn.getBoundingClientRect(), wd = Math.max(r0.width, c === 'ngansach' || c === 'goithau' || c === 'khlcnt' ? 520 : 320), below = window.innerHeight - r0.bottom;
     pop.style.width = Math.min(wd, window.innerWidth - 16) + 'px'; pop.style.left = Math.max(8, Math.min(r0.left, window.innerWidth - wd - 8)) + 'px';
     if (below < 300 && r0.top > below) pop.style.bottom = (window.innerHeight - r0.top + 4) + 'px'; else pop.style.top = (r0.bottom + 4) + 'px';
     const inp = $('input', pop), list = $('.rp-list', pop); let shown = [], idx = 0;
     const draw = () => {
       const ws = U.norm(inp.value).split(' ').filter(Boolean);
-      shown = [['', refEmpty(f)]].concat(all.filter(o => ws.every(x => U.norm(o[1]).includes(x)))).slice(0, 300);
+      shown = [['', refEmpty(f)]].concat(all.filter(o => ws.every(x => U.norm(o[2] || o[1]).includes(x)))).slice(0, 300);
       idx = Math.max(0, shown.findIndex(o => o[0] === cur)); if (ws.length) idx = shown.length > 1 ? 1 : 0;
-      list.innerHTML = shown.map((o, i) => '<button type="button" role="option" class="rp-i' + (i === idx ? ' on' : '') + (o[0] === cur ? ' cur' : '') + '" data-i="' + i + '">' + e(o[1]) + '</button>').join('') + (shown.length === 1 && ws.length ? '<div class="small muted" style="padding:8px 10px">Không tìm thấy "' + e(inp.value) + '".</div>' : '');
+      list.innerHTML = shown.map((o, i) => '<button type="button" role="option" class="rp-i' + (i === idx ? ' on' : '') + (o[0] === cur ? ' cur' : '') + '" data-i="' + i + '">' + e(o[2] || o[1]) + '</button>').join('') + (shown.length === 1 && ws.length ? '<div class="small muted" style="padding:8px 10px">Không tìm thấy "' + e(inp.value) + '".</div>' : '');
       const on = $('.rp-i.on', list); if (on) on.scrollIntoView({ block: 'nearest' });
     };
     const close = () => { if (pop.parentNode) pop.parentNode.removeChild(pop); document.removeEventListener('mousedown', outside, true); window.removeEventListener('resize', close); btn.setAttribute('aria-expanded', 'false'); };

@@ -92,9 +92,12 @@
         return '<span class="grp-h">' + tieuDeKH(k, gs) + '<span class="grp-s"><b>' + gs.length + '</b> gói · tổng giá <b>' + U.fmtShort(tong) + '</b> · có kết quả <b>' + kq.length + '/' + gs.length + '</b> · đã ký HĐ <b>' + ky + '</b> <span class="grp-bar" title="Tỷ lệ gói đã có kết quả"><i style="width:' + Math.round(kq.length / gs.length * 100) + '%"></i></span>' + (kq.length ? ' · giá trúng ' + U.fmtShort(U.sum(kq, g => g.giaTrung)) + (tk > 0 ? ' · tiết kiệm ' + U.fmtShort(tk) : '') : '') + '</span>' +
           (k ? '<span class="grp-s"><button type="button" class="btn sm ghost" data-grp-act data-kh-sua="' + e(k) + '">' + ic('edit', 14) + (khCua(k) ? 'Sửa kế hoạch' : 'Đặt tên kế hoạch') + '</button><button type="button" class="btn sm ghost" data-grp-act data-kh-them="' + e(k) + '">' + ic('plus', 14) + 'Thêm gói</button></span>' : '') + '</span>';
       },
-      after: (box, nhom) => {
-        UI.on(box, 'click', '[data-kh-sua]', b => { const k = b.dataset.khSua, gs = (nhom.find(x => x[0] === k) || [0, []])[1], r = khCua(k); UI.form({ coll: 'khlcnt', rec: r || { so: (gs.find(g => g.qdKHSo) || {}).qdKHSo || '', ngay: ngayKH(k, gs), ten: goiYTen(gs), duAnId: (gs.find(g => g.duAnId) || {}).duAnId || '', nsId: (gs.find(g => g.nsId) || {}).nsId || '' } }); });
-        UI.on(box, 'click', '[data-kh-them]', b => { const k = b.dataset.khThem, gs = (nhom.find(x => x[0] === k) || [0, []])[1], g0 = gs[0] || {}, r = khCua(k); UI.form({ coll: 'goithau', rec: { qdKHSo: g0.qdKHSo || (r && r.so) || '', qdKHNgay: g0.qdKHNgay || (r && r.ngay) || '', duAnId: g0.duAnId || (r && r.duAnId) || '', nsId: g0.nsId || (r && r.nsId) || '', trangThai: 'khlcnt' } }); });
+      after: (box, nhom0) => {
+        // draw() của bảng gọi lại after mỗi lần mở/thu nhóm, sắp xếp — chỉ gắn sự kiện một lần, dùng nhóm của lần vẽ gần nhất
+        box._khNhom = nhom0; if (box._khBound) return; box._khBound = true;
+        const nhomNay = () => box._khNhom || [];
+        UI.on(box, 'click', '[data-kh-sua]', b => { const nhom = nhomNay(), k = b.dataset.khSua, gs = (nhom.find(x => x[0] === k) || [0, []])[1], r = khCua(k); UI.form({ coll: 'khlcnt', rec: r || { so: (gs.find(g => g.qdKHSo) || {}).qdKHSo || '', ngay: ngayKH(k, gs), ten: goiYTen(gs), duAnId: (gs.find(g => g.duAnId) || {}).duAnId || '', nsId: (gs.find(g => g.nsId) || {}).nsId || '' } }); });
+        UI.on(box, 'click', '[data-kh-them]', b => { const nhom = nhomNay(), k = b.dataset.khThem, gs = (nhom.find(x => x[0] === k) || [0, []])[1], g0 = gs[0] || {}, r = khCua(k); UI.form({ coll: 'goithau', rec: { qdKHSo: g0.qdKHSo || (r && r.so) || '', qdKHNgay: g0.qdKHNgay || (r && r.ngay) || '', duAnId: g0.duAnId || (r && r.duAnId) || '', nsId: g0.nsId || (r && r.nsId) || '', trangThai: 'khlcnt' } }); });
       } }],
     hopdong: [{ k: 'kh', label: 'Kế hoạch LCNT', key: h => soKH((S.get('goithau', h.goiThauId) || {}).qdKHSo) || KHONG_KH,
       order: (a, b) => (a === KHONG_KH) - (b === KHONG_KH) || U.cmp(b, a),
