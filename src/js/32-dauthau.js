@@ -72,6 +72,13 @@
 (function (A) {
   const U = A.U, S = A.Store, L = A.L;
   L.hdNsId = h => h.nsId || ((S.get('goithau', h.goiThauId) || {}).nsId) || '';
+  // Tóm tắt gói thầu, hợp đồng theo từng dòng dự toán (dùng hiển thị trên các bảng tài chính, giải ngân)
+  L.nsLKMap = () => {
+    const m = new Map(), lay = id => m.get(id) || m.set(id, { gt: 0, giaGT: 0, hd: 0, giaHD: 0, tt: 0 }).get(id);
+    S.all('goithau').forEach(g => { if (g.nsId && g.trangThai !== 'huy') { const o = lay(g.nsId); o.gt++; o.giaGT += U.num(g.giaGoiThau); } });
+    S.all('hopdong').forEach(h => { const id = L.hdNsId(h); if (!id || h.trangThai === 'chamdut') return; const o = lay(id), x = L.hd(h); o.hd++; o.giaHD += x.giaTriHL; o.tt += x.thanhToan; });
+    return m;
+  };
   L.nsLienKet = nsId => {
     const r = S.get('ngansach', nsId); if (!r) return null;
     const gts = S.all('goithau').filter(g => g.nsId === nsId), hds = S.all('hopdong').filter(h => L.hdNsId(h) === nsId), hx = hds.map(h => ({ h, x: L.hd(h) }));

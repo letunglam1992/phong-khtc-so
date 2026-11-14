@@ -96,6 +96,7 @@ a{color:var(--accent)}
 .about-t{width:100%;border-collapse:collapse;font-size:14px}.about-t th,.about-t td{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:10px 12px;text-align:left;vertical-align:top}
 .about-t th{width:38%;font-weight:600;color:var(--muted);background:var(--hover)}
 .about-c{margin-top:14px;line-height:1.5}
+.ns-lk{color:var(--info-fg,var(--accent));display:flex;align-items:center;gap:4px}
 .tbtn select{background:transparent;border:0;color:#fff;font-weight:600;cursor:pointer;outline:none}
 .tbtn select option{color:#1c2521}
 .tbtn.search{min-width:210px;justify-content:flex-start;color:var(--on-h-soft)}

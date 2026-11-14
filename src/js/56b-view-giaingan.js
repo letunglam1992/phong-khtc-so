@@ -30,6 +30,22 @@
     });
   }
 
+  // Bấm một cán bộ / đơn vị ở bảng tiến độ → mở ngay danh sách nội dung giải ngân của nhóm đó (không phải cuộn trang)
+  function dsNhom(by, k, y, Sel) {
+    const rows = L.gnDong(y, {}).filter(x => by === 'cb' ? (x.r.canBoId || '__none') === k : x.r.donViId === k).sort((a, b) => b.cham - a.cham || b.con - a.con);
+    const ten = by === 'cb' ? (k === '__none' ? 'Chưa giao cán bộ theo dõi' : Sc.refName('canbo', k)) : (S.get('donvi', k) || {}).ten || '(không rõ đơn vị)';
+    const lkM = L.nsLKMap ? L.nsLKMap() : null, T = { tong: U.sum(rows, x => x.tong), gn: U.sum(rows, x => x.gn) };
+    const body = '<div class="small soft mb">' + rows.length + ' nội dung · được sử dụng ' + fs(T.tong) + ' · đã giải ngân ' + fs(T.gn) + ' (' + U.fmtPct(U.pct(T.gn, T.tong)) + ') · ' + rows.filter(x => x.cham).length + ' nội dung chậm. Bấm dòng để xem chi tiết.</div>' +
+      (rows.length ? '<div class="tbl-wrap" style="max-height:62vh;overflow:auto"><table class="tbl"><thead><tr><th>Nội dung</th><th>' + (by === 'cb' ? 'Đơn vị' : 'Cán bộ') + '</th><th class="num">Được sử dụng</th><th class="num">Đã giải ngân</th><th class="num">Còn lại</th><th style="min-width:120px">Tỷ lệ</th></tr></thead><tbody>' +
+        rows.map(x => '<tr class="click" data-id="' + x.r.id + '" tabindex="0"><td class="wrap" style="min-width:260px">' + e(x.r.stt ? x.r.stt + ' ' : '') + e(U.trunc(x.r.noiDung, 140)) + (x.cham ? ' <span class="chip plain quahan">Chậm</span>' : '') + (x.r.tienDo ? '<div class="t2">' + e(U.trunc(x.r.tienDo, 110)) + '</div>' : '') + (A.nsLKTag && lkM ? A.nsLKTag(x.r.id, lkM) : '') + '</td><td class="small">' + (by === 'cb' ? e(Sc.refName('donvi', x.r.donViId)) : UI.who(x.r.canBoId)) + '</td><td class="num">' + fs(x.tong) + '</td><td class="num">' + fs(x.gn) + '</td><td class="num">' + fs(x.con) + '</td><td>' + UI.pbar(x.ty, x.cham ? 'bad' : '') + '</td></tr>').join('') +
+        '</tbody><tfoot><tr><td>Cộng</td><td></td><td class="num">' + fs(T.tong) + '</td><td class="num">' + fs(T.gn) + '</td><td class="num">' + fs(T.tong - T.gn) + '</td><td>' + U.fmtPct(U.pct(T.gn, T.tong)) + '</td></tr></tfoot></table></div>' : UI.empty('Không có nội dung nào', ''));
+    const m = UI.modal({
+      title: 'Nội dung giải ngân — ' + ten, sub: 'Năm ' + y, size: 'lg', body,
+      buttons: [{ label: 'Lọc trang theo ' + (by === 'cb' ? 'cán bộ' : 'đơn vị') + ' này', on: a => { a.close(); Sel[by] = k; A.render(); } }, 'sp', { label: 'Đóng', cls: 'primary', on: a => a.close() }]
+    });
+    $$('tr[data-id]', m.body).forEach(tr => { tr.onclick = () => A.open('ngansach', tr.dataset.id); tr.onkeydown = x => { if (x.key === 'Enter') A.open('ngansach', tr.dataset.id); }; });
+  }
+
   /* ---------- Thẻ Tổng quan giải ngân ---------- */
   function tongQuan(box, y, Sel, ctx) {
     const f = { dv: Sel.dv, cb: Sel.cb }, g = L.giaiNgan(y, f);
@@ -38,7 +54,7 @@
     const thangCats = Array.from({ length: 12 }, (_, i) => 'T' + (i + 1));
     const duBaoVals = thangCats.map((_, i) => i + 1 > g.lastM && g.lastM < 12 ? g.gn + (g.duBao - g.gn) * (i + 1 - g.lastM) / (12 - g.lastM) : null);
     const dx = L.gnDeXuat(y, f), rows = L.gnDong(y, f), cham = rows.filter(x => x.cham).sort((a, b) => b.con - a.con);
-    const dvG = Sel.dv ? [] : L.gnNhom(y, 'dv'), cbG = L.gnNhom(y, 'cb');
+    const dvG = Sel.dv ? [] : L.gnNhom(y, 'dv'), cbG = L.gnNhom(y, 'cb'), lkM = L.nsLKMap();
     let h = filt(Sel, true) + '<span class="sp"></span><button class="btn" data-mt>' + ic('flag', 16) + 'Mục tiêu giải ngân</button><button class="btn" data-rep>' + ic('report', 16) + 'Lập báo cáo tiến độ</button><button class="btn" data-imp>' + ic('upload', 16) + 'Nhập biểu Excel</button><button class="btn primary" data-goupd>' + ic('edit', 16) + 'Cập nhật số giải ngân</button></div>';
     h += '<div class="card mb gn-banner"><div class="card-b" style="display:flex;gap:18px;flex-wrap:wrap;align-items:center"><div style="min-width:0;flex:1 1 360px"><div class="eyebrow" style="margin:0">Tiến độ giải ngân năm ' + y + ' — số liệu đến ngày ' + U.fmtDate(g.asOf) + '</div><div style="font-size:18px;font-weight:700;margin-top:4px">Đã giải ngân ' + U.fmtPct(g.tyLe) + ' · ' + (g.mt.tuDat ? 'mục tiêu hết tháng ' + g.lastM + ': ' : 'thời gian đã qua: ') + U.fmtPct(mucTieu) + ' ' + UI.chip(M[0], M[1]) + '</div><div class="soft small">' + (g.lech >= 0 ? 'Vượt ' : 'Thấp hơn ') + U.fmtNum(Math.abs(g.lech), 1) + ' điểm % so với ' + (g.mt.tuDat ? 'mục tiêu Phòng đã đặt' : 'tỷ lệ thời gian (chưa đặt mục tiêu riêng)') + '. Dự báo đến 31/12: khoảng <b>' + U.fmtPct(U.pct(g.duBao, g.tong)) + '</b>.</div></div><div style="flex:0 1 280px;min-width:220px">' + UI.pbar(g.tyLe || 0, g.muc === 'cham' ? 'bad' : '') + '</div></div></div>';
     h += '<div class="kpis mb">' +
@@ -56,7 +72,7 @@
     const cards = (dvG.length > 1 ? [grp('Tiến độ theo đơn vị dự toán', dvG, 'dv')] : []).concat([grp('Tiến độ theo cán bộ theo dõi', cbG, 'cb')]);
     h += '<div class="' + (cards.length > 1 ? 'grid2 ' : '') + 'mt">' + cards.join('') + '</div>';
     h += '<div class="card mt"><div class="card-h"><h3>Nội dung giải ngân chậm (' + cham.length + ')</h3><div class="sub">Tỷ lệ giải ngân thấp hơn ' + (g.mt.tuDat ? 'mục tiêu' : 'tỷ lệ thời gian') + ' từ ' + A.nguong('gnLech') + ' điểm % trở lên; sắp theo số còn phải giải ngân</div></div><div class="card-b">' +
-      (cham.length ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nội dung</th><th>Đơn vị</th><th class="num">Được sử dụng</th><th class="num">Đã giải ngân</th><th class="num">Còn lại</th><th style="min-width:120px">Tỷ lệ</th><th>Cán bộ</th></tr></thead><tbody>' + cham.slice(0, 30).map(x => '<tr class="click" data-id="' + x.r.id + '"><td class="wrap" style="min-width:260px">' + e(x.r.stt ? x.r.stt + ' ' : '') + e(U.trunc(x.r.noiDung, 120)) + (x.r.tienDo ? '<div class="t2">' + e(U.trunc(x.r.tienDo, 100)) + '</div>' : '') + '</td><td class="small">' + e(Sc.refName('donvi', x.r.donViId)) + '</td><td class="num">' + fs(x.tong) + '</td><td class="num">' + fs(x.gn) + '</td><td class="num">' + fs(x.con) + '</td><td>' + UI.pbar(x.ty, 'bad') + '</td><td>' + UI.who(x.r.canBoId) + '</td></tr>').join('') + '</tbody></table></div>' + (cham.length > 30 ? '<div class="small muted mt">… và ' + (cham.length - 30) + ' nội dung khác (xem đủ trong báo cáo).</div>' : '') : '<div class="note ok">Không có nội dung nào chậm so với mốc so sánh.</div>') + '</div></div>';
+      (cham.length ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nội dung</th><th>Đơn vị</th><th class="num">Được sử dụng</th><th class="num">Đã giải ngân</th><th class="num">Còn lại</th><th style="min-width:120px">Tỷ lệ</th><th>Cán bộ</th></tr></thead><tbody>' + cham.slice(0, 30).map(x => '<tr class="click" data-id="' + x.r.id + '"><td class="wrap" style="min-width:260px">' + e(x.r.stt ? x.r.stt + ' ' : '') + e(U.trunc(x.r.noiDung, 120)) + (x.r.tienDo ? '<div class="t2">' + e(U.trunc(x.r.tienDo, 100)) + '</div>' : '') + A.nsLKTag(x.r.id, lkM) + '</td><td class="small">' + e(Sc.refName('donvi', x.r.donViId)) + '</td><td class="num">' + fs(x.tong) + '</td><td class="num">' + fs(x.gn) + '</td><td class="num">' + fs(x.con) + '</td><td>' + UI.pbar(x.ty, 'bad') + '</td><td>' + UI.who(x.r.canBoId) + '</td></tr>').join('') + '</tbody></table></div>' + (cham.length > 30 ? '<div class="small muted mt">… và ' + (cham.length - 30) + ' nội dung khác (xem đủ trong báo cáo).</div>' : '') : '<div class="note ok">Không có nội dung nào chậm so với mốc so sánh.</div>') + '</div></div>';
     box.innerHTML = h; bind();
     function bind() {
       const q = s => $(s, box);
@@ -67,8 +83,8 @@
       if (q('[data-goupd]')) q('[data-goupd]').onclick = () => { Sel.tab = 'cn'; A.render(); };
       if (q('[data-rep]')) q('[data-rep]').onclick = () => { const t = U.today(); A.vs.bc = Object.assign(A.vs.bc || { kind: 'nam', n: 1, from: t.slice(0, 8) + '01', to: t, nhom: '', duan: '', cb: '', secs: [] }, { type: 'gnns', kind: 'nam', y, dv: Sel.dv || '', cb: Sel.cb && Sel.cb !== '__none' ? Sel.cb : '' }); A.go('baocao'); };
       $$('[data-gdv]', box).forEach(() => { });
-      $$('tr[data-gdv]', box).forEach(tr => tr.onclick = () => { Sel.dv = tr.dataset.gdv; A.render(); });
-      $$('tr[data-gcb]', box).forEach(tr => tr.onclick = () => { Sel.cb = tr.dataset.gcb; A.render(); });
+      $$('tr[data-gdv]', box).forEach(tr => tr.onclick = () => dsNhom('dv', tr.dataset.gdv, y, Sel));
+      $$('tr[data-gcb]', box).forEach(tr => tr.onclick = () => dsNhom('cb', tr.dataset.gcb, y, Sel));
       $$('tr[data-id]', box).forEach(tr => tr.onclick = () => A.open('ngansach', tr.dataset.id));
     }
   }

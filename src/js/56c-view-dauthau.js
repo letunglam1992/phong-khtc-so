@@ -16,6 +16,54 @@
       (tt.length ? '<div class="small soft mb">Tiến trình đã ghi: ' + tt.map(x => e(x.buoc) + (x.ngay ? ' (' + U.fmtDate(x.ngay) + ')' : '')).join(' → ') + '</div>' : '');
   };
 
+  // Dòng phụ "gói thầu, hợp đồng" dưới nội dung dự toán trên các bảng tài chính, giải ngân
+  A.nsLKTag = (nsId, m) => {
+    const o = m && m.get(nsId); if (!o) return '';
+    return '<div class="t2 ns-lk">' + ic('gavel', 13) + ' ' + (o.gt ? o.gt + ' gói thầu · giá ' + fs(o.giaGT) : '') + (o.hd ? (o.gt ? ' · ' : '') + o.hd + ' HĐ ' + fs(o.giaHD) + ' · đã TT ' + fs(o.tt) : '') + '</div>';
+  };
+
+  // Liên kết khi nhập form: chọn dòng dự toán / gói thầu → điền sẵn các ô còn trống (không ghi đè ô đã có)
+  A.lienKetForm = (coll, form, rec0) => {
+    if (!['goithau', 'hopdong', 'khlcnt'].includes(coll)) return;
+    const el = k => form.querySelector('[data-k="' + k + '"]');
+    const dien = (k, v) => {
+      const x = el(k); if (!x || v === undefined || v === null || v === '' || (typeof v === 'number' && !(v > 0))) return false;
+      if (x.type === 'hidden') { if (x.value) return false; UI.refSet(x.closest('.refpick'), v); return true; }
+      if (String(x.value || '').trim()) return false;
+      if (x.tagName === 'SELECT' && !Array.from(x.options).some(o => o.value === v)) return false;
+      x.value = x.hasAttribute('data-money') ? U.fmtNum(v, 0) : v; x.dispatchEvent(new Event('input', { bubbles: true })); x.dispatchEvent(new Event('change', { bubbles: true })); return true;
+    };
+    const ghiChu = (k, html) => { const fl = form.querySelector('[data-fld="' + k + '"]'); if (!fl) return; let n = fl.querySelector('[data-lk-note]'); if (!n) { n = document.createElement('div'); n.className = 'help'; n.setAttribute('data-lk-note', ''); fl.appendChild(n); } n.innerHTML = html; };
+    const tomNS = id => {
+      const lk = id ? L.nsLienKet(id) : null; if (!lk) return '';
+      return 'Dòng dự toán: được sử dụng <b>' + fs(lk.tong) + '</b> · đã giải ngân ' + fs(lk.gn) + ' (' + U.fmtPct(U.pct(lk.gn, lk.tong)) + ') · đã có ' + lk.gts.length + ' gói thầu, ' + lk.hds.length + ' hợp đồng' + (lk.r.canBoId ? ' · cán bộ theo dõi: ' + e(Sc.refName('canbo', lk.r.canBoId)) : '') + (lk.canhBao.length ? '<br><span style="color:var(--bad-fg)">' + e(lk.canhBao[0].t) + '</span>' : '');
+    };
+    const tuNS = (id, boQua) => {
+      const r = id && S.get('ngansach', id); if (!r) return [];
+      const lk = L.nsLienKet(id), da = [];
+      const thu = (k, v, nhan) => { if (k !== boQua && dien(k, v)) da.push(nhan); };
+      thu('duAnId', r.duAnId, 'chương trình, dự án'); thu('canBoId', r.canBoId, 'cán bộ theo dõi');
+      if (coll === 'goithau') { thu('donViId', r.donViId, 'đơn vị'); thu('nguonVon', 'NSNN năm ' + (r.nam || '') + (r.nhomKP ? ' — ' + r.nhomKP : ''), 'nguồn vốn'); thu('duToan', lk ? lk.tong : 0, 'dự toán'); }
+      return da;
+    };
+    const tuGT = id => {
+      const g = id && S.get('goithau', id); if (!g) return [];
+      const da = [], thu = (k, v, nhan) => { if (dien(k, v)) da.push(nhan); };
+      thu('ten', g.ten, 'nội dung'); thu('duAnId', g.duAnId, 'dự án'); thu('nhaThau', g.nhaThau, 'nhà thầu'); thu('giaTri', U.num(g.giaTrung) || U.num(g.giaGoiThau), 'giá trị'); thu('loaiHD', g.loaiHD, 'loại hợp đồng'); thu('thoiGianTH', g.tgThucHienHD, 'thời gian thực hiện'); thu('nsId', g.nsId, 'dòng dự toán'); thu('canBoId', g.canBoId, 'cán bộ theo dõi');
+      return da;
+    };
+    const bao = (k, da, goc) => { ghiChu(k, goc + (da.length ? '<div style="color:var(--ok-fg)">Đã điền sẵn: ' + da.join(', ') + ' (chỉ các ô còn trống).</div>' : '')); };
+    const ns = el('nsId');
+    const moi = !(rec0 && rec0.id);   // bản ghi mới mở sẵn dòng dự toán / gói thầu (từ nút "Tạo gói thầu", "Tạo hợp đồng") → điền sẵn ngay
+    if (ns) { ghiChu('nsId', tomNS(ns.value)); if (moi && ns.value) bao('nsId', tuNS(ns.value), tomNS(ns.value)); ns.addEventListener('change', () => bao('nsId', tuNS(ns.value), tomNS(ns.value))); }
+    const gt = coll === 'hopdong' && el('goiThauId');
+    if (gt) {
+      const tomGT = id => { const g = id && S.get('goithau', id); return g ? 'Gói thầu: giá ' + fs(U.num(g.giaGoiThau)) + (U.num(g.giaTrung) ? ' · giá trúng ' + fs(U.num(g.giaTrung)) : '') + (g.nguonVon ? ' · nguồn vốn: ' + e(g.nguonVon) : '') + (g.nhaThau ? ' · nhà thầu: ' + e(g.nhaThau) : '') : ''; };
+      ghiChu('goiThauId', tomGT(gt.value)); if (moi && gt.value) bao('goiThauId', tuGT(gt.value), tomGT(gt.value));
+      gt.addEventListener('change', () => { const da = tuGT(gt.value); if (ns && ns.value) ghiChu('nsId', tomNS(ns.value)); bao('goiThauId', da, tomGT(gt.value)); });
+    }
+  };
+
   // Khối "nguồn kinh phí" trong chi tiết gói thầu / hợp đồng / dòng dự toán
   A.nsLKHtml = (nsId, mode) => {
     const lk = nsId ? L.nsLienKet(nsId) : null, fs = U.fmtShort;

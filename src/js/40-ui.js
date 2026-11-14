@@ -82,6 +82,7 @@
     UI.on(root, 'click', '.refpick-btn', btn => openPick(btn.closest('.refpick')));
     UI.on(root, 'click', '.rp-edit', b => { const w = b.closest('.refpick'), hid = $('input[type=hidden]', w), c = w.dataset.ref, r = S.get(c, hid.value); if (r) UI.form({ coll: c, rec: r, onSaved: x => setVal(w, x.id) }); });
   };
+  UI.refSet = (w, id) => setVal(w, id);
   function setVal(w, id) {
     const hid = $('input[type=hidden]', w), c = w.dataset.ref, f = { ref: c };
     hid.value = id || '';
@@ -231,6 +232,7 @@
     const shown = secs.flatMap(s => s.keys).filter(k => !hide.has(k)).map(k => Sc.field(o.coll, k));
     shown.forEach(f => { if (f.type === 'rows') renderRows(f); if (f.type === 'refs') renderRefs(f); if (f.type === 'files') renderFiles(f); });
     if (sc.afterRender) sc.afterRender(form, w);
+    if (A.lienKetForm) A.lienKetForm(o.coll, form, o.rec || {});
     if (o.afterRender) o.afterRender(form, w);
 
     function collect() {
