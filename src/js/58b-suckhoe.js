@@ -19,6 +19,7 @@
     add('ns_cb', 'Dự toán, giải ngân', 2, 'Dòng dự toán chi tiết chưa giao cán bộ theo dõi', 'ngansach', la.filter(n => !n.r.canBoId).map(n => ({ r: n.r })), 'Giao cán bộ để đôn đốc, nhắc việc và lọc báo cáo theo người.');
     add('ns_0', 'Dự toán, giải ngân', 1, 'Dòng dự toán chi tiết có kinh phí được sử dụng bằng 0', 'ngansach', la.filter(n => !(n.sum.tong > 0)).map(n => ({ r: n.r })), 'Kiểm tra lại số liệu hoặc xóa dòng không còn sử dụng.');
     add('ns_lech', 'Dự toán, giải ngân', 2, 'Dòng tổng có số trên biểu khác tổng các dòng chi tiết (⚠)', 'ngansach', L.nsTree(y, null).flat.filter(n => n.lech && n.lech.length).map(n => ({ r: n.r, ghi: n.lech.length + ' cột lệch' })), 'Rà soát ở thẻ Chi tiết dự toán → "Rà soát, xử lý cảnh báo".');
+    if (L.doiChieu) { const dc = L.doiChieu(y, {}).rows.filter(x => x.st === 'thieu' && !x.giaiTrinh); add('dc_thieu', 'Dự toán, giải ngân', 3, 'Thanh toán hợp đồng lớn hơn số giải ngân của dòng dự toán, chưa giải trình', 'ngansach', dc.map(x => ({ r: x.r, ghi: 'Chênh ' + U.fmtShort(x.chenh) })), 'Xem thẻ "Đối chiếu" ở trang Tài chính: cập nhật số giải ngân, sửa nguồn của hợp đồng hoặc ghi giải trình.'); }
     // ---- Hợp đồng ----
     const hds = S.all('hopdong'), dang = hds.filter(h => !['thanhly', 'chamdut'].includes(h.trangThai));
     add('hd_ns', 'Hợp đồng', 3, 'Hợp đồng chưa gắn nguồn kinh phí (dòng dự toán)', 'hopdong', hds.filter(h => !L.hdNsId(h)).map(h => ({ r: h })), 'Mở hợp đồng → "Liên kết nguồn kinh phí", hoặc gắn nguồn cho gói thầu của hợp đồng.');

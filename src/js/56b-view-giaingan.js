@@ -158,7 +158,7 @@
     $('[data-gdv]', box).onchange = x => { Sel.dv = x.target.value; A.render(); };
   }
 
-  A.gnPane = (tab, box, y, Sel, ctx) => { if (tab === 'tq') tongQuan(box, y, Sel, ctx); else if (tab === 'cn') capNhat(box, y, Sel, ctx); else if (tab === 'kb') A.gnKichBan(box, y, Sel); else if (tab === 'ss') A.gnSoSanh(box, y, Sel); else lichSu(box, y, Sel); };
+  A.gnPane = (tab, box, y, Sel, ctx) => { if (tab === 'tq') tongQuan(box, y, Sel, ctx); else if (tab === 'cn') capNhat(box, y, Sel, ctx); else if (tab === 'kb') A.gnKichBan(box, y, Sel); else if (tab === 'ss') A.gnSoSanh(box, y, Sel); else if (tab === 'dc') A.gnDoiChieu(box, y, Sel); else lichSu(box, y, Sel); };
   // Lịch sử giải ngân trong hộp chi tiết của dòng dự toán
   A.gnHistHtml = r => { const h = L.gnHistOf(r); if (!h.length) return ''; return '<div class="card mb"><div class="card-h"><h3>Lịch sử giải ngân (' + h.length + ' mốc)</h3></div><div class="card-b"><table class="tbl"><thead><tr><th>Ngày số liệu</th><th class="num">Lũy kế</th><th class="num">Tăng thêm</th><th>Nguồn</th><th>Người cập nhật</th></tr></thead><tbody>' + h.slice().reverse().map((x, i, a) => '<tr><td>' + U.fmtDate(x.ngay) + '</td><td class="num">' + U.fmtMoney(x.giaiNgan) + '</td><td class="num">' + (a[i + 1] ? U.fmtMoney(x.giaiNgan - a[i + 1].giaiNgan) : '—') + '</td><td class="small">' + (x.nguon === 'excel' ? 'Nhập Excel' : x.nguon === 'goc' ? 'Số ban đầu' : 'Cập nhật') + '</td><td class="small">' + e(x.by || '') + '</td></tr>').join('') + '</tbody></table></div></div>'; };
 })(App);
