@@ -29,7 +29,7 @@ const html = `<!DOCTYPE html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,${Buffer.from(R('assets/icon.svg')).toString('base64')}">
 <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
-<script>if(/^https?:$/.test(location.protocol)){var l=document.createElement('link');l.rel='manifest';l.href='manifest.webmanifest';document.head.appendChild(l);}</script>
+<script>if(/^https?:$/.test(location.protocol)){var l=document.createElement('link');l.rel='manifest';l.href='manifest.webmanifest';document.head.appendChild(l);if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(e){console.warn('SW',e)})});}</script>
 <style>
 ${R('vendor/font.css')}
 ${R('src/styles.css')}
@@ -54,6 +54,8 @@ fs.writeFileSync(out, html);
 // Bản triển khai web (Vercel): index.html + biểu tượng + manifest
 fs.writeFileSync(path.join(__dirname, 'dist/index.html'), html);
 fs.readdirSync(path.join(__dirname, 'assets')).forEach(f => fs.copyFileSync(path.join(__dirname, 'assets', f), path.join(__dirname, 'dist', f)));
+// Service worker: mã phiên bản theo nội dung trang để bản mới thay bản lưu đệm cũ
+fs.writeFileSync(path.join(__dirname, 'dist/sw.js'), R('src/sw.js').replace('__VER__', require('crypto').createHash('sha1').update(html).digest('hex').slice(0, 10)));
 fs.copyFileSync(path.join(__dirname, 'gas/Code.gs'), path.join(__dirname, 'dist/Code.gs'));
 fs.copyFileSync(path.join(__dirname, 'HUONG-DAN.md'), path.join(__dirname, 'dist/HUONG-DAN.md'));
 console.log('Đã tạo', out, (html.length / 1048576).toFixed(2) + ' MB');
