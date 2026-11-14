@@ -122,3 +122,33 @@ test('AiTI: bỏ khối JSON chỉ có suy luận, gộp system, token cho mô h
   assert.equal(g.length, 1); assert.match(g[0].content, /^CHỈ DẪN[\s\S]*S[\s\S]*U$/);
   assert.equal(A.soToken('@cf/zai-org/glm-4.7-flash', 1200), 3500); assert.equal(A.soToken('', 1200), 1200);
 });
+test('số tiền: không lấy đơn vị trong phần "Bằng chữ"', () => {
+  assert.equal(T.soTien('71.698.000 đồng (Bằng chữ: Bảy mươi mốt triệu, sáu trăm chín mươi tám nghìn đồng chẵn)'), 71698000);
+  assert.equal(T.soTien('2 tỷ đồng'), 2000000000); assert.equal(T.soTien('1,5 tỷ'), 1500000000); assert.equal(T.soTien('350 triệu đồng'), 350000000);
+});
+// Bảng tự soạn mô phỏng phụ lục KHLCNT và bảng nhà thầu trúng thầu (không phải số liệu thật)
+test('đọc bảng phụ lục KHLCNT, bảng nhà thầu trúng thầu (văn bản giữ bố cục)', () => {
+  const kh = 'QUYẾT ĐỊNH\nVề việc phê duyệt điều chỉnh Kế hoạch lựa chọn nhà thầu dự toán mua sắm thử nghiệm\nCăn cứ Quyết định số 1/QĐ-X phê duyệt dự toán;\n' + T.veBang([
+    ['STT', 'Tên gói thầu', 'Giá gói thầu (đồng)', 'Nguồn vốn', 'Hình thức lựa chọn nhà thầu', 'Thời gian bắt đầu tổ chức lựa chọn nhà thầu', 'Loại hợp đồng', 'Thời gian thực hiện gói thầu'],
+    ['1', 'Khảo sát, lập đề cương thử nghiệm', '124.000.000', 'Ngân sách tỉnh năm 2026', 'Chỉ định thầu rút gọn', 'Tháng 9/2026', 'Trọn gói', '10 ngày'],
+    ['2', 'Điều tra, đánh giá thử nghiệm giai đoạn hai', '2.735.942.609', 'Ngân sách tỉnh năm 2026', 'Đấu thầu rộng rãi', 'Quý IV/2026', 'Đơn giá cố định', '60 ngày']]) + '\nTổng giá gói thầu: 2.859.942.609 đồng\n' + 'dòng   đệm\n'.repeat(20);
+  const r = T.trichQuyTac(kh);
+  assert.equal(r.loai, 'khlcnt_qd', 'QĐ điều chỉnh KHLCNT có chữ "dự toán" vẫn là KHLCNT');
+  assert.equal(r.goi_thau.length, 2);
+  assert.equal(r.goi_thau[0].ten, 'Khảo sát, lập đề cương thử nghiệm'); assert.equal(r.goi_thau[0].gia_goi_thau, 124000000);
+  assert.equal(r.goi_thau[1].hinh_thuc_lcnt, 'Đấu thầu rộng rãi'); assert.equal(r.goi_thau[1].loai_hop_dong, 'Đơn giá cố định'); assert.equal(r.goi_thau[1].thoi_gian_thuc_hien_hd, '60 ngày'); assert.equal(r.goi_thau[1].thoi_gian_bat_dau_lcnt, 'Quý IV/2026');
+  const kq = 'Số: 5/QĐ-X\nSơn La, ngày 22 tháng 9 năm 2026\nQUYẾT ĐỊNH\nVề việc phê duyệt kết quả lựa chọn nhà thầu Gói thầu số 02: Tư vấn thử nghiệm\nCăn cứ Quyết định phê duyệt danh sách nhà thầu đáp ứng yêu cầu kỹ thuật;\nĐiều 1.\n- Số E-TBMT: IB2600000001\n- Tên gói thầu: Gói thầu số 02: Tư vấn thử nghiệm.\n- Giá gói thầu: 1.415.669.017 VND.\n- Loại hợp đồng: Đơn giá cố định\n' + 'dòng   đệm\n'.repeat(22) + 'Phụ lục\nTHÔNG TIN VỀ NHÀ THẦU TRÚNG THẦU\n' + T.veBang([
+    ['STT', 'Tên nhà thầu', 'Mã số thuế', 'Giá dự thầu', 'Giá trúng thầu', 'Thời gian thực hiện gói thầu'], ['1', 'Trung tâm Kiểm định thử nghiệm', '0100000000-007', '1.402.555.856 đồng', '1.402.555.856 đồng', '160 ngày']]);
+  const k = T.trichQuyTac(kq);
+  assert.equal(k.loai, 'kqlcnt_qd', 'phần căn cứ nhắc "danh sách đáp ứng kỹ thuật" không làm sai loại');
+  assert.equal(k.ket_qua.nha_thau, 'Trung tâm Kiểm định thử nghiệm'); assert.equal(k.ket_qua.gia_trung_thau, 1402555856); assert.equal(k.ket_qua.ma_so_thue, '0100000000-007');
+  assert.equal(k.ket_qua.gia_goi_thau, 1415669017); assert.equal(k.ket_qua.so_tbmt, 'IB2600000001'); assert.equal(k.ket_qua.thoi_gian_thuc_hien_hd, '160 ngày');
+  const cd = T.trichQuyTac('Số: 9/QĐ-X\nSơn La, ngày 28 tháng 9 năm 2026\nQUYẾT ĐỊNH\nVề việc phê duyệt kết quả chỉ định thầu gói thầu Thẩm định giá thử\nGIÁM ĐỐC\nĐiều 1.\n1. Tên Gói thầu: Thẩm định giá\n2. Tên nhà thầu được chỉ định: Công ty Thử Nghiệm.\n3. Giá chỉ định thầu (đã bao gồm cả thuế VAT): 53.625.000 đồng (Bằng chữ: Năm mươi ba triệu, sáu trăm hai mươi lăm nghìn đồng).\n4. Loại hợp đồng: Trọn gói.\n5. Thời gian thực hiện hợp đồng: 07 ngày kể từ ngày hợp đồng có hiệu lực.');
+  assert.equal(cd.loai, 'kqlcnt_qd'); assert.equal(cd.ket_qua.nha_thau, 'Công ty Thử Nghiệm'); assert.equal(cd.ket_qua.gia_trung_thau, 53625000); assert.equal(cd.ket_qua.thoi_gian_thuc_hien_hd, '07 ngày'); assert.equal(cd.ket_qua.hinh_thuc_lcnt, 'Chỉ định thầu');
+});
+test('docx: bảng Word dựng thành cột canh thẳng', () => {
+  const tc = t => '<w:tc><w:p><w:r><w:t>' + t + '</w:t></w:r></w:p></w:tc>';
+  const xml = '<w:body><w:p><w:r><w:t>Đoạn đầu</w:t></w:r></w:p><w:tbl><w:tr>' + tc('STT') + tc('Tên nhà thầu') + '</w:tr><w:tr>' + tc('1') + tc('Công ty A') + '</w:tr></w:tbl><w:p><w:r><w:t>Đoạn cuối</w:t></w:r></w:p></w:body>';
+  const t = T.docxText(xml);
+  assert.match(t, /^Đoạn đầu\nSTT\s{3,}Tên nhà thầu\n1\s{3,}Công ty A\nĐoạn cuối$/);
+});

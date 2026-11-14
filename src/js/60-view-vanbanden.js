@@ -45,9 +45,38 @@
   async function pdfText(buf) {
     const pdfjs = await loadPdfJs(), doc = await pdfjs.getDocument({ data: buf }).promise, out = [];
     for (let p = 1; p <= Math.min(doc.numPages, 40); p++) {
-      const tc = await (await doc.getPage(p)).getTextContent(), lines = [];
-      tc.items.forEach(it => { const y = Math.round(it.transform[5]); let l = lines.find(x => Math.abs(x.y - y) <= 2); if (!l) lines.push(l = { y, parts: [] }); l.parts.push([it.transform[4], it.str]); });
-      lines.sort((a, b) => b.y - a.y).forEach(l => out.push(l.parts.sort((a, b) => a[0] - b[0]).map(x => x[1]).join(' ').replace(/\s+/g, ' ').trim()));
+      // Dựng dòng theo toạ độ, đặt chữ vào đúng cột ký tự (như pdftotext -layout) để đọc được bảng nhiều cột.
+      // Số, ngày do chữ ký số đóng vào nằm trong ô chữ ký (Widget), không có trong lớp chữ → lấy từ lệnh vẽ của ô.
+      const pg = await doc.getPage(p), tc = await pg.getTextContent(), lines = [];
+      const it2 = tc.items.filter(it => it.str && it.str.trim()).map(it => ({ x: it.transform[4], y: it.transform[5], w: it.width, t: it.str }));
+      try {
+        const ol = await pg.getOperatorList({ annotationMode: pdfjs.AnnotationMode.ENABLE }), O = pdfjs.OPS; let cur = null;
+        ol.fnArray.forEach((fn, i) => {
+          const a = ol.argsArray[i];
+          if (fn === O.beginAnnotation) cur = { r: a[1], t: '' };
+          else if (fn === O.endAnnotation) { if (cur && cur.t.trim()) it2.push({ x: cur.r[0], y: cur.r[1] + Math.min(5, (cur.r[3] - cur.r[1]) / 3), w: cur.t.trim().length * 5, t: cur.t.trim(), ky: true }); cur = null; }
+          else if (cur && (fn === O.showText || fn === O.showSpacedText)) (a[0] || []).forEach(g => { if (g && typeof g === 'object' && g.unicode) cur.t += g.unicode; else if (typeof g === 'number' && g < -200) cur.t += ' '; });
+        });
+      } catch (x) { }
+      const ws = it2.filter(it => !it.ky).map(it => it.w / Math.max(1, it.t.length)).filter(w => w > 0).sort((a, b) => a - b), cw = (ws.length ? ws[Math.floor(ws.length / 2)] : 5) * 0.8;   // lưới ký tự hơi dày hơn chữ thật để giữ khoảng trống giữa các cột
+      it2.filter(it => !it.ky).forEach(it => { let l = lines.find(x => Math.abs(x.y - it.y) <= 2); if (!l) lines.push(l = { y: Math.round(it.y), parts: [] }); l.parts.push(it); });
+      // Chữ trong ô chữ ký: gắn vào dòng có chữ kết thúc ngay bên trái ô (vd. "Số:" → số văn bản, "ngày" → ngày ký)
+      it2.filter(it => it.ky).forEach(it => {
+        let best = null, bd = 1e9;
+        lines.forEach(l => { if (Math.abs(l.y - it.y) > 14) return; l.parts.forEach(q => { const d = it.x - (q.x + q.w); if (d > -cw && d < bd) { bd = d; best = l; } }); });
+        if (!best || bd > cw * 12) { best = lines.find(x => Math.abs(x.y - it.y) <= 6); if (!best) lines.push(best = { y: Math.round(it.y), parts: [] }); }
+        best.parts.push(it);
+      });
+      lines.sort((a, b) => b.y - a.y).forEach(l => {
+        let s2 = '', het = -1e9;
+        l.parts.sort((a, b) => a.x - b.x).forEach(it => {
+          const col = Math.round(it.x / cw);
+          if (s2.length < col - 1 && it.x - het > cw * 1.5) s2 += ' '.repeat(col - s2.length);
+          else if (s2 && !/\s$/.test(s2) && it.x - het > cw * 0.25) s2 += ' ';
+          s2 += it.t; het = it.x + it.w;
+        });
+        out.push(s2.replace(/\s+$/, ''));
+      });
       out.push('');
     }
     return out.join('\n').trim();
@@ -72,7 +101,6 @@
     }
     throw new Error('Không thấy nội dung văn bản trong tệp .docx.');
   }
-  const xmlText = x => x.replace(/<\/w:p>/g, '\n').replace(/<w:tab\/>/g, '\t').replace(/<w:br\/>/g, '\n').replace(/<\/w:tc>/g, '\t').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
   VB.readFile = async file => {
     const buf = await file.arrayBuffer(), nm = file.name || '';
     if (/\.pdf$/i.test(nm) || file.type === 'application/pdf') {
@@ -80,7 +108,7 @@
       if (t.replace(/\s/g, '').length < 60) throw Object.assign(new Error('Tệp PDF là bản scan (không có lớp chữ). Hãy đưa tệp vào thư mục Văn bản đến trên Google Drive để máy chủ nhận dạng chữ (OCR).'), { scan: true });
       return { text: t, cach: 'PDF có lớp chữ (đọc trên máy)' };
     }
-    if (/\.docx$/i.test(nm)) return { text: xmlText(await unzipEntry(buf, 'word/document.xml')), cach: 'Word .docx (đọc trên máy)' };
+    if (/\.docx$/i.test(nm)) return { text: TV.docxText(await unzipEntry(buf, 'word/document.xml')), cach: 'Word .docx (đọc trên máy, giữ bảng)' };
     if (/\.(txt|md)$/i.test(nm) || /^text\//.test(file.type)) return { text: new TextDecoder().decode(buf), cach: 'tệp chữ' };
     if (/\.doc$/i.test(nm)) throw new Error('Tệp Word cũ (.doc) chưa đọc được. Lưu lại thành .docx hoặc PDF.');
     if (/^image\//.test(file.type)) throw Object.assign(new Error('Ảnh chụp văn bản cần nhận dạng chữ trên máy chủ: đưa vào thư mục Văn bản đến trên Google Drive.'), { scan: true });
