@@ -51,8 +51,8 @@
   }
 
   /* ---------- Tìm kiếm toàn cục ---------- */
-  function openSearch() {
-    const m = UI.modal({ title: 'Tìm trong toàn bộ dữ liệu', footer: false, size: 'cmd', body: '<input class="inp" type="search" placeholder="Gõ từ khóa: tên nhiệm vụ, số văn bản, dự án, nhà thầu, cán bộ…" aria-label="Từ khóa"><div class="cmd-res" role="listbox"></div>' });
+  function openSearch(q0) {
+    const m = UI.modal({ title: 'Tìm trong toàn bộ dữ liệu', footer: false, size: 'cmd', body: '<input class="inp" type="search" placeholder="Gõ từ khóa: tên nhiệm vụ, số văn bản, dự án, nhà thầu, cán bộ, cụm từ trong văn bản đã đọc…" aria-label="Từ khóa"><div class="cmd-res" role="listbox"></div>' });
     $('.modal-b', m.el).style.padding = '0';
     const inp = $('input', m.body), res = $('.cmd-res', m.body); let items = [], idx = 0;
     const pages = NAV.flatMap(g => g[1]);
@@ -60,13 +60,15 @@
       const q = inp.value.trim(), nq = U.norm(q);
       const pg = pages.filter(p => !nq || U.norm(p[1]).includes(nq)).slice(0, nq ? 4 : 14).map(p => ({ kind: 'page', r: p[0], title: p[1], label: 'Trang', icon: p[2] }));
       const rs = L.search(q, 40).map(x => ({ kind: 'rec', c: x.c, id: x.r.id, title: x.title, label: x.label, icon: 'doc' }));
-      items = rs.concat(pg); idx = 0;
-      res.innerHTML = items.length ? items.map((it, i) => '<button class="cmd-i' + (i === 0 ? ' on' : '') + '" data-i="' + i + '" role="option">' + ic(it.icon, 16) + '<span class="ct">' + e(it.title) + '</span><span class="tag">' + e(it.label) + '</span></button>').join('') : '<div class="empty"><p>Không tìm thấy "' + e(q) + '" trong nhiệm vụ, văn bản, dự án, vốn, dự toán, tài sản, gói thầu, hợp đồng, cán bộ.</p></div>';
+      const vb = A.timVB && q.length >= 2 ? A.timVB(q, 12).map(x => ({ kind: 'vb', it: x.it, title: x.ten, label: 'Nội dung văn bản', icon: 'inbox', doan: x.doan[0] || '', sub: x.sub, n: x.n })) : [];
+      items = rs.concat(vb, pg); idx = 0;
+      res.innerHTML = items.length ? items.map((it, i) => '<button class="cmd-i' + (i === 0 ? ' on' : '') + '" data-i="' + i + '" role="option">' + ic(it.icon, 16) + '<span class="ct">' + e(it.title) + (it.kind === 'vb' ? '<span class="cmd-doan">' + (it.sub ? e(it.sub) + ' · ' : '') + it.n + ' chỗ khớp<br>' + it.doan + '</span>' : '') + '</span><span class="tag">' + e(it.label) + '</span></button>').join('') : '<div class="empty"><p>Không tìm thấy "' + e(q) + '" trong nhiệm vụ, văn bản, dự án, vốn, dự toán, tài sản, gói thầu, hợp đồng, cán bộ.</p></div>';
     };
-    const pick = i => { const it = items[i]; if (!it) return; m.close(true); if (it.kind === 'page') A.go(it.r); else A.open(it.c, it.id); };
+    const pick = i => { const it = items[i]; if (!it) return; m.close(true); if (it.kind === 'page') A.go(it.r); else if (it.kind === 'vb') A.vbXemNoiDung(it.it, inp.value.trim()); else A.open(it.c, it.id); };
     inp.addEventListener('input', U.debounce(draw, 120));
     inp.addEventListener('keydown', x => { if (x.key === 'ArrowDown' || x.key === 'ArrowUp') { x.preventDefault(); idx = Math.max(0, Math.min(items.length - 1, idx + (x.key === 'ArrowDown' ? 1 : -1))); $$('.cmd-i', res).forEach((b, i) => { b.classList.toggle('on', i === idx); if (i === idx) b.scrollIntoView({ block: 'nearest' }); }); } if (x.key === 'Enter') { x.preventDefault(); pick(idx); } });
     UI.on(res, 'click', '.cmd-i', b => pick(+b.dataset.i));
+    if (q0) inp.value = q0;
     draw();
   }
   A.openSearch = openSearch;

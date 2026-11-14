@@ -261,7 +261,7 @@
           (VB.err ? '<div class="note bad mt">' + e(VB.err) + '</div>' : '') + '</div>' +
           '<div class="gap" style="align-self:flex-start"><label class="check"><input type="checkbox" data-auto' + (st && st.tuDong ? ' checked' : '') + (st ? '' : ' disabled') + '> Tự quét mỗi 15 phút</label><button class="btn" data-folder' + (st ? '' : ' disabled') + '>' + ic('link', 16) + 'Đổi thư mục</button><label class="btn">' + ic('upload', 16) + 'Gửi tệp lên thư mục<input type="file" multiple class="sr" data-up accept=".pdf,.docx,.png,.jpg,.jpeg,.txt"></label><button class="btn primary" data-scan>' + ic('sync', 16) + 'Quét và đọc ngay</button></div>';
       } else h += '<div class="grow" style="min-width:0"><div class="eyebrow" style="margin:0">Chưa kết nối thư mục Google Drive</div><p class="soft" style="margin:4px 0 0">Để tự động quét thư mục và đọc cả PDF scan, ảnh chụp (nhận dạng chữ trên máy chủ): triển khai <b>gas/Code.gs</b> bản 2 rồi nhập địa chỉ Web App và mã bí mật tại <a href="#" data-goto="thietlap">Thiết lập</a> (xem HUONG-DAN.md, mục 4d). Hiện vẫn đọc được ngay trên máy: PDF có lớp chữ, Word .docx, nội dung dán.</p></div>';
-      h += '<div class="gap" style="align-self:flex-start"><label class="btn">' + ic('doc', 16) + 'Đọc văn bản trên máy này<input type="file" multiple class="sr" data-local accept=".pdf,.docx,.txt"></label><button class="btn" data-paste>' + ic('copy', 16) + 'Dán nội dung</button></div></div></div>';
+      h += '<div class="gap" style="align-self:flex-start"><label class="btn">' + ic('doc', 16) + 'Đọc văn bản trên máy này<input type="file" multiple class="sr" data-local accept=".pdf,.docx,.txt"></label><button class="btn" data-paste>' + ic('copy', 16) + 'Dán nội dung</button><button class="btn" data-timnd>' + ic('search', 16) + 'Tìm trong nội dung</button></div></div></div>';
       const tab = (k, l) => '<button role="tab" data-t="' + k + '" class="' + (T.t === k ? 'on' : '') + '">' + l + ' (' + grp[k].length + ')</button>';
       h += '<div class="tabs" role="tablist">' + tab('cho', 'Chờ duyệt') + tab('doi', 'Chờ đọc, lỗi') + tab('xong', 'Đã xử lý') + '</div>';
       const list = grp[T.t];
@@ -276,6 +276,7 @@
       $$('[data-t]', root).forEach(b => b.onclick = () => { T.t = b.dataset.t; A.render(); });
       UI.on(root, 'click', '[data-rv]', b => { const it = find(b.dataset.rv); if (it) review(it); });
       UI.on(root, 'click', '[data-goto]', (b, x) => { x.preventDefault(); A.go(b.dataset.goto); });
+      $('[data-timnd]', root).onclick = () => A.openSearch();
       UI.on(root, 'click', '[data-del]', async b => { await S.remove('vbden', b.dataset.del); badge(); });
       UI.on(root, 'click', '[data-retry]', async b => { b.disabled = true; try { await VB.refresh('inboxRetry', { id: b.dataset.retry }); } catch (er) { UI.fail(er); } A.render(); });
       $('[data-local]', root).onchange = x => docTrenMay(x.target.files);
