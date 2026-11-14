@@ -55,7 +55,7 @@
     const duBaoVals = thangCats.map((_, i) => i + 1 > g.lastM && g.lastM < 12 ? g.gn + (g.duBao - g.gn) * (i + 1 - g.lastM) / (12 - g.lastM) : null);
     const dx = L.gnDeXuat(y, f), rows = L.gnDong(y, f), cham = rows.filter(x => x.cham).sort((a, b) => b.con - a.con);
     const dvG = Sel.dv ? [] : L.gnNhom(y, 'dv'), cbG = L.gnNhom(y, 'cb'), lkM = L.nsLKMap();
-    let h = filt(Sel, true) + '<span class="sp"></span><button class="btn" data-mt>' + ic('flag', 16) + 'Mục tiêu giải ngân</button><button class="btn" data-rep>' + ic('report', 16) + 'Lập báo cáo tiến độ</button><button class="btn" data-imp>' + ic('upload', 16) + 'Nhập biểu Excel</button><button class="btn primary" data-goupd>' + ic('edit', 16) + 'Cập nhật số giải ngân</button></div>';
+    let h = filt(Sel, true) + '<span class="sp"></span><button class="btn" data-gb>' + ic('board', 16) + 'Trang giao ban</button><button class="btn" data-mt>' + ic('flag', 16) + 'Mục tiêu giải ngân</button><button class="btn" data-rep>' + ic('report', 16) + 'Lập báo cáo tiến độ</button><button class="btn" data-imp>' + ic('upload', 16) + 'Nhập biểu Excel</button><button class="btn primary" data-goupd>' + ic('edit', 16) + 'Cập nhật số giải ngân</button></div>';
     h += '<div class="card mb gn-banner"><div class="card-b" style="display:flex;gap:18px;flex-wrap:wrap;align-items:center"><div style="min-width:0;flex:1 1 360px"><div class="eyebrow" style="margin:0">Tiến độ giải ngân năm ' + y + ' — số liệu đến ngày ' + U.fmtDate(g.asOf) + '</div><div style="font-size:18px;font-weight:700;margin-top:4px">Đã giải ngân ' + U.fmtPct(g.tyLe) + ' · ' + (g.mt.tuDat ? 'mục tiêu hết tháng ' + g.lastM + ': ' : 'thời gian đã qua: ') + U.fmtPct(mucTieu) + ' ' + UI.chip(M[0], M[1]) + '</div><div class="soft small">' + (g.lech >= 0 ? 'Vượt ' : 'Thấp hơn ') + U.fmtNum(Math.abs(g.lech), 1) + ' điểm % so với ' + (g.mt.tuDat ? 'mục tiêu Phòng đã đặt' : 'tỷ lệ thời gian (chưa đặt mục tiêu riêng)') + '. Dự báo đến 31/12: khoảng <b>' + U.fmtPct(U.pct(g.duBao, g.tong)) + '</b>.</div></div><div style="flex:0 1 280px;min-width:220px">' + UI.pbar(g.tyLe || 0, g.muc === 'cham' ? 'bad' : '') + '</div></div></div>';
     h += '<div class="kpis mb">' +
       kpi('acc', 'Tổng kinh phí được sử dụng', '<small>' + fs(g.tong) + '</small>', g.leaves.length + ' nội dung chi tiết') +
@@ -86,6 +86,7 @@
       $$('tr[data-gdv]', box).forEach(tr => tr.onclick = () => dsNhom('dv', tr.dataset.gdv, y, Sel));
       $$('tr[data-gcb]', box).forEach(tr => tr.onclick = () => dsNhom('cb', tr.dataset.gcb, y, Sel));
       if (q('[data-cvdd]')) q('[data-cvdd]').onclick = () => A.vbDonDoc(y, f);
+      if (q('[data-gb]')) q('[data-gb]').onclick = () => A.giaoBan(y);
       $$('tr[data-id]', box).forEach(tr => tr.onclick = () => A.open('ngansach', tr.dataset.id));
     }
   }
@@ -157,7 +158,7 @@
     $('[data-gdv]', box).onchange = x => { Sel.dv = x.target.value; A.render(); };
   }
 
-  A.gnPane = (tab, box, y, Sel, ctx) => { if (tab === 'tq') tongQuan(box, y, Sel, ctx); else if (tab === 'cn') capNhat(box, y, Sel, ctx); else lichSu(box, y, Sel); };
+  A.gnPane = (tab, box, y, Sel, ctx) => { if (tab === 'tq') tongQuan(box, y, Sel, ctx); else if (tab === 'cn') capNhat(box, y, Sel, ctx); else if (tab === 'kb') A.gnKichBan(box, y, Sel); else if (tab === 'ss') A.gnSoSanh(box, y, Sel); else lichSu(box, y, Sel); };
   // Lịch sử giải ngân trong hộp chi tiết của dòng dự toán
   A.gnHistHtml = r => { const h = L.gnHistOf(r); if (!h.length) return ''; return '<div class="card mb"><div class="card-h"><h3>Lịch sử giải ngân (' + h.length + ' mốc)</h3></div><div class="card-b"><table class="tbl"><thead><tr><th>Ngày số liệu</th><th class="num">Lũy kế</th><th class="num">Tăng thêm</th><th>Nguồn</th><th>Người cập nhật</th></tr></thead><tbody>' + h.slice().reverse().map((x, i, a) => '<tr><td>' + U.fmtDate(x.ngay) + '</td><td class="num">' + U.fmtMoney(x.giaiNgan) + '</td><td class="num">' + (a[i + 1] ? U.fmtMoney(x.giaiNgan - a[i + 1].giaiNgan) : '—') + '</td><td class="small">' + (x.nguon === 'excel' ? 'Nhập Excel' : x.nguon === 'goc' ? 'Số ban đầu' : 'Cập nhật') + '</td><td class="small">' + e(x.by || '') + '</td></tr>').join('') + '</tbody></table></div></div>'; };
 })(App);

@@ -44,7 +44,7 @@
         kpi(vbd ? 'warn' : '', 'Văn bản đến chờ duyệt', vbd, vbd ? 'Đã đọc, chờ anh/chị duyệt cập nhật' : 'Không có', 'route:vanbanden', vbd > 0) + '</div>';
 
       /* --- Vấn đề cần quan tâm --- */
-      h += '<div class="card mb" id="dash-issues"><div class="card-h"><h3>Những vấn đề cần quan tâm</h3><span class="chip plain ' + (groups.ngay.length ? 'quahan' : 'hoanthanh') + '">' + (groups.ngay.length ? groups.ngay.length + ' việc cần xử lý ngay' : 'Không có việc mức cao') + '</span><span class="grow"></span><button class="btn sm" data-kpi="route:troly">' + ic('spark', 15) + 'Trợ lý điều hành</button></div><div class="card-b">' +
+      h += '<div class="card mb" id="dash-issues"><div class="card-h"><h3>Những vấn đề cần quan tâm</h3><span class="chip plain ' + (groups.ngay.length ? 'quahan' : 'hoanthanh') + '">' + (groups.ngay.length ? groups.ngay.length + ' việc cần xử lý ngay' : 'Không có việc mức cao') + '</span><span class="grow"></span><button class="btn sm" data-giaoban>' + ic('board', 15) + 'Trang giao ban</button><button class="btn sm" data-kpi="route:troly">' + ic('spark', 15) + 'Trợ lý điều hành</button></div><div class="card-b">' +
         (segs.length > 2 ? '<div class="seg mb" role="tablist">' + segs.map(s => '<button role="tab" data-seg="' + s[0] + '" class="' + (ASF.f === s[0] ? 'on' : '') + '">' + s[1] + '<span class="c">' + groups[s[0]].length + '</span></button>').join('') + '</div>' : '') + '<div class="issues" data-issues></div></div></div>';
 
       /* --- Giải ngân --- */
@@ -84,6 +84,7 @@
       drawIssues();
       $$('[data-seg]', root).forEach(b => b.onclick = () => { ASF.f = b.dataset.seg; $$('[data-seg]', root).forEach(x => x.classList.toggle('on', x === b)); drawIssues(); });
       bindGo(root);
+      const gbB = root.querySelector('[data-giaoban]'); if (gbB) gbB.onclick = () => A.giaoBan(yy);
       UI.on(root, 'click', '[data-goto]', (b, x) => { x.preventDefault(); A.go(b.dataset.goto); });
       UI.on(root, 'click', '[data-kpi]', t => { const [k, v] = t.dataset.kpi.split(':'); if (k === 'route') A.go(v); });
     }
