@@ -69,6 +69,39 @@
     function goList(tab, tt) { T.t = tab; const key = tab === 'gt' ? 'goithau' : 'hopdong', vs = A.vs[key] || (A.vs[key] = { q: '', f: {}, tbl: {} }); vs.f = tt ? { tt } : {}; vs.q = ''; vs.tbl.page = 0; A.render(); }
   }
 
+  /* ---------- Nhóm gói thầu, hợp đồng theo kế hoạch lựa chọn nhà thầu ---------- */
+  const soKH = A.L0.soKH, KHONG_KH = '';
+  const khCua = k => k ? S.all('khlcnt').find(r => soKH(r.so) === k) || null : null;
+  // Gợi ý tên kế hoạch: đoạn chữ chung dài nhất của tên các gói (bỏ "Gói thầu số NN:")
+  const goiYTen = gs => {
+    const ws = gs.map(g => String(g.ten || '').replace(/^\s*Gói thầu số\s*\d+\s*[:.-]\s*/i, '').split(/\s+/).filter(Boolean)); if (ws.length < 2) return '';
+    const nn = ws.map(w => ' ' + U.norm(w.join(' ')) + ' '), a = ws[0];
+    for (let n = Math.min(a.length, 40); n >= 5; n--) for (let i = 0; i + n <= a.length; i++) { const cum = a.slice(i, i + n), k = ' ' + U.norm(cum.join(' ')) + ' '; if (nn.every(x => x.includes(k))) return cum.join(' ').replace(/^(thuộc|của|cho|gói|dự án:?|nhiệm vụ:?)\s+/i, '').replace(/[,;:\s]+$/, ''); }
+    return '';
+  };
+  const ngayKH = (k, gs) => { const r = khCua(k); return (r && r.ngay) || gs.map(g => g.qdKHNgay).filter(U.isISO).sort()[0] || ''; };
+  const tieuDeKH = (k, gs) => {
+    const r = khCua(k), so = r ? r.so : (gs.find(g => g.qdKHSo) || {}).qdKHSo, ng = ngayKH(k, gs), ten = (r && r.ten) || goiYTen(gs);
+    return '<span class="grp-t">' + (k ? 'KHLCNT ' + e(so) + (ng ? ' ngày ' + U.fmtDate(ng) : '') : 'Chưa ghi quyết định phê duyệt KHLCNT') + '</span>' + (k ? '<span class="grp-s">' + (ten ? e(U.trunc(ten, 140)) + (r && r.ten ? '' : ' <i>(gợi ý)</i>') : '<i>chưa đặt tên kế hoạch</i>') + '</span>' : '');
+  };
+  A.dtNhom = {
+    goithau: [{ k: 'kh', label: 'Kế hoạch LCNT', key: g => soKH(g.qdKHSo) || KHONG_KH,
+      order: (a, b, ga, gb) => (a === KHONG_KH) - (b === KHONG_KH) || U.cmp(ngayKH(b, gb), ngayKH(a, ga)) || U.cmp(a, b),
+      head: (k, gs) => {
+        const tong = U.sum(gs, g => g.giaGoiThau), kq = gs.filter(g => ['cokq', 'dakyhd'].includes(g.trangThai)), ky = gs.filter(g => g.trangThai === 'dakyhd').length, tk = U.sum(kq.filter(g => U.num(g.giaTrung) && U.num(g.giaGoiThau)), g => U.num(g.giaGoiThau) - U.num(g.giaTrung));
+        return '<span class="grp-h">' + tieuDeKH(k, gs) + '<span class="grp-s"><b>' + gs.length + '</b> gói · tổng giá <b>' + U.fmtShort(tong) + '</b> · có kết quả <b>' + kq.length + '/' + gs.length + '</b> · đã ký HĐ <b>' + ky + '</b> <span class="grp-bar" title="Tỷ lệ gói đã có kết quả"><i style="width:' + Math.round(kq.length / gs.length * 100) + '%"></i></span>' + (kq.length ? ' · giá trúng ' + U.fmtShort(U.sum(kq, g => g.giaTrung)) + (tk > 0 ? ' · tiết kiệm ' + U.fmtShort(tk) : '') : '') + '</span>' +
+          (k ? '<span class="grp-s"><button type="button" class="btn sm ghost" data-grp-act data-kh-sua="' + e(k) + '">' + ic('edit', 14) + (khCua(k) ? 'Sửa kế hoạch' : 'Đặt tên kế hoạch') + '</button><button type="button" class="btn sm ghost" data-grp-act data-kh-them="' + e(k) + '">' + ic('plus', 14) + 'Thêm gói</button></span>' : '') + '</span>';
+      },
+      after: (box, nhom) => {
+        UI.on(box, 'click', '[data-kh-sua]', b => { const k = b.dataset.khSua, gs = (nhom.find(x => x[0] === k) || [0, []])[1], r = khCua(k); UI.form({ coll: 'khlcnt', rec: r || { so: (gs.find(g => g.qdKHSo) || {}).qdKHSo || '', ngay: ngayKH(k, gs), ten: goiYTen(gs), duAnId: (gs.find(g => g.duAnId) || {}).duAnId || '', nsId: (gs.find(g => g.nsId) || {}).nsId || '' } }); });
+        UI.on(box, 'click', '[data-kh-them]', b => { const k = b.dataset.khThem, gs = (nhom.find(x => x[0] === k) || [0, []])[1], g0 = gs[0] || {}, r = khCua(k); UI.form({ coll: 'goithau', rec: { qdKHSo: g0.qdKHSo || (r && r.so) || '', qdKHNgay: g0.qdKHNgay || (r && r.ngay) || '', duAnId: g0.duAnId || (r && r.duAnId) || '', nsId: g0.nsId || (r && r.nsId) || '', trangThai: 'khlcnt' } }); });
+      } }],
+    hopdong: [{ k: 'kh', label: 'Kế hoạch LCNT', key: h => soKH((S.get('goithau', h.goiThauId) || {}).qdKHSo) || KHONG_KH,
+      order: (a, b) => (a === KHONG_KH) - (b === KHONG_KH) || U.cmp(b, a),
+      head: (k, hs) => { const gs = S.all('goithau').filter(g => soKH(g.qdKHSo) === k), x = hs.map(L.hd); return '<span class="grp-h">' + (k ? tieuDeKH(k, gs) : '<span class="grp-t">Hợp đồng chưa gắn gói thầu có KHLCNT</span>') + '<span class="grp-s"><b>' + hs.length + '</b> hợp đồng · giá trị <b>' + U.fmtShort(U.sum(x, o => o.giaTriHL)) + '</b> · đã thanh toán <b>' + U.fmtShort(U.sum(x, o => o.thanhToan)) + '</b> (' + U.fmtPct(U.pct(U.sum(x, o => o.thanhToan), U.sum(x, o => o.giaTriHL)), 0) + ')</span></span>'; } },
+      { k: 'nt', label: 'Nhà thầu', key: h => h.nhaThau || '(chưa ghi nhà thầu)', order: (a, b) => U.cmp(a, b), head: (k, hs) => '<span class="grp-h"><span class="grp-t">' + e(k) + '</span><span class="grp-s"><b>' + hs.length + '</b> hợp đồng · ' + U.fmtShort(U.sum(hs, h => L.hdGiaTri(h))) + '</span></span>' }]
+  };
+
   const base = A.views.dauthau.render;
   A.views.dauthau.sub = 'Gói thầu, hợp đồng do Sở làm chủ đầu tư: kế hoạch lựa chọn nhà thầu, kết quả, tạm ứng, bảo lãnh, nghiệm thu, thanh toán, thanh lý';
   A.views.dauthau.render = (root, p) => {

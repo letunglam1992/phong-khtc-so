@@ -347,18 +347,25 @@
     const draw = () => {
       let rows = cfg.rows.slice();
       if (st.sort) { const c = cfg.cols.find(x => x.k === st.sort.k); if (c) { const val = c.val || (r => r[c.k]); rows.sort((a, b) => { const x = val(a), y = val(b); const ex = x === '' || x === null || x === undefined, ey = y === '' || y === null || y === undefined; if (ex || ey) return ex && ey ? 0 : ex ? 1 : -1; return U.cmp(x, y) * st.sort.dir; }); } }
-      const pages = Math.max(1, Math.ceil(rows.length / st.size)); if (st.page >= pages) st.page = pages - 1;
-      const view = rows.slice(st.page * st.size, st.page * st.size + st.size);
+      const G = cfg.group, nhom = G ? (() => { const m = new Map(); rows.forEach(r => { const k = G.key(r) || ''; (m.get(k) || m.set(k, []).get(k)).push(r); }); const ks = Array.from(m.keys()); if (G.order) ks.sort((a, b) => G.order(a, b, m.get(a), m.get(b))); return ks.map(k => [k, m.get(k)]); })() : null;
+      const pages = G ? 1 : Math.max(1, Math.ceil(rows.length / st.size)); if (st.page >= pages) st.page = pages - 1;
+      const view = G ? rows : rows.slice(st.page * st.size, st.page * st.size + st.size);
+      const dongTr = r => '<tr class="' + (cfg.onRow ? 'click ' : '') + (cfg.rowCls ? cfg.rowCls(r) : '') + '" data-id="' + e(r.id || '') + '"' + (cfg.onRow ? ' tabindex="0"' : '') + '>' + cfg.cols.map(c => '<td class="' + (c.cls || '') + '">' + (c.html ? c.html(r) : e(r[c.k] === undefined || r[c.k] === null ? '' : r[c.k])) + '</td>').join('') + '</tr>';
+      st.dong = st.dong || {};
       box.innerHTML = '<div class="tbl-wrap"><table class="tbl"><thead><tr>' + cfg.cols.map(c => '<th scope="col" class="' + (c.noSort ? '' : 'sort ') + (c.cls || '') + '" ' + (c.noSort ? '' : 'data-sort="' + c.k + '" tabindex="0" aria-sort="' + (st.sort && st.sort.k === c.k ? (st.sort.dir > 0 ? 'ascending' : 'descending') : 'none') + '"') + '>' + e(c.label) + (st.sort && st.sort.k === c.k ? '<span class="ar">' + (st.sort.dir > 0 ? '▲' : '▼') + '</span>' : '') + '</th>').join('') + '</tr></thead><tbody>' +
-        view.map(r => '<tr class="' + (cfg.onRow ? 'click ' : '') + (cfg.rowCls ? cfg.rowCls(r) : '') + '" data-id="' + e(r.id || '') + '"' + (cfg.onRow ? ' tabindex="0"' : '') + '>' + cfg.cols.map(c => '<td class="' + (c.cls || '') + '">' + (c.html ? c.html(r) : e(r[c.k] === undefined || r[c.k] === null ? '' : r[c.k])) + '</td>').join('') + '</tr>').join('') +
+        (G ? nhom.map(([k, rs], gi) => { const dong = st.dong[k] !== undefined ? st.dong[k] : !!(G.dongMacDinh && G.dongMacDinh(k, rs)); return '<tr class="tbl-grp' + (dong ? ' dong' : '') + '" data-grp="' + gi + '"><td colspan="' + cfg.cols.length + '"><div class="grp-row"><button type="button" class="grp-tg" aria-expanded="' + !dong + '" aria-label="' + (dong ? 'Mở' : 'Thu gọn') + ' nhóm">' + ic('chevR', 15) + '</button><div class="grp-c">' + G.head(k, rs) + '</div></div></td></tr>' + (dong ? '' : rs.map(dongTr).join('')); }).join('') : view.map(dongTr).join('')) +
         '</tbody>' + (cfg.foot ? '<tfoot>' + cfg.foot(rows) + '</tfoot>' : '') + '</table></div>' +
-        '<div class="pager"><span>' + (rows.length ? (st.page * st.size + 1) + '–' + Math.min(rows.length, (st.page + 1) * st.size) + ' / ' : '') + rows.length + ' dòng</span><span class="sp"></span>' +
+        '<div class="pager"><span>' + (G ? nhom.length + ' nhóm · ' + rows.length + ' dòng' + (nhom.length > 1 ? ' · <button type="button" class="btn sm ghost" data-grp-all="1">Mở hết</button><button type="button" class="btn sm ghost" data-grp-all="0">Thu gọn hết</button>' : '') : (rows.length ? (st.page * st.size + 1) + '–' + Math.min(rows.length, (st.page + 1) * st.size) + ' / ' : '') + rows.length + ' dòng') + '</span><span class="sp"></span>' +
         (pages > 1 ? '<button class="btn sm" data-pg="-1"' + (st.page === 0 ? ' disabled' : '') + '>' + ic('chevL', 14) + 'Trước</button><span>Trang ' + (st.page + 1) + '/' + pages + '</span><button class="btn sm" data-pg="1"' + (st.page >= pages - 1 ? ' disabled' : '') + '>Sau' + ic('chevR', 14) + '</button>' : '') +
         '<select class="sel" style="width:auto;height:30px" aria-label="Số dòng mỗi trang">' + [25, 50, 100, 500].map(n => '<option' + (n === st.size ? ' selected' : '') + '>' + n + '</option>').join('') + '</select></div>';
       $$('[data-sort]', box).forEach(th => { const go = () => { const k = th.dataset.sort; st.sort = st.sort && st.sort.k === k ? { k, dir: -st.sort.dir } : { k, dir: 1 }; draw(); }; th.onclick = go; th.onkeydown = x => { if (x.key === 'Enter') go(); }; });
       $$('[data-pg]', box).forEach(b => b.onclick = () => { st.page += +b.dataset.pg; draw(); });
+      if (G) $$('tr[data-grp]', box).forEach(tr => tr.onclick = x => { if (x.target.closest('a,input,select,[data-grp-act]')) return; const k = nhom[+tr.dataset.grp][0]; st.dong[k] = !tr.classList.contains('dong'); draw(); });
+      if (G && G.after) G.after(box, nhom);
       $('.pager select', box).onchange = x => { st.size = +x.target.value; st.page = 0; draw(); };
-      if (cfg.onRow) $$('tbody tr', box).forEach(tr => { const go = x => { if (x.target.closest('button,a,input,select')) return; const r = cfg.rows.find(q => q.id === tr.dataset.id); if (r) cfg.onRow(r); }; tr.onclick = go; tr.onkeydown = x => { if (x.key === 'Enter') go(x); }; });
+      $$('[data-grp-all]', box).forEach(b => b.onclick = () => { const mo = b.dataset.grpAll === '1'; nhom.forEach(([k]) => { st.dong[k] = !mo; }); draw(); });
+      if (G) $('.pager select', box).classList.add('hide');
+      if (cfg.onRow) $$('tbody tr:not(.tbl-grp)', box).forEach(tr => { const go = x => { if (x.target.closest('button,a,input,select')) return; const r = cfg.rows.find(q => q.id === tr.dataset.id); if (r) cfg.onRow(r); }; tr.onclick = go; tr.onkeydown = x => { if (x.key === 'Enter') go(x); }; });
       if (cfg.after) cfg.after(box, view);
     };
     draw(); return { draw };
@@ -375,6 +382,7 @@
     const sc = Sc.C[cfg.coll];
     root.innerHTML = (cfg.top || '') + '<div class="toolbar"><div class="search">' + ic('search', 16) + '<input class="inp" type="search" placeholder="Tìm trong danh sách…" value="' + e(st.q) + '" aria-label="Tìm trong danh sách"></div>' +
       (cfg.filters || []).map(f => '<select class="sel" data-f="' + f.k + '" aria-label="' + e(f.label) + '"><option value="">' + e(f.label) + ': tất cả</option>' + f.opts().map(o => '<option value="' + e(o[0]) + '"' + (st.f[f.k] === o[0] ? ' selected' : '') + '>' + e(o[1]) + '</option>').join('') + '</select>').join('') +
+      (cfg.groups ? '<select class="sel" data-grpby aria-label="Nhóm theo"><option value="">Không nhóm</option>' + cfg.groups.map(g => '<option value="' + g.k + '"' + ((st.g === undefined ? cfg.groupDefault : st.g) === g.k ? ' selected' : '') + '>Nhóm theo: ' + e(g.label) + '</option>').join('') + '</select>' : '') +
       '<button class="btn sm ghost" data-clear>Bỏ lọc</button><span class="sp"></span>' + (cfg.extra || []).join('') +
       (cfg.excel !== false ? '<button class="btn" data-xls title="Xuất danh sách đang lọc ra Excel">' + ic('download', 16) + 'Xuất Excel</button><button class="btn" data-imp title="Nhập từ tệp Excel theo mẫu">' + ic('upload', 16) + 'Nhập Excel</button>' : '') +
       (cfg.add !== false ? '<button class="btn primary" data-add>' + ic('plus', 16) + e(cfg.addLabel || 'Thêm ' + sc.label.toLowerCase()) + '</button>' : '') + '</div><div data-body></div>';
@@ -392,12 +400,14 @@
       $('[data-clear]', root).classList.toggle('hide', !filtered);
       if (!all.length) { body.innerHTML = '<div class="card">' + UI.empty((cfg.empty && cfg.empty.t) || 'Chưa có dữ liệu', (cfg.empty && cfg.empty.p) || 'Bấm "Thêm" để nhập bản ghi đầu tiên, hoặc "Nhập Excel" để đưa dữ liệu có sẵn vào.') + '</div>'; return; }
       if (!current.length) { body.innerHTML = '<div class="card">' + UI.empty('Không có dòng nào khớp điều kiện lọc', 'Thử bỏ bớt điều kiện hoặc từ khóa tìm kiếm.', '<button class="btn" data-clear2>Bỏ lọc</button>') + '</div>'; $('[data-clear2]', body).onclick = clear; return; }
-      if (cfg.render) cfg.render(body, current); else UI.table(body, { cols: cfg.cols, rows: current, onRow: cfg.onRow, sort: cfg.sort, state: st.tbl, foot: cfg.foot, rowCls: cfg.rowCls });
+      const gk = st.g === undefined ? cfg.groupDefault : st.g, grp = cfg.groups && gk ? cfg.groups.find(g => g.k === gk) : null;
+      if (cfg.render) cfg.render(body, current); else UI.table(body, { cols: cfg.cols, rows: current, onRow: cfg.onRow, sort: cfg.sort, state: st.tbl, foot: cfg.foot, rowCls: cfg.rowCls, group: grp });
     };
     const clear = () => { st.q = ''; st.f = {}; $('.search input', root).value = ''; $$('[data-f]', root).forEach(s => s.value = ''); draw(); };
     $('.search input', root).addEventListener('input', U.debounce(x => { st.q = x.target.value; st.tbl.page = 0; draw(); }, 160));
     $$('[data-f]', root).forEach(s => s.onchange = () => { st.f[s.dataset.f] = s.value; st.tbl.page = 0; draw(); });
     $('[data-clear]', root).onclick = clear;
+    const gsel = $('[data-grpby]', root); if (gsel) gsel.onchange = () => { st.g = gsel.value; draw(); };
     const add = $('[data-add]', root); if (add) add.onclick = () => typeof cfg.add === 'function' ? cfg.add() : UI.form(Object.assign({ coll: cfg.coll }, cfg.formOpts || {}));
     const xls = $('[data-xls]', root); if (xls) xls.onclick = () => UI.exportColl(cfg.coll, current, cfg.xlsName);
     const imp = $('[data-imp]', root); if (imp) imp.onclick = () => UI.importColl(cfg.coll, cfg.importDefaults);
@@ -474,11 +484,12 @@
         if (hr < 0) { res.innerHTML = '<div class="note bad">Không nhận ra dòng tiêu đề. Tên cột phải trùng với tệp mẫu (ví dụ: "' + e(fs[0].label) + '", "' + e(fs[1].label) + '").</div>'; return; }
         const miss = fs.filter(f => f.required && map[f.k] === undefined && !(defaults && defaults[f.k] !== undefined));
         if (miss.length) { res.innerHTML = '<div class="note bad">Tệp thiếu cột bắt buộc: ' + miss.map(f => e(f.label)).join(', ') + '.</div>'; return; }
-        const good = [], bad = [], dup = [], seen = new Set();
+        const good = [], bad = [], dup = [], seen = new Set(), nhac = [];
         for (let i = hr + 1; i < rows.length; i++) {
           const row = rows[i] || []; if (!row.some(c => c !== null && String(c).trim() !== '')) continue;
           const rec = Object.assign({}, defaults || {}), errs = [];
-          fs.forEach(f => { if (map[f.k] === undefined) return; const p = xParse(f, row[map[f.k]]); if (p.err) errs.push(f.label + ': ' + p.err); else rec[f.k] = p.v; });
+          // Tham chiếu không tìm thấy (đơn vị, dòng dự toán, dự án…) ở trường không bắt buộc: để trống và nhắc, không bỏ cả dòng
+          fs.forEach(f => { if (map[f.k] === undefined) return; const p = xParse(f, row[map[f.k]]); if (p.err && (f.type === 'ref' || f.type === 'refs') && !f.required) { nhac.push('Dòng ' + (i + 1) + ': ' + f.label + ' — ' + p.err + ', để trống'); rec[f.k] = f.type === 'refs' ? [] : ''; } else if (p.err) errs.push(f.label + ': ' + p.err); else rec[f.k] = p.v; });
           sc.fields.forEach(f => { if (rec[f.k] === undefined) { if (f.def !== undefined) rec[f.k] = f.def; else if (['rows', 'files', 'refs', 'multi'].includes(f.type)) rec[f.k] = []; } });
           const chk = errs.length ? { errors: errs, warnings: [] } : Sc.check(coll, rec);
           if (chk.errors.length) { bad.push({ line: i + 1, errs: chk.errors }); continue; }
@@ -490,6 +501,7 @@
         res.innerHTML = '<div class="note">Tệp <b>' + e(file.name) + '</b> — nhận ' + Object.keys(map).length + '/' + fs.length + ' cột.</div>' +
           '<div class="kpis mt"><div class="kpi ok static"><span class="k-l">Hợp lệ</span><span class="k-v">' + good.length + '</span></div><div class="kpi warn static"><span class="k-l">Trùng với dữ liệu đã có</span><span class="k-v">' + dup.length + '</span></div><div class="kpi bad static"><span class="k-l">Lỗi, không nhập</span><span class="k-v">' + bad.length + '</span></div></div>' +
           (bad.length ? '<div class="note bad mt"><b>Các dòng lỗi:</b><ul style="margin:4px 0 0;padding-left:18px">' + bad.slice(0, 12).map(b => '<li>Dòng ' + b.line + ': ' + e(b.errs.join('; ')) + '</li>').join('') + (bad.length > 12 ? '<li>… và ' + (bad.length - 12) + ' dòng khác</li>' : '') + '</ul></div>' : '') +
+          (nhac.length ? '<details class="note warn mt"><summary><b>' + nhac.length + ' ô liên kết không tìm thấy, sẽ để trống</b> (dòng vẫn được nhập; chọn lại sau trong từng bản ghi)</summary><ul style="margin:4px 0 0;padding-left:18px">' + nhac.slice(0, 15).map(x => '<li>' + e(x) + '</li>').join('') + (nhac.length > 15 ? '<li>… và ' + (nhac.length - 15) + ' ô khác</li>' : '') + '</ul></details>' : '') +
           (dup.length ? '<label class="check mt"><input type="checkbox" data-dup> Nhập cả ' + dup.length + ' dòng trùng (tạo bản ghi mới)</label>' : '');
         m.setFooter([{ label: 'Đóng', on: a => a.close() }, {
           label: 'Nhập ' + good.length + ' dòng hợp lệ', cls: 'primary', icon: 'check', on: async a => {

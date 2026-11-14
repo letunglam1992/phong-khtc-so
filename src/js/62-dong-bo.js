@@ -10,7 +10,7 @@
 (function (A) {
   const U = A.U, S = A.Store, UI = A.UI, Sc = A.Schema, e = U.esc, ic = A.icon, $ = UI.$, $$ = UI.$$;
   const KHONG = { lichsu: 1, _dongbo: 1, vbden: 1 };
-  const CHU = { nhiemvu: 'chuTriId', vanban: 'chuTriId', ngansach: 'canBoId', goithau: 'canBoId', hopdong: 'canBoId', duan: 'canBoId', von: 'canBoId' };
+  const CHU = { nhiemvu: 'chuTriId', vanban: 'chuTriId', ngansach: 'canBoId', khlcnt: 'canBoId', goithau: 'canBoId', hopdong: 'canBoId', duan: 'canBoId', von: 'canBoId' };
   const VAI = { quanly: 'Quản lý', canbo: 'Cán bộ', xem: 'Chỉ xem' };
 
   /* ---------- Gọi máy chủ ---------- */

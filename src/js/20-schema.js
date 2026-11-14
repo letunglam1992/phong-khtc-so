@@ -5,6 +5,8 @@
 'use strict';
 (function (A) {
   const U = A.U;
+  // Chuẩn hóa số quyết định để so khớp: "752 /QĐ-SNNMT" = "752/qđ-snnmt"
+  const L0 = A.L0 = { soKH: so => U.norm(so).replace(/\s+/g, '').replace(/^so:?/, '') };
 
   /* Danh mục dùng chung — người dùng sửa được ở Thiết lập. Không gắn điều khoản pháp luật vào đây. */
   A.DEFAULT_LISTS = {
@@ -366,8 +368,22 @@
       apply();
     }
   };
+  C.khlcnt = {
+    label: 'Kế hoạch lựa chọn nhà thầu', title: r => (r.so || '(chưa có số QĐ)') + (r.ten ? ' — ' + r.ten : ''), unique: r => L0.soKH(r.so), uniqueLabel: 'số quyết định phê duyệt KHLCNT',
+    fields: [
+      F('so', 'Số quyết định phê duyệt KHLCNT', 'text', { required: true, table: true, help: 'Trùng số ghi ở các gói thầu để nhóm gói theo kế hoạch' }),
+      F('ngay', 'Ngày quyết định', 'date', { table: true }),
+      F('ten', 'Tên kế hoạch (dự toán mua sắm, nhiệm vụ, dự án)', 'textarea', { table: true }),
+      F('duAnId', 'Thuộc chương trình, dự án', 'ref', { ref: 'duan' }),
+      F('nsId', 'Dòng dự toán nguồn kinh phí', 'ref', { ref: 'ngansach' }),
+      F('dieuChinh', 'Quyết định điều chỉnh KHLCNT (số, ngày)', 'text'),
+      F('canBoId', 'Cán bộ theo dõi', 'ref', { ref: 'canbo' }),
+      F('dinhKem', 'Hồ sơ', 'files'),
+      F('ghiChu', 'Ghi chú', 'textarea')
+    ]
+  };
   C.goithau = {
-    label: 'Gói thầu, mua sắm', title: r => r.ten, unique: r => U.norm(r.ten) + '|' + (r.duAnId || ''), uniqueLabel: 'tên gói thầu trong cùng dự án',
+    label: 'Gói thầu, mua sắm', title: r => r.ten + (r.qdKHSo ? ' (KHLCNT ' + r.qdKHSo + ')' : ''), unique: r => U.norm(r.ten) + '|' + (r.duAnId || '') + '|' + L0.soKH(r.qdKHSo), uniqueLabel: 'tên gói thầu trong cùng kế hoạch lựa chọn nhà thầu',
     fields: [
       F('ten', 'Tên gói thầu / nội dung mua sắm', 'textarea', { required: true, table: true }),
       F('duAnId', 'Thuộc chương trình, dự án', 'ref', { ref: 'duan', table: true }),
@@ -472,7 +488,7 @@
     warnOnly: true
   };
 
-  const TRACKED = ['canbo', 'donvi', 'danhmuc', 'nhiemvu', 'vanban', 'duan', 'von', 'ngansach', 'taisan', 'goithau', 'hopdong'];
+  const TRACKED = ['canbo', 'donvi', 'danhmuc', 'nhiemvu', 'vanban', 'duan', 'von', 'ngansach', 'taisan', 'khlcnt', 'goithau', 'hopdong'];
   const Sc = A.Schema = {
     C, TRACKED,
     get: c => C[c] || null,

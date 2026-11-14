@@ -97,7 +97,7 @@ ok(await ev(()=>App.Store.all('nhiemvu').find(x=>x.ma==='NV-2026-001').vanBanIds
 await go('vanban');ok((await p.$$eval('tbody tr',e=>e.length))===2,'danh sách văn bản');
 
 console.log('# 7. Dự án nhiều nguồn vốn, nhiều mốc; vốn và giải ngân');
-await go('duan');await p.click('[data-add]');await p.waitForSelector('.modal form');
+await go('duan');await p.waitForTimeout(300);await p.click('[data-add]');await p.waitForSelector('.modal form');await p.waitForTimeout(200);
 await p.fill('[data-k="ten"]','Dự án kiểm thử nhiều nguồn vốn');await p.fill('[data-k="tmdt"]','10000000000');
 ok(await p.inputValue('[data-k="tmdt"]')==='10.000.000.000','ô tiền tự định dạng dấu chấm');
 await p.fill('[data-k="batDau"]','2026-01-01');await p.fill('[data-k="ketThuc"]','2026-12-31');
@@ -185,6 +185,9 @@ await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.w
 ok(await ev(()=>App.Store.all('ngansach').map(r=>r.id).sort().join(','))===nIdBefore,'nhập lại biểu: giữ nguyên mã 88 dòng (không xóa tạo lại)');
 ok(await ev(()=>{const r=App.Store.get('ngansach',window.__rid);return r.gnHist.length===3&&r.gnHist[2].ngay==='2026-11-12'&&r.gnHist[2].giaiNgan===7082000000&&r.gnHist[2].nguon==='excel'}),'nhập lại: ghi thêm mốc 12/11 theo biểu, giữ 2 mốc trước');
 await p.click('[data-tab="ct"]');await p.waitForTimeout(200);
+ok(await p.$eval('.ns-gon',t=>{const w=t.closest('.tbl-wrap');return w.scrollWidth<=w.clientWidth+1}),'bảng dự toán kiểu gọn vừa khung (không cuộn ngang)');
+ok(await p.$$eval('.ns-gon .tdo.rat',e=>e.length)>0&&/Cơ cấu: CN chuyển nguồn/.test(await txt()),'tô màu tiến độ theo mục tiêu, chú thích cơ cấu kinh phí');
+await p.click('[data-md="du"]');await p.waitForTimeout(150);
 const xf=await dl(()=>p.click('[data-xls]'));ok(fs.statSync(xf).size>5000,'xuất Excel cây dự toán: '+path.basename(xf));
 const X=require('xlsx');const wbo=X.readFile(xf),aoa=X.utils.sheet_to_json(wbo.Sheets[wbo.SheetNames[0]],{header:1});
 ok(aoa[aoa.length-1][10]===48983549974&&/Kinh phí đã giải ngân đến/.test(aoa[3][10])&&aoa[4][10]==='10'&&aoa[3][4]==='KP bổ sung trong năm','tệp Excel xuất ra theo đúng mẫu biểu (cột 10 = đã giải ngân): dòng tổng cột "Đã giải ngân" = 48.983.549.974');
@@ -217,7 +220,7 @@ await ev(()=>{App.vs.dtTab={t:'hd'};App.render()});await p.waitForTimeout(200);o
 await ev(()=>{App.vs.dtTab={t:'tq'}});
 // Tự tính thời hạn hoàn thành hợp đồng
 await ev(()=>App.UI.form({coll:'hopdong'}));await p.waitForSelector('[data-k="thoiGianTH"]');
-await p.fill('[data-k="ngayKy"]','2026-11-01');await p.fill('[data-k="thoiGianTH"]','30 ngày');await p.waitForTimeout(80);
+await p.fill('[data-k="ngayKy"]','2026-11-01');await p.fill('[data-k="thoiGianTH"]','30 ngày');await p.waitForFunction(()=>document.querySelector('[data-k="ngayKT"]').value,null,{timeout:3000}).catch(()=>{});await p.waitForTimeout(100);
 ok(await p.inputValue('[data-k="ngayKT"]')==='2026-12-01'&&/01\/11\/2026 \+ 30 ngày = 01\/12\/2026/.test(await p.textContent('[data-fld="ngayKT"]')),'ký 01/11 + 30 ngày → hoàn thành 01/12/2026 (ngày đầu không tính)');
 await p.selectOption('[data-k="cachTinhTH"]','gom');await p.waitForTimeout(80);ok(await p.inputValue('[data-k="ngayKT"]')==='2026-11-30','chọn "tính cả ngày bắt đầu" → 30/11/2026');
 await p.selectOption('[data-k="cachTinhTH"]','sau');await p.fill('[data-k="thoiGianTH"]','3 tháng');await p.waitForTimeout(80);ok(await p.inputValue('[data-k="ngayKT"]')==='2027-02-01','3 tháng → 01/02/2027');
@@ -225,6 +228,17 @@ await p.fill('[data-k="ngayBD"]','2026-11-05');await p.waitForTimeout(80);ok(awa
 await p.fill('[data-k="ngayKT"]','2027-03-01');await p.fill('[data-k="thoiGianTH"]','45 ngày');await p.waitForTimeout(80);ok(await p.inputValue('[data-k="ngayKT"]')==='2027-03-01'&&/đang giữ ngày nhập tay/.test(await p.textContent('[data-fld="ngayKT"]')),'ngày nhập tay không bị ghi đè, có gợi ý ngày tự tính');
 await p.locator('.ov').last().locator('.modal-f .btn:not(.primary)').click();await p.waitForTimeout(150);if(await p.$('.ov'))await p.keyboard.press('Escape');
 
+// Gói thầu nhóm theo KHLCNT; gói cùng tên ở hai kế hoạch khác nhau không bị coi là trùng
+await ev(async()=>{for(const [so,ng,ten,gia] of [['752/QĐ-SNNMT','2026-10-15','Gói thầu số 02: Tư vấn giám sát thử',1e9],['385/QĐ-SNNMT','2026-07-13','Gói thầu số 02: Tư vấn giám sát thử',2e9],['385/QĐ-SNNMT','2026-07-13','Gói thầu số 03: Tư vấn lập HSMT thử',1e8]])await App.Store.save('goithau',{ten,qdKHSo:so,qdKHNgay:ng,giaGoiThau:gia,trangThai:'khlcnt'})});
+ok(await ev(()=>App.Schema.check('goithau',{ten:'Gói thầu số 02: Tư vấn giám sát thử',qdKHSo:'369/QĐ-SNNMT'}).warnings.every(w=>!/trùng/i.test(w))),'gói cùng tên ở KHLCNT khác không bị báo trùng');
+await go('dauthau');await ev(()=>{App.vs.dtTab={t:'gt'};App.render()});await p.waitForTimeout(300);
+{const h=await p.$$eval('tr.tbl-grp',e=>e.map(x=>x.textContent.replace(/\s+/g,' ')));ok(h.some(x=>/KHLCNT 752\/QĐ-SNNMT ngày 15\/10\/2026/.test(x))&&h.some(x=>/385\/QĐ-SNNMT.*13\/0?7\/2026.*2 gói · tổng giá 2,1/.test(x)),'danh sách gói thầu nhóm theo KHLCNT (số, ngày, số gói, tổng giá): '+h.map(x=>x.slice(0,110)).join(' | '));}
+await p.click('[data-kh-sua="'+await ev(()=>App.L0.soKH('385/QĐ-SNNMT'))+'"]');await p.waitForSelector('[data-k="ten"]');ok(await p.inputValue('[data-k="so"]')==='385/QĐ-SNNMT','"Đặt tên kế hoạch": điền sẵn số QĐ');
+await p.fill('[data-k="ten"]','Đo đạc lập bản đồ địa chính xã thử');await p.locator('.ov').last().locator('.modal-f .btn.primary').click();await p.waitForTimeout(400);
+ok(/Đo đạc lập bản đồ địa chính xã thử/.test(await txt())&&await ev(()=>App.Store.count('khlcnt'))===1,'tên kế hoạch hiện ở tiêu đề nhóm');
+await p.selectOption('[data-grpby]','');await p.waitForTimeout(200);ok(!(await p.$('tr.tbl-grp')),'chọn "Không nhóm" trở về danh sách phẳng');await p.selectOption('[data-grpby]','kh');
+await ev(async()=>{await App.Store.removeMany(App.Store.all('goithau').filter(g=>/^Gói thầu số 0[23]: Tư vấn (giám sát|lập HSMT) thử$/.test(g.ten)).map(g=>['goithau',g.id]).concat(App.Store.all('khlcnt').map(k=>['khlcnt',k.id])))});
+await ev(()=>{App.vs.dtTab={t:'tq'}});
 console.log('# 9b. Tài sản nhà, đất — Phụ biểu 0A.01-T.STC (tệp thật)');
 await go('taisan');
 let [fnd]=await Promise.all([p.waitForEvent('filechooser'),(async()=>{await p.click('[data-ndimp]');await p.waitForSelector('[data-pick]');await p.click('[data-pick]')})()]);
@@ -281,6 +295,10 @@ ok(await p.evaluate(r=>{const q=App.L.parseNhaDat(r);return q.items.length===80&
 ok(await ev(()=>App.L.alerts(2026).some(a=>a.loai==='nhadat'&&/44\/80 cơ sở nhà, đất chưa có giấy chứng nhận/.test(a.title))),'cảnh báo tổng hợp: 44/80 cơ sở chưa có GCN');
 await go('baocao');await p.selectOption('#bc_type','taisan');await p.waitForTimeout(250);
 ok(/80 cơ sở nhà, đất do 26 cơ quan, đơn vị/.test(await p.textContent('[data-paper]')),'báo cáo tài sản có phần nhà, đất');
+await go('taisan');await p.waitForTimeout(300);
+{const h=await p.$$eval('tr.tbl-grp',e=>e.map(x=>x.textContent.replace(/\s+/g,' ')));ok(h.length>=20&&/tài sản .*nguyên giá .*còn lại/.test(h[0])&&!h.some(x=>/^\s*Hạt kiểm lâm khu vực I\b/.test(x))||h.filter(x=>/Hạt Kiểm lâm khu vực I /i.test(x)).length<=1,'tài sản nhóm theo đơn vị quản lý (gộp tên khác hoa/thường): '+h.length+' đơn vị');}
+ok(await p.$eval('tr.tbl-grp',r=>r.closest('tbody').querySelectorAll('tr:not(.tbl-grp)').length)===0,'mặc định thu gọn các nhóm đơn vị');
+await p.click('tr.tbl-grp .grp-tg');await p.waitForTimeout(200);ok(await p.$eval('tr.tbl-grp',r=>r.closest('tbody').querySelectorAll('tr:not(.tbl-grp)').length)>0,'bấm tiêu đề nhóm để mở danh sách tài sản của đơn vị');
 console.log('# 9c. Kiểm kê tài sản theo nhóm — Mẫu 01c, 08đ, 09đ (tệp thật)');
 await go('taisan');await p.click('[data-tst="kk"]');await p.waitForTimeout(200);
 ok(/Chưa có kết quả kiểm kê/.test(await txt()),'thẻ kiểm kê: trạng thái rỗng có hướng dẫn');
@@ -328,7 +346,7 @@ await ev(async()=>{await App.Store.removeMany(App.Store.all('taisan').filter(App
 console.log('# 10. Bảng điều hành và Trợ lý');
 await go('tongquan');await p.waitForTimeout(200);
 const k=await p.$$eval('.kpi',e=>e.map(x=>x.textContent.replace(/\s+/g,' ')));
-ok(k.some(x=>/Giải ngân dự toán\s*17,/.test(x))&&k.some(x=>/Gói thầu\s*1/.test(x))&&k.some(x=>/Văn bản đến chờ duyệt/.test(x)),'KPI quản lý chung: giải ngân dự toán, gói thầu, văn bản đến');
+ok(k.some(x=>/Giải ngân dự toán\s*17,/.test(x))&&k.some(x=>/Gói thầu\s*1/.test(x))&&k.some(x=>/Văn bản đến chờ duyệt/.test(x)),'KPI quản lý chung: giải ngân dự toán, gói thầu, văn bản đến'+(k.some(x=>/Gói thầu\s*1/.test(x))&&k.some(x=>/Giải ngân dự toán\s*17,/.test(x))?'':' — '+k.join(' | ')));
 ok(!k.some(x=>/Tổng số nhiệm vụ/.test(x))&&!/Phân tích nhiệm vụ|Công việc theo ngày, tuần, tháng|Ngưỡng: sắp đến hạn/.test(await txt()),'bỏ phân tích nhiệm vụ, tổng hợp ngày/tuần, ghi chú ngưỡng');
 ok(!/Chưa phân công\s*\d{2,}/.test(await txt())&&await ev(()=>!App.dashAlerts(2026).some(a=>a.loai==='dmchuapc')),'không đưa "đầu mục chưa phân công" lên bảng điều hành');
 ok(await ev(()=>{const s=App.L.nvStats(App.L.nvOfYear(2026));return s.tong===19&&s.hoanthanh===1&&s.dang===1&&s.chua===17&&s.hoanthanh+s.dang+s.chua+s.tamdung===s.tong}),'hoàn thành + đang + chưa + tạm dừng = tổng (không đếm trùng)');

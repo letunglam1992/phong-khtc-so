@@ -80,7 +80,7 @@ function info_() {
 // Kho trên Drive (TEN_TEP): { fmt: 2, rev, recs: { coll: { id: { v: bản ghi, r: rev ghi } } }, del: { coll: { id: { at, r } } } }
 var KHONG_DONG_BO = { lichsu: 1, _dongbo: 1, vbden: 1 };
 // Trường xác định cán bộ phụ trách bản ghi (vai trò "cán bộ" chỉ sửa được bản ghi của mình hoặc chưa giao)
-var CHU_SO_HUU = { nhiemvu: 'chuTriId', vanban: 'chuTriId', ngansach: 'canBoId', goithau: 'canBoId', hopdong: 'canBoId', duan: 'canBoId', von: 'canBoId' };
+var CHU_SO_HUU = { nhiemvu: 'chuTriId', vanban: 'chuTriId', ngansach: 'canBoId', khlcnt: 'canBoId', goithau: 'canBoId', hopdong: 'canBoId', duan: 'canBoId', von: 'canBoId' };
 function tepDuLieu_() { var it = DriveApp.getFilesByName(TEN_TEP); return it.hasNext() ? it.next() : null; }
 function docKho_() {
   var f = tepDuLieu_(), o = f ? JSON.parse(f.getBlob().getDataAsString('UTF-8') || '{}') : {};
