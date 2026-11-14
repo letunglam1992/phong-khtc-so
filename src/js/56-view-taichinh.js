@@ -37,7 +37,7 @@
   A.NS_COLS = NS_COLS;
   A.openers.ngansach = id => UI.detail({
     coll: 'ngansach', id,
-    actions: [{ label: 'Tạo gói thầu từ dòng này', icon: 'gavel', on: (r, a) => { a.close(true); UI.form({ coll: 'goithau', rec: { nsId: r.id, ten: r.noiDung || '', trangThai: 'nhucau' }, onSaved: g => A.open('goithau', g.id) }); } }],
+    actions: [{ label: 'Liên kết gói thầu', icon: 'link', on: (r, a, reopen) => A.lkGoiThau(r, reopen) }, { label: 'Tạo gói thầu từ dòng này', icon: 'gavel', on: (r, a) => { a.close(true); UI.form({ coll: 'goithau', rec: { nsId: r.id, ten: r.noiDung || '', trangThai: 'nhucau' }, onSaved: g => A.open('goithau', g.id) }); } }],
     head: r => { const kids = S.all('ngansach').filter(x => x.parentId === r.id); return '<div class="kpis mb"><div class="kpi acc static"><span class="k-l">Tổng kinh phí được sử dụng</span><span class="k-v"><small>' + U.fmtMoney(L.nsTong(r)) + '</small></span><span class="k-s">= chuyển nguồn + dự toán + bổ sung + tăng − giảm − thu hồi − tiết kiệm</span></div><div class="kpi ok static"><span class="k-l">Đã giải ngân</span><span class="k-v">' + U.fmtPct(U.pct(U.num(r.giaiNgan), L.nsTong(r))) + '</span><span class="k-s">' + U.fmtMoney(U.num(r.giaiNgan)) + ' đồng</span></div></div>' + (kids.length ? '<div class="note warn mb">Dòng này có ' + kids.length + ' dòng con. Trên bảng, số của dòng được tính bằng tổng các dòng con; số nhập trực tiếp ở dòng này không được cộng.</div>' : A.gnHistHtml(r)) + A.nsLKHtml(r.id, 'ns'); }
   });
 
@@ -431,7 +431,7 @@
   A.openers.goithau = id => UI.detail({
     coll: 'goithau', id,
     head: g => { const x = L.gt(g), hd = S.all('hopdong').filter(h => h.goiThauId === g.id); return '<div class="gap mb">' + UI.chip(x.st, x.label) + (x.note ? '<span class="chip plain ' + (x.over ? 'quahan' : 'saphan') + '">' + e(x.note) + '</span>' : '') + (x.chuaHD ? '<span class="chip plain saphan">Đã có kết quả, chưa nhập hợp đồng</span>' : '') + (U.num(g.giaTrung) && U.num(g.giaGoiThau) ? '<span class="tag">Chênh lệch so với giá gói thầu: ' + U.fmtMoney(U.num(g.giaGoiThau) - U.num(g.giaTrung)) + ' đồng (' + U.fmtPct(U.pct(U.num(g.giaGoiThau) - U.num(g.giaTrung), U.num(g.giaGoiThau))) + ')</span>' : '') + '</div>' + A.gtStepper(g) + A.nsLKHtml(g.nsId) + (hd.length ? '<div class="note mb">Hợp đồng: ' + hd.map(h => '<a href="#" data-open="hopdong:' + h.id + '">' + e(h.so) + '</a>').join(', ') + '</div>' : ''); },
-    actions: [{ label: 'Tạo hợp đồng', icon: 'plus', on: (g, a) => { a.close(true); UI.form({ coll: 'hopdong', rec: { goiThauId: g.id, duAnId: g.duAnId, nsId: g.nsId || '', nhaThau: g.nhaThau, giaTri: g.giaTrung || '', ten: g.ten, canBoId: g.canBoId, loaiHD: g.loaiHD || '', thoiGianTH: g.tgThucHienHD || '' }, onSaved: async h => { if (g.trangThai !== 'dakyhd') await S.save('goithau', { id: g.id, trangThai: 'dakyhd' }); A.open('hopdong', h.id); } }); } }]
+    actions: [{ label: 'Liên kết nguồn kinh phí', icon: 'link', on: (g, a, reopen) => A.lkNguon('goithau', g, reopen) }, { label: 'Tạo hợp đồng', icon: 'plus', on: (g, a) => { a.close(true); UI.form({ coll: 'hopdong', rec: { goiThauId: g.id, duAnId: g.duAnId, nsId: g.nsId || '', nhaThau: g.nhaThau, giaTri: g.giaTrung || '', ten: g.ten, canBoId: g.canBoId, loaiHD: g.loaiHD || '', thoiGianTH: g.tgThucHienHD || '' }, onSaved: async h => { if (g.trangThai !== 'dakyhd') await S.save('goithau', { id: g.id, trangThai: 'dakyhd' }); A.open('hopdong', h.id); } }); } }]
   });
   A.openers.hopdong = id => UI.detail({
     coll: 'hopdong', id,
@@ -443,7 +443,7 @@
         K('teal', 'Đã nghiệm thu', '<small>' + U.fmtShort(x.nghiemThu) + '</small>', (h.nghiemThu || []).length + ' lần' + (x.ntChuaTT > 0.5 ? ' · chưa thanh toán ' + U.fmtShort(x.ntChuaTT) : '')) +
         K('ok', 'Đã thanh toán', U.fmtPct(x.tyLeTT), U.fmtShort(x.thanhToan) + ' · còn ' + U.fmtShort(x.conLai)) +
         K(x.over ? 'bad' : x.near ? 'warn' : 'info', 'Thời hạn hợp đồng', x.han ? '<small>' + U.fmtDate(x.han) + '</small>' : '—', h.tienDoKL ? 'Khối lượng thực hiện ' + U.fmtPct(h.tienDoKL, 0) : '') + '</div>' + A.nsLKHtml(L.hdNsId(h)); },
-    actions: [{ label: 'Ghi nghiệm thu', icon: 'check', on: (h, a, reopen) => payDialog(h, reopen, 'nt') }, { label: 'Ghi thanh toán', icon: 'coins', on: (h, a, reopen) => payDialog(h, reopen, 'tt') }]
+    actions: [{ label: 'Liên kết nguồn kinh phí', icon: 'link', on: (h, a, reopen) => A.lkNguon('hopdong', h, reopen) }, { label: 'Ghi nghiệm thu', icon: 'check', on: (h, a, reopen) => payDialog(h, reopen, 'nt') }, { label: 'Ghi thanh toán', icon: 'coins', on: (h, a, reopen) => payDialog(h, reopen, 'tt') }]
   });
   A.views.dauthau = {
     title: 'Mua sắm, đấu thầu và hợp đồng', sub: 'Nhu cầu mua sắm, kế hoạch lựa chọn nhà thầu, gói thầu, hợp đồng, tạm ứng, thanh toán, nghiệm thu, thanh lý',

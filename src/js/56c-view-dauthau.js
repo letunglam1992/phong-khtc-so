@@ -16,6 +16,53 @@
       (tt.length ? '<div class="small soft mb">Tiến trình đã ghi: ' + tt.map(x => e(x.buoc) + (x.ngay ? ' (' + U.fmtDate(x.ngay) + ')' : '')).join(' → ') + '</div>' : '');
   };
 
+  // Hộp tìm và chọn bản ghi để liên kết (nhiều hoặc một lựa chọn)
+  // o: {title, sub, items:[{id, t, s, tag}], chon:[ids], multi, onOk(ids)}
+  A.lkPicker = o => {
+    let chon = new Set(o.chon || []);
+    const body = '<div class="lk-q mb">' + ic('search', 16) + '<input class="inp" type="search" data-lkq placeholder="Gõ tên, số quyết định, nhà thầu… để tìm" aria-label="Tìm"></div>' +
+      (o.multi ? '<label class="check small mb"><input type="checkbox" data-lkchon> Chỉ hiện mục đang chọn</label>' : '') + '<div class="lk-list" data-lkl role="listbox"></div><div class="small muted mt" data-lkn></div>';
+    const m = UI.modal({ title: o.title, sub: o.sub, size: 'lg', body, buttons: [{ label: 'Hủy', on: a => a.close() }, 'sp', { label: o.multi ? 'Lưu liên kết' : 'Liên kết', cls: 'primary', icon: 'link', on: async a => { try { await o.onOk(Array.from(chon)); a.close(true); } catch (er) { UI.fail(er); } } }] });
+    const q = $('[data-lkq]', m.body), list = $('[data-lkl]', m.body), chi = $('[data-lkchon]', m.body);
+    const draw = () => {
+      const ws = U.norm(q.value).split(' ').filter(Boolean);
+      const hien = o.items.filter(x => (!chi || !chi.checked || chon.has(x.id)) && ws.every(w => U.norm(x.t + ' ' + (x.s || '')).includes(w))).slice(0, 200);
+      list.innerHTML = hien.length ? hien.map(x => '<label class="lk-i' + (chon.has(x.id) ? ' on' : '') + '"><input type="' + (o.multi ? 'checkbox' : 'radio') + '" name="lkp" value="' + e(x.id) + '"' + (chon.has(x.id) ? ' checked' : '') + '><span><span class="t1">' + e(x.t) + '</span>' + (x.s ? '<span class="t2">' + e(x.s) + '</span>' : '') + (x.tag ? '<span class="t2" style="color:var(--warn-fg)">' + e(x.tag) + '</span>' : '') + '</span></label>').join('') : '<div class="small muted" style="padding:10px">Không tìm thấy mục phù hợp.</div>';
+      $('[data-lkn]', m.body).textContent = 'Hiện ' + hien.length + ' / ' + o.items.length + ' mục' + (o.multi ? ' · đang chọn ' + chon.size : '');
+    };
+    list.addEventListener('change', x => { const v = x.target.value; if (!o.multi) chon = new Set([v]); else if (x.target.checked) chon.add(v); else chon.delete(v); draw(); });
+    q.addEventListener('input', U.debounce(draw, 120)); if (chi) chi.onchange = draw;
+    draw(); q.focus();
+    return m;
+  };
+  const nsItems = () => S.all('ngansach').slice().sort((a, b) => (+b.nam || 0) - (+a.nam || 0)).map(r => ({ id: r.id, t: Sc.C.ngansach.title(r), s: (Sc.refName('donvi', r.donViId) || '') + ' · năm ' + (r.nam || '') + ' · được sử dụng ' + fs(L.nsTong(r)) + (r.canBoId ? ' · ' + Sc.refName('canbo', r.canBoId) : '') }));
+  // Từ dòng dự toán: chọn các gói thầu dùng nguồn này
+  A.lkGoiThau = (r, xong) => {
+    const gts = S.all('goithau').filter(g => g.trangThai !== 'huy' || g.nsId === r.id);
+    A.lkPicker({
+      title: 'Liên kết gói thầu với nguồn kinh phí', sub: U.trunc(Sc.C.ngansach.title(r), 110), multi: true, chon: gts.filter(g => g.nsId === r.id).map(g => g.id),
+      items: gts.map(g => ({ id: g.id, t: g.ten || '(chưa có tên)', s: [g.qdKHSo ? 'KHLCNT ' + g.qdKHSo : '', g.giaGoiThau ? 'giá ' + fs(U.num(g.giaGoiThau)) : '', g.nguonVon || '', g.nhaThau || '', g.canBoId ? Sc.refName('canbo', g.canBoId) : ''].filter(Boolean).join(' · '), tag: g.nsId && g.nsId !== r.id && S.get('ngansach', g.nsId) ? 'Đang gắn nguồn khác: ' + U.trunc(Sc.C.ngansach.title(S.get('ngansach', g.nsId)), 80) + ' — chọn sẽ chuyển sang nguồn này' : '' })),
+      onOk: async ids => {
+        const set = new Set(ids), items = gts.filter(g => set.has(g.id) !== (g.nsId === r.id)).map(g => ({ c: 'goithau', rec: { id: g.id, nsId: set.has(g.id) ? r.id : '' } }));
+        if (!items.length) { UI.toast('Không có thay đổi liên kết.'); return; }
+        await S.saveMany(items, { note: 'Liên kết gói thầu với dòng dự toán ' + U.trunc(Sc.C.ngansach.title(r), 80) });
+        UI.toast('Đã cập nhật liên kết ' + items.length + ' gói thầu.', 'ok'); if (xong) xong();
+      }
+    });
+  };
+  // Từ gói thầu / hợp đồng: chọn dòng dự toán nguồn kinh phí
+  A.lkNguon = (coll, rec, xong) => {
+    A.lkPicker({
+      title: 'Liên kết nguồn kinh phí (dòng dự toán)', sub: U.trunc(Sc.C[coll].title(rec), 110), chon: rec.nsId ? [rec.nsId] : [],
+      items: [{ id: '', t: '— Bỏ liên kết nguồn kinh phí —', s: '' }].concat(nsItems()),
+      onOk: async ids => {
+        const v = ids[0] || ''; if (v === (rec.nsId || '')) { UI.toast('Không có thay đổi liên kết.'); return; }
+        await S.save(coll, { id: rec.id, nsId: v }, { note: v ? 'Liên kết nguồn kinh phí' : 'Bỏ liên kết nguồn kinh phí' });
+        UI.toast(v ? 'Đã liên kết nguồn kinh phí.' : 'Đã bỏ liên kết nguồn kinh phí.', 'ok'); if (xong) xong();
+      }
+    });
+  };
+
   // Dòng phụ "gói thầu, hợp đồng" dưới nội dung dự toán trên các bảng tài chính, giải ngân
   A.nsLKTag = (nsId, m) => {
     const o = m && m.get(nsId); if (!o) return '';
