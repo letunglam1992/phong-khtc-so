@@ -18,7 +18,8 @@
 
 ## Kiểm thử (chỉ chạy phần liên quan)
 - Đổi `gas/` hoặc `src/shared/`: `node --test tests/gas.test.js tests/trich-van-ban.test.js`
-- Đổi kiểm kê, nhà đất, ngân sách: `node --test tests/kiemke.test.js` (hoặc `nhadat.test.js`, `budget.test.js`)
+- Đổi phép tính tiền, tỷ lệ (giải ngân, hợp đồng, kịch bản, đối chiếu, quy trình LCNT, văn bản): `node --test tests/tinh-toan.test.js`
+- `kiemke.test.js`, `nhadat.test.js`, `budget.test.js` là công cụ chạy tay trên tệp Excel thật: `node tests/budget.test.js <tệp.xlsx>`
 - Đổi giao diện `src/js/`: `node build.js` để chắc chắn build chạy được.
 - `tests/e2e.js` cần các tệp Excel đầu vào, chỉ chạy khi được yêu cầu.
 

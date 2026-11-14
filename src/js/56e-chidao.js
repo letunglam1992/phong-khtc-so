@@ -27,6 +27,7 @@
     Object.values(by).forEach(o => { const con = Math.max(0, o.tong - o.gn), t = Math.min(con, o.them), th = o.thu ? con - t : 0; them += t; thu += th; tong += o.tong - th; gn += o.gn + t; });
     return { g, tong, gn, them, thu, tyLe: U.pct(gn, tong), ghiChu };
   }
+  L.kbTinh = kbTinh;
   A.gnKichBan = (box, y, Sel) => {
     const f = { dv: Sel.dv }, kb = kbLay(y), g = L.giaiNgan(y, f);
     if (!g.tong) { box.innerHTML = '<div class="card">' + UI.empty('Chưa có số liệu dự toán năm ' + y, '') + '</div>'; return; }

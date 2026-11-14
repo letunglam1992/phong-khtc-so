@@ -1,4 +1,4 @@
-const A=require('./harness'),X=require('xlsx');
+const A=require('./harness'),X=require('./xlsx');if(!X.canTep('budget.test.js','Đọc biểu giải ngân (trang "Nhiệm vụ"), in cấp bậc dòng, số tổng và cảnh báo đối chiếu.'))process.exit(0);
 const wb=X.readFile(process.argv[2]);const ws=wb.Sheets['Nhiệm vụ'];
 const raw=X.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}),fmt=X.utils.sheet_to_json(ws,{header:1,raw:false,defval:null});
 const p=A.L.parseBudget(raw,fmt);

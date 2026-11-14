@@ -189,7 +189,7 @@ ok(await p.$eval('.ns-gon',t=>{const w=t.closest('.tbl-wrap');return w.scrollWid
 ok(await p.$$eval('.ns-gon .tdo.rat',e=>e.length)>0&&/Cơ cấu: CN chuyển nguồn/.test(await txt()),'tô màu tiến độ theo mục tiêu, chú thích cơ cấu kinh phí');
 await p.click('[data-md="du"]');await p.waitForTimeout(150);
 const xf=await dl(()=>p.click('[data-xls]'));ok(fs.statSync(xf).size>5000,'xuất Excel cây dự toán: '+path.basename(xf));
-const X=require('xlsx');const wbo=X.readFile(xf),aoa=X.utils.sheet_to_json(wbo.Sheets[wbo.SheetNames[0]],{header:1});
+const X=require('./xlsx');const wbo=X.readFile(xf),aoa=X.utils.sheet_to_json(wbo.Sheets[wbo.SheetNames[0]],{header:1});
 ok(aoa[aoa.length-1][10]===48983549974&&/Kinh phí đã giải ngân đến/.test(aoa[3][10])&&aoa[4][10]==='10'&&aoa[3][4]==='KP bổ sung trong năm','tệp Excel xuất ra theo đúng mẫu biểu (cột 10 = đã giải ngân): dòng tổng cột "Đã giải ngân" = 48.983.549.974');
 await p.click('[data-tab="nhom"]');await p.waitForTimeout(200);ok(/không thường xuyên/.test(await txt()),'so sánh dự toán – thực hiện – quyết toán theo nhóm kinh phí');
 await p.click('[data-tab="ct"]');

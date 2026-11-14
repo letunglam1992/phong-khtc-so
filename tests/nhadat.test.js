@@ -1,4 +1,4 @@
-const A=require('./harness'),X=require('xlsx');
+const A=require('./harness'),X=require('./xlsx');if(!X.canTep('nhadat.test.js','Đọc biểu nhà, đất, in kết quả nhận dạng.'))process.exit(0);
 const wb=X.readFile(process.argv[2]);const ws=wb.Sheets[wb.SheetNames[0]];
 const p=A.L.parseNhaDat(X.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}));
 console.log('header',p.headerRow,'cols',JSON.stringify(p.cols),'items',p.items.length,'tong',JSON.stringify(p.tong));

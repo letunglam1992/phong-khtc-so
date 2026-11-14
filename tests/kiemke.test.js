@@ -1,5 +1,5 @@
 global.document=undefined;
-const A=require('./harness'),X=require('xlsx');
+const A=require('./harness'),X=require('./xlsx');if(!X.canTep('kiemke.test.js','Đọc các biểu kiểm kê tài sản, in tổng hợp và cảnh báo.'))process.exit(0);
 for(const f of process.argv.slice(2)){const ws=(w=>w.Sheets[w.SheetNames[0]])(X.readFile(f));
  const p=A.L.parseKiemKe(X.utils.sheet_to_json(ws,{header:1,raw:true,defval:null}));
  const s=A.L.kkSum(p.items.map((x,i)=>Object.assign({thuTu:i},x)));
