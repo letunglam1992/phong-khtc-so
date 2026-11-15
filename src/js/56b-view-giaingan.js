@@ -115,7 +115,7 @@
       if (nq) list = list.filter(n => U.norm((n.r.stt || '') + ' ' + n.r.noiDung).includes(nq));
       if (U2.chiChua) list = list.filter(n => n.sum.giaiNgan < n.sum.tong - 0.5);
       $('[data-grid]', box).innerHTML = '<div class="tbl-wrap" style="max-height:66vh;overflow:auto"><table class="tbl"><thead><tr><th>Nội dung</th><th>Đơn vị · cán bộ</th><th class="num">Được sử dụng</th><th class="num">Lũy kế hiện tại</th><th class="num" style="min-width:170px">Lũy kế mới (đồng)</th><th style="min-width:110px">Tỷ lệ</th></tr></thead><tbody>' +
-        list.map(n => { const v = changed.has(n.r.id) ? changed.get(n.r.id) : ''; return '<tr data-r="' + n.r.id + '"><td class="wrap" style="min-width:260px">' + e(n.r.stt ? n.r.stt + ' ' : '') + e(U.trunc(n.r.noiDung, 110)) + '</td><td class="small">' + e(Sc.refName('donvi', n.r.donViId)) + '<div class="t2">' + e(Sc.refName('canbo', n.r.canBoId) || 'chưa giao') + '</div></td><td class="num">' + U.fmtMoney(n.sum.tong) + '</td><td class="num">' + U.fmtMoney(n.sum.giaiNgan) + (n.r.ngayGN ? '<div class="t2">' + U.fmtDate(n.r.ngayGN) + '</div>' : '') + '</td><td><input class="inp num" inputmode="numeric" data-v aria-label="Lũy kế mới" value="' + (v === '' ? '' : U.fmtMoney(v)) + '" placeholder="' + U.fmtMoney(n.sum.giaiNgan) + '"></td><td data-p>' + UI.pbar(U.pct(v === '' ? n.sum.giaiNgan : v, n.sum.tong) || 0) + '</td></tr>'; }).join('') + '</tbody></table></div><div class="pager"><span>' + list.length + ' / ' + leaves.length + ' dòng</span></div>';
+        list.map(n => { const v = changed.has(n.r.id) ? changed.get(n.r.id) : ''; return '<tr data-r="' + n.r.id + '"><td class="wrap" style="min-width:260px">' + e(n.r.stt ? n.r.stt + ' ' : '') + e(U.trunc(n.r.noiDung, 110)) + '</td><td class="small">' + e(Sc.refName('donvi', n.r.donViId)) + '<div class="t2">' + e(Sc.refName('canbo', n.r.canBoId) || 'chưa giao') + '</div></td><td class="num" style="white-space:nowrap">' + U.fmtMoney(n.sum.tong) + '<button class="btn icon" data-sua title="Sửa số tiền dự toán của dòng này" aria-label="Sửa số tiền dự toán" style="width:26px;height:26px;margin-left:2px;vertical-align:middle">' + ic('edit', 14) + '</button></td><td class="num">' + U.fmtMoney(n.sum.giaiNgan) + (n.r.ngayGN ? '<div class="t2">' + U.fmtDate(n.r.ngayGN) + '</div>' : '') + '</td><td><input class="inp num" inputmode="numeric" data-v aria-label="Lũy kế mới" value="' + (v === '' ? '' : U.fmtMoney(v)) + '" placeholder="' + U.fmtMoney(n.sum.giaiNgan) + '"></td><td data-p>' + UI.pbar(U.pct(v === '' ? n.sum.giaiNgan : v, n.sum.tong) || 0) + '</td></tr>'; }).join('') + '</tbody></table></div><div class="pager"><span>' + list.length + ' / ' + leaves.length + ' dòng</span></div>';
       $$('tr[data-r]', box).forEach(tr => {
         const n = leaves.find(x => x.r.id === tr.dataset.r), inp = $('[data-v]', tr);
         inp.addEventListener('input', () => {
@@ -127,7 +127,31 @@
           count();
         });
         inp.addEventListener('blur', () => { const v = changed.get(n.r.id); if (v !== undefined) inp.value = U.fmtMoney(v); });
+        $('[data-sua]', tr).onclick = () => suaTien(n);
       });
+    };
+    /* Sửa các khoản cấu thành kinh phí được sử dụng; tổng vẫn tính bằng L.nsTong, không đổi công thức */
+    const TIEN = [['chuyenNguon', 'KP chuyển nguồn năm trước sang'], ['duToan', 'Dự toán giao đầu năm'], ['boSung', 'KP bổ sung trong năm'], ['dcTang', 'Điều chỉnh tăng'], ['dcGiam', 'Điều chỉnh giảm', 1], ['thuHoi', 'KP thu hồi trong năm', 1], ['tietKiem', 'Chỉ tiêu tiết kiệm', 1], ['giaiNgan', 'Đã giải ngân (lũy kế)'], ['quyetToan', 'Số quyết toán']];
+    const docSo = raw => { raw = String(raw || '').trim(); return raw === '' ? '' : U.num(raw.replace(/[.\s]/g, '').replace(',', '.')); };
+    const suaTien = async n => {
+      if (changed.size && !await UI.confirm({ title: 'Còn số lũy kế chưa lưu', msg: changed.size + ' dòng có số lũy kế mới chưa lưu sẽ bị bỏ khi lưu số tiền dự toán. Tiếp tục?', ok: 'Tiếp tục' })) return;
+      const r = S.get('ngansach', n.r.id), val = k => docSo($('[data-f="' + k + '"]', m.body).value);
+      const m = UI.modal({
+        title: 'Sửa số tiền dự toán', sub: (r.stt ? r.stt + ' ' : '') + U.trunc(r.noiDung, 90),
+        body: '<div class="grid2">' + TIEN.map(([k, t, tru]) => '<div class="fld"><label class="small" for="st_' + k + '">' + e(t) + ' (đồng)' + (tru ? ' <span class="muted">· trừ</span>' : '') + '</label><input class="inp num" id="st_' + k + '" inputmode="numeric" data-f="' + k + '" value="' + U.fmtMoney(r[k]) + '"></div>').join('') + '</div><div class="note mt" data-tg></div>',
+        buttons: [{ label: 'Hủy', on: a => a.close() }, 'sp', { label: 'Lưu số tiền', cls: 'primary', icon: 'check', on: async a => {
+          const rec = { id: r.id }, doi = [];
+          TIEN.forEach(([k, t]) => { const v = val(k), cu = r[k] === undefined || r[k] === null ? '' : r[k]; if (U.num(v) !== U.num(cu) || (v === '') !== (cu === '')) { rec[k] = v; doi.push(t + ': ' + U.fmtMoney(U.num(cu)) + ' → ' + U.fmtMoney(U.num(v))); } });
+          if (!doi.length) { a.close(); return; }
+          if (TIEN.some(([k]) => U.num(val(k)) < 0)) { UI.toast('Số tiền không được âm.', 'bad'); return; }
+          if (rec.giaiNgan !== undefined) { const ngay = U.isISO(U2.ngay) && +U2.ngay.slice(0, 4) === y ? U2.ngay : U.today(); rec.ngayGN = ngay; rec.gnHist = L.gnPush(r.gnHist && r.gnHist.length ? r.gnHist : L.gnHistOf(r), ngay, U.num(rec.giaiNgan), 'tay'); }
+          try { await S.saveMany([{ c: 'ngansach', rec }], { note: 'Sửa số tiền dòng dự toán "' + U.trunc(r.noiDung, 60) + '": ' + doi.join('; ') }); a.close(); UI.toast('Đã lưu số tiền.', 'ok'); }
+          catch (er) { UI.fail(er); }
+        } }]
+      });
+      const tinh = () => { const o = {}; TIEN.forEach(([k]) => { o[k] = U.num(val(k)); }); const t = L.nsTong(o); $('[data-tg]', m.body).innerHTML = 'Kinh phí được sử dụng: <b>' + U.fmtMoney(t) + '</b> đồng (trước khi sửa ' + U.fmtMoney(n.sum.tong) + '); đã giải ngân ' + U.fmtPct(U.pct(o.giaiNgan, t) || 0) + '.' + (o.giaiNgan > t + 0.5 ? ' <b>Số giải ngân lớn hơn kinh phí được sử dụng.</b>' : ''); };
+      $$('[data-f]', m.body).forEach(i => { i.addEventListener('input', tinh); i.addEventListener('blur', () => { const v = docSo(i.value); if (v !== '') i.value = U.fmtMoney(v); }); });
+      tinh();
     };
     const count = () => { const b = $('[data-save]', box); b.disabled = !changed.size; $('[data-cnt]', box).textContent = changed.size ? changed.size + ' dòng có số mới, tăng thêm ' + U.fmtMoney(U.sum(Array.from(changed), ([id, v]) => v - U.num(S.get('ngansach', id).giaiNgan))) + ' đồng' : 'Chưa có thay đổi'; };
     draw();
