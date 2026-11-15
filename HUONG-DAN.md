@@ -93,7 +93,7 @@ Mỗi tài sản loại **"Cơ sở nhà, đất"** (hoặc "Trụ sở, nhà l�
   - Lũy kế tại một ngày = cộng các dòng chi tiết, mỗi dòng lấy mốc gần nhất trước hoặc bằng ngày đó.
   - **Dự báo 31/12** = bình quân của (a) tốc độ bình quân từ đầu năm × số ngày cả năm và (b) số hiện tại + tốc độ khoảng 60 ngày gần nhất × số ngày còn lại; không vượt tổng kế hoạch. Chỉ có một mốc thì dùng (a).
   - **Nguy cơ không giải ngân hết**: dự báo dưới 95% kinh phí được sử dụng (năm hiện tại).
-  - **Nội dung giải ngân chậm**: tỷ lệ của dòng thấp hơn mốc so sánh từ 20 điểm % trở lên (ngưỡng đổi ở Thiết lập).
+  - **Nội dung giải ngân chậm**: tỷ lệ của dòng thấp hơn mốc so sánh từ 20 điểm % trở lên (ngưỡng đổi ở Thiết lập). **Dòng đã có quyết định thu hồi không tính chậm**: nhập ở nhóm ô *Quyết định thu hồi kinh phí* (số, ngày, số tiền) trong chi tiết dòng; dữ liệu cũ chỉ ghi "Đã có QĐ thu hồi …" ở Tiến độ, Ghi chú, Ghi chú trên biểu vẫn được nhận. Dòng chỉ ghi "đề nghị thu hồi" (chưa có QĐ) vẫn tính chậm. Ở Tổng quan giải ngân, nút **Điền ô QĐ thu hồi từ ghi chú** tách số, ngày quyết định từ chữ ghi chú vào ô riêng (xem trước khi ghi). Số tiền theo QĐ chỉ để theo dõi, không tự trừ vào tổng kinh phí; số chính thức vẫn lấy ở cột (8) của biểu.
   - Đề xuất chỉ dựa trên số liệu (rà soát điều chỉnh dự toán, đề xuất thu hồi, điều chuyển, giao cán bộ theo dõi…); quyết định thuộc thẩm quyền lãnh đạo và cơ quan tài chính.
 - Báo cáo: **Báo cáo, thống kê → Báo cáo tiến độ giải ngân dự toán ngân sách** (diễn biến tháng, theo đơn vị, cán bộ, nội dung chậm, đề xuất).
 
@@ -161,6 +161,40 @@ Lưu ý: máy đọc có thể sai — luôn đối chiếu với văn bản g�
 - **Sao lưu Google Drive**: máy chủ chép toàn bộ dữ liệu đã đồng bộ sang thư mục `KHTC_So_SAO_LUU` khoảng 23 giờ hằng ngày (bật ở thẻ *Sao lưu trên Google Drive* hoặc bằng hàm `caiDatVanBanDen`), giữ 30 bản gần nhất. Mỗi bản tải về được, hoặc *Khôi phục…* gộp vào dữ liệu trên máy (có bản chụp trước khi gộp) rồi đồng bộ lên.
 - **Nâng cấp từ bản 2**: dán Code.gs bản 3, Triển khai → Quản lý → Sửa → *Phiên bản mới*; chạy lại `caiDatVanBanDen` một lần để bật sao lưu hằng ngày. Dữ liệu đồng bộ cũ được chuyển sang dạng theo bản ghi tự động.
 
+## 4i. Các chức năng bổ sung (tháng 11/2026)
+
+**Đi lại trong phần mềm**
+- Nút **Quay lại** (hoặc phím quay lại của trình duyệt, điện thoại) về màn hình trước; nút hình ngôi nhà hoặc bấm biểu tượng KH-TC về Bảng điều hành. Nút (i) xem thông tin bản quyền, ngày cập nhật.
+- **Việc của tôi** (nhóm Điều hành, hoặc nút trên Bảng điều hành): bảng điều hành riêng của từng cán bộ — nhiệm vụ, văn bản chủ trì (quá hạn, sắp đến hạn lên đầu), nội dung giải ngân chậm và chưa giải ngân, gói thầu cần xử lý, hợp đồng quá hạn, sắp hết hạn, bảo lãnh, chưa thanh lý. Đăng nhập bằng tài khoản cán bộ thì chỉ xem việc của mình; quản lý chọn được cán bộ bất kỳ. Bấm ô số liệu để chuyển đến danh sách, bấm từng dòng để mở và cập nhật.
+
+**Liên kết tài chính — đấu thầu — hợp đồng**
+- Chi tiết dòng dự toán: **Liên kết gói thầu** (tìm gói thầu đã có) hoặc **Tạo gói thầu từ dòng này**. Chi tiết gói thầu, hợp đồng: **Liên kết nguồn kinh phí** (tìm dòng dự toán). Khi chọn nguồn hoặc gói thầu trong biểu mẫu, phần mềm điền sẵn tên, giá, nguồn vốn, cán bộ vào **ô còn trống** (không ghi đè ô đã nhập).
+- Bảng tiến độ theo cán bộ, theo đơn vị (Tổng quan giải ngân): bấm một dòng để mở ngay danh sách nội dung giải ngân của người, đơn vị đó.
+
+**Tài chính, giải ngân — các thẻ mới**
+- **Nhập nhiều đơn vị một lần**: chọn nhiều tệp biểu, mỗi tệp nhận đơn vị theo tên trên biểu (hoặc chọn tay). Thẻ *Theo đơn vị* có ngày số liệu của từng đơn vị và danh sách đơn vị chưa gửi biểu; xuất báo cáo toàn ngành.
+- **So sánh các kỳ**: số giải ngân giữa các kỳ số liệu, so với cùng kỳ năm trước; nội dung không tăng giải ngân qua 3 kỳ liên tiếp.
+- **Đối chiếu**: so số giải ngân của từng dòng dự toán với số đã thanh toán (và tạm ứng còn dư — có ô bật/tắt) của các hợp đồng gắn nguồn, tính đến ngày số liệu; chênh từ 1.000 đồng trở lên thì báo "thiếu" hoặc "thừa". Ghi **giải trình** cho từng chênh lệch; dòng thanh toán lớn hơn giải ngân mà chưa giải trình hiện ở trang Sức khỏe dữ liệu.
+- **Kịch bản giải ngân**: lập phương án A, B, C bằng cách kéo nội dung dự toán, hợp đồng vào ô "Giải ngân thêm" hoặc "Thu hồi" (điện thoại: bấm để chọn). Phần mềm tính tỷ lệ đạt cuối năm của từng phương án để so sánh trước khi trình; **không thay đổi số liệu**.
+- **Trang giao ban** (nút ở Bảng điều hành và Tổng quan giải ngân): một trang A4 ngang gồm tỷ lệ giải ngân, nội dung chậm, đấu thầu, hợp đồng, việc quá hạn — in hoặc lưu PDF để trình chiếu.
+
+**Sinh văn bản từ dữ liệu** (thể thức Nghị định 30/2020/NĐ-CP, tải về dạng Word để sửa)
+- Gói thầu → **Soạn văn bản**: tờ trình phê duyệt KHLCNT, quyết định phê duyệt KHLCNT. Hợp đồng → **Soạn văn bản**: biên bản nghiệm thu, biên bản thanh lý. Tổng quan giải ngân → **Soạn công văn đôn đốc** các nội dung chậm.
+- Khai báo một lần ở Thiết lập → *Văn bản sinh từ dữ liệu*: cơ quan chủ quản, tên Sở, ký hiệu, địa danh, nơi trình, căn cứ pháp lý về lựa chọn nhà thầu (mỗi dòng một căn cứ), người ký. **Phần mềm không tự cập nhật văn bản pháp luật**: rà soát hiệu lực căn cứ trước khi ban hành.
+
+**Quy trình theo hình thức lựa chọn nhà thầu**
+- Thiết lập → khai báo các bước cho từng hình thức (tên bước, hồ sơ, thời hạn, căn cứ). Gói thầu hiện tiến trình theo đúng các bước này, báo bước bị bỏ qua.
+- Thời hạn của bước chỉ dùng để cảnh báo khi đã ghi căn cứ và đánh dấu **đã đối chiếu văn bản gốc**; phần mềm không tự gán điều khoản.
+
+**Email nhắc việc sáng thứ Hai** (cần Code.gs mới)
+- Thiết lập → thẻ *Email nhắc việc sáng thứ Hai*: nhập địa chỉ nhận bản tổng hợp, bật gửi thư riêng cho từng cán bộ (lấy email trong danh sách cán bộ), bấm *Gửi thử ngay*.
+- Khoảng 7 giờ sáng thứ Hai, máy chủ gửi: hợp đồng sắp hết hạn, quá hạn; bảo lãnh sắp hết hiệu lực; nội dung giải ngân chậm. Tính trên **dữ liệu đã đồng bộ lên máy chủ**. Lần đầu chạy hàm `nhacViecThuHai` trong Apps Script một lần để cấp quyền gửi thư.
+
+**Tìm kiếm, dùng khi mất mạng, kiểm tra dữ liệu**
+- Ô **Tìm toàn bộ dữ liệu** (Ctrl K) và nút **Tìm trong nội dung** ở Văn bản đến: tìm cả trong toàn văn các văn bản đã đọc, không cần gõ dấu; kết quả hiện đoạn chứa từ cần tìm.
+- **Dùng khi mất mạng**: sau lần mở đầu tiên có mạng, phần mềm mở được khi mất mạng; thay đổi lưu trên máy và tự đồng bộ khi có mạng lại. Trên điện thoại (Chrome, Safari): *Thêm vào màn hình chính* để dùng như ứng dụng.
+- **Sức khỏe dữ liệu** (nhóm Tổng hợp): điểm chất lượng dữ liệu, bản ghi thiếu thông tin quan trọng (cán bộ, nguồn kinh phí, thời hạn…), dòng dự toán lâu chưa cập nhật, chênh lệch đối chiếu chưa giải trình. Chỉ đọc, bấm từng bản ghi để bổ sung.
+
 ## 5. Sao lưu, khôi phục
 
 - Dữ liệu nằm trong IndexedDB của **trình duyệt trên máy đang dùng**. Xóa dữ liệu duyệt web, dùng cửa sổ ẩn danh, đổi trình duyệt hoặc đổi máy sẽ không thấy dữ liệu.
@@ -204,7 +238,7 @@ Bản ghi kéo về có nhãn nguồn và nút mở lại đúng phần mềm g�
 - Bản mới chỉ cần thay tệp HTML ở **đúng vị trí cũ** (cùng đường dẫn, cùng trình duyệt) thì dữ liệu còn nguyên. Luôn sao lưu trước khi thay.
 - Mã nguồn tách mô-đun trong `src/`; `node build.js` ghép thành một tệp. Khai báo trường tập trung ở `src/js/20-schema.js`: thêm một trường là form, bảng, Excel, kiểm tra dữ liệu và lịch sử tự có.
 - Lớp lưu trữ (`src/js/10-store.js`) tách khỏi giao diện qua một adapter 8 hàm. Lên hệ thống nhiều người dùng chỉ cần viết adapter gọi máy chủ, không phải viết lại các phân hệ.
-- Kiểm thử: `node --test tests/gas.test.js tests/trich-van-ban.test.js`; `node tests/mock-server.js &` rồi `node tests/e2e.js <thư mục ảnh> <tệp Excel giải ngân> <tệp nhà đất> <các tệp kiểm kê>`.
+- Kiểm thử: `node --test tests/gas.test.js tests/trich-van-ban.test.js tests/tinh-toan.test.js` (phép tính tiền, tỷ lệ, kịch bản, đối chiếu, văn bản); `node tests/mock-server.js &` rồi `node tests/e2e.js <thư mục ảnh> <tệp Excel giải ngân> <tệp nhà đất> <các tệp kiểm kê>`.
 
 ## 9. Nội dung cần anh/chị xác nhận
 
@@ -214,3 +248,6 @@ Bản ghi kéo về có nhãn nguồn và nút mở lại đúng phần mềm g�
 4. **Chức vụ**: Thông báo 279 chỉ ghi "Chuyên viên" cho 4 đồng chí; các đồng chí khác để trống. Đ/c Lê Tùng Lâm ghi "Phụ trách Phòng" theo thông tin anh cung cấp — cần chỉnh đúng chức danh.
 5. **Biểu giải ngân 20/10/2026** có 4 chỗ số tổng khác tổng chi tiết (xem mục cảnh báo khi nhập), trong đó dòng "Kinh phí tự chủ" lệch 707,6 triệu và phần CTMTQG nông thôn mới lệch 100 triệu.
 6. **Danh mục hình thức lựa chọn nhà thầu, loại hợp đồng, giai đoạn dự án** là danh mục mở, sửa ở Thiết lập; phần mềm không gắn điều khoản pháp luật vào các danh mục này.
+7. **Đối chiếu**: tạm ứng hợp đồng còn dư (chưa thu hồi) đang mặc định tính vào số đã chi khi so với giải ngân — cần xác nhận cách tính.
+8. **Căn cứ pháp lý mặc định** trong mẫu văn bản (Luật Đấu thầu 22/2023/QH15; Luật 57/2024/QH15; Luật 90/2025/QH15; Nghị định 214/2025/NĐ-CP) và **thẩm quyền**: tờ trình do Phòng trình Giám đốc Sở, quyết định phê duyệt KHLCNT do Giám đốc Sở ký — cần rà soát.
+9. **Thu hồi**: dòng mới "đề nghị thu hồi", chưa có quyết định, vẫn tính là giải ngân chậm.
