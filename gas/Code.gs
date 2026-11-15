@@ -520,6 +520,8 @@ var NhacViec = (function () {
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function sum(a, f) { var t = 0; (a || []).forEach(function (x) { t += num(f(x)); }); return t; }
   function nsTong(x) { return num(x.chuyenNguon) + num(x.duToan) + num(x.boSung) + num(x.dcTang) - num(x.dcGiam) - num(x.thuHoi) - num(x.tietKiem); }
+  // Dòng dự toán đã có quyết định thu hồi (ghi ở Tiến độ, Ghi chú, Ghi chú trên biểu): không tính là giải ngân chậm. "Đề nghị thu hồi" chưa có QĐ thì vẫn tính.
+  function daQDThuHoi(r) { var s = [r.tienDo, r.ghiChu, r.ghiChuBieu].join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase().replace(/\s+/g, ' '); return /(\bqd|quyet dinh)( so [^ ]+)? thu hoi?\b/.test(s); }
   function hdHan(h) { var g = (h.phuLuc || []).map(function (x) { return x.giaHanDen; }).filter(iso).sort().pop(); return g && (!h.ngayKT || g > h.ngayKT) ? g : (h.ngayKT || ''); }
 
   /**
@@ -558,7 +560,7 @@ var NhacViec = (function () {
       var t = nsTong(r), g = num(r.giaiNgan); if (!(t > 0)) return;
       if (!cb || r.canBoId === cb) { tong += t; gn += g; }
       var ty = g / t * 100, conLai = t - g;
-      if (conLai > 0.5 && ty - chuan <= -gnLech && (!cb || r.canBoId === cb)) out.gn.push({ ten: (r.stt ? r.stt + ' ' : '') + r.noiDung, dv: dv[r.donViId] || '', tong: t, gn: g, con: conLai, ty: ty, cb: cbTen[r.canBoId] || '' });
+      if (conLai > 0.5 && ty - chuan <= -gnLech && !daQDThuHoi(r) && (!cb || r.canBoId === cb)) out.gn.push({ ten: (r.stt ? r.stt + ' ' : '') + r.noiDung, dv: dv[r.donViId] || '', tong: t, gn: g, con: conLai, ty: ty, cb: cbTen[r.canBoId] || '' });
     });
     out.gn.sort(function (a, b) { return b.con - a.con; });
     out.tong = tong; out.daGN = gn; out.tyLe = tong ? gn / tong * 100 : 0;
@@ -583,7 +585,7 @@ var NhacViec = (function () {
     h += (o.url ? '<p><a href="' + esc(o.url) + '">Mở phần mềm để xem chi tiết</a></p>' : '') + '<p style="color:#667;font-size:12px">Thư gửi tự động mỗi sáng thứ Hai từ dữ liệu đã đồng bộ lên máy chủ. Số liệu chỉ đúng tới lần đồng bộ gần nhất.</p></div>';
     return { tieuDe: td, html: h, soViec: n };
   }
-  return { tomTat: tomTat, thu: thu, hdHan: hdHan };
+  return { tomTat: tomTat, thu: thu, hdHan: hdHan, daQDThuHoi: daQDThuHoi };
 })();
 // @@END nhac-viec
 // @@BEGIN ai-tien-ich

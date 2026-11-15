@@ -35,6 +35,13 @@ test('giaiNgan: tỷ lệ, tỷ lệ thời gian, dự báo theo tốc độ t�
   // Nội dung chậm: ngưỡng mặc định 20 điểm so với tỷ lệ thời gian 49,6%
   const d = L.gnDong(2026, {});
   assert.deepEqual(d.filter(x => x.cham).map(x => x.r.id).sort(), ['a', 'b']);   // A: 20% (lệch −29,6), B: 0%
+  // Đã có QĐ thu hồi (kể cả gõ thiếu "thu hồ") → không chậm; mới "đề nghị thu hồi" → vẫn chậm
+  S.get('ngansach', 'b').tienDo = 'Đã có QĐ thu hồ tại số 580/QĐ-SNNMT ngày 27/8/2026';
+  assert.deepEqual(L.gnDong(2026, {}).filter(x => x.cham).map(x => x.r.id), ['a']);
+  S.get('ngansach', 'b').tienDo = 'Đề nghị thu hồi số tiền 85.000.000đ'; S.get('ngansach', 'b').ghiChu = 'Quyết định số 12/QĐ-SNNMT thu hồi kinh phí';
+  assert.deepEqual(L.gnDong(2026, {}).filter(x => x.cham).map(x => x.r.id), ['a']);
+  S.get('ngansach', 'b').ghiChu = '';
+  assert.deepEqual(L.gnDong(2026, {}).filter(x => x.cham).map(x => x.r.id).sort(), ['a', 'b']);
   // Đặt mục tiêu tháng 6 = 15% → A (20%) không chậm; B (0%, lệch −15) chưa tới ngưỡng 20 điểm
   S.cfg.gnMucTieu = { 2026: [2, 4, 6, 8, 10, 15, 30, 40, 50, 60, 80, 100] };
   const g2 = L.giaiNgan(2026, {}); assert.equal(g2.mt.tuDat, true); gan(g2.mtNay, 15); gan(g2.lech, -2);
