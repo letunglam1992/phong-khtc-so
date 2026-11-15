@@ -216,7 +216,7 @@
     $$('[data-cach]', div).forEach(b => b.onclick = () => { A.vs.mcCach = b.dataset.cach; A.render(); });
     const luuUrl = async () => { const u = $('#mc_url', div).value.trim(); if (u !== (S.cfg.syncUrl || '')) await S.setCfg({ syncUrl: u, dbRev: null, dbAt: null }); };
     UI.on(div, 'click', '[data-mc]', async b => {
-      const k = b.dataset.mc;
+      const k = b.dataset.mc; if (!k) return; // thẻ ngoài cùng cũng mang data-mc: bấm vào ô nhập không được vẽ lại trang
       try {
         if (k === 'login') {
           await luuUrl();
