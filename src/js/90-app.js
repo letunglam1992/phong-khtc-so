@@ -5,7 +5,7 @@
 (function (A) {
   const U = A.U, S = A.Store, L = A.L, UI = A.UI, Sc = A.Schema, e = U.esc, ic = A.icon, $ = UI.$, $$ = UI.$$;
   const NAV = [
-    ['Điều hành', [['tongquan', 'Bảng điều hành', 'home'], ['troly', 'Trợ lý điều hành', 'spark'], ['vanbanden', 'Văn bản đến', 'inbox']]],
+    ['Điều hành', [['tongquan', 'Bảng điều hành', 'home'], ['canhan', 'Việc của tôi', 'task'], ['troly', 'Trợ lý điều hành', 'spark'], ['vanbanden', 'Văn bản đến', 'inbox']]],
     ['Tài chính, đầu tư', [['ngansach', 'Tài chính, giải ngân', 'wallet'], ['dauthau', 'Đấu thầu, hợp đồng', 'gavel'], ['von', 'Kế hoạch vốn đầu tư', 'coins'], ['taisan', 'Tài sản công', 'building']]],
     ['Nhiệm vụ, dự án', [['nhiemvu', 'Nhiệm vụ, công việc', 'task'], ['duan', 'Chương trình, dự án', 'project'], ['vanban', 'Văn bản', 'doc'], ['chucnang', 'Chức năng, nhiệm vụ', 'book'], ['canbo', 'Cán bộ, phân công', 'users']]],
     ['Tổng hợp', [['baocao', 'Báo cáo, thống kê', 'report'], ['ketnoi', 'Kết nối phần mềm', 'link'], ['suckhoe', 'Sức khỏe dữ liệu', 'check'], ['lichsu', 'Nhật ký cập nhật', 'history'], ['thietlap', 'Thiết lập, sao lưu', 'gear']]]
