@@ -491,7 +491,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tdo .b em{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);opacity:.55}
 .tdo b{font-size:12.5px;min-width:42px;text-align:right}
 .tdo.dat .b i,.tdo.xong .b i{background:var(--ok)}.tdo.cham .b i{background:var(--warn)}.tdo.rat .b i{background:var(--bad)}
-.tdo.rat b{color:var(--bad-fg)}.tdo.cham b{color:var(--warn-fg)}
+.tdo.th .b i{background:var(--idle)}.tdo.rat b{color:var(--bad-fg)}.tdo.cham b{color:var(--warn-fg)}
 .gn-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 8px;color:var(--soft)}
 .gn-legend .d{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .gn-legend .d.dat,.gn-legend .d.xong{background:var(--ok)}.gn-legend .d.cham{background:var(--warn)}.gn-legend .d.rat{background:var(--bad)}

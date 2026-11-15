@@ -15,8 +15,17 @@ var NhacViec = (function () {
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function sum(a, f) { var t = 0; (a || []).forEach(function (x) { t += num(f(x)); }); return t; }
   function nsTong(x) { return num(x.chuyenNguon) + num(x.duToan) + num(x.boSung) + num(x.dcTang) - num(x.dcGiam) - num(x.thuHoi) - num(x.tietKiem); }
-  // Dòng dự toán đã có quyết định thu hồi (ghi ở Tiến độ, Ghi chú, Ghi chú trên biểu): không tính là giải ngân chậm. "Đề nghị thu hồi" chưa có QĐ thì vẫn tính.
-  function daQDThuHoi(r) { var s = [r.tienDo, r.ghiChu, r.ghiChuBieu].join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase().replace(/\s+/g, ' '); return /(\bqd|quyet dinh)( so [^ ]+)? thu hoi?\b/.test(s); }
+  // Dòng dự toán đã có quyết định thu hồi: không tính là giải ngân chậm. Ưu tiên ô "Quyết định thu hồi" (qdThuHoi, qdThuHoiNgay);
+  // dữ liệu cũ chưa nhập ô này thì đọc chữ ở Tiến độ, Ghi chú, Ghi chú trên biểu. "Đề nghị thu hồi" chưa có QĐ thì vẫn tính chậm.
+  function chuQD(r) { return [r.tienDo, r.ghiChu, r.ghiChuBieu].join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase().replace(/\s+/g, ' '); }
+  function daQDThuHoi(r) { return !!(r.qdThuHoi || r.qdThuHoiNgay) || /(\bqd|quyet dinh)( so [^ ]+)? thu hoi?\b/.test(chuQD(r)); }
+  // Tách số, ngày QĐ thu hồi từ chữ ghi chú (để điền vào ô riêng). Trả null nếu không thấy QĐ thu hồi.
+  function tachQDThuHoi(r) {
+    var s = chuQD(r), m = /(\bqd|quyet dinh)( so [^ ]+)? thu hoi?\b(.{0,80})/.exec(s); if (!m) return null;
+    var w = (m[2] || '') + ' ' + m[3], so = /(\d+[\w./-]*\/qd[\w./-]*)/.exec(w), d = /ngay (\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(w);
+    var goc = /\d+[\w./-]*\/Q[ĐD][\wĐđ./-]*/i.exec([r.tienDo, r.ghiChu, r.ghiChuBieu].join(' ')); // giữ đúng chữ Đ của số, ký hiệu gốc
+    return { so: goc ? goc[0] : so ? so[1].toUpperCase() : '', ngay: d ? d[3] + '-' + ('0' + d[2]).slice(-2) + '-' + ('0' + d[1]).slice(-2) : '' };
+  }
   function hdHan(h) { var g = (h.phuLuc || []).map(function (x) { return x.giaHanDen; }).filter(iso).sort().pop(); return g && (!h.ngayKT || g > h.ngayKT) ? g : (h.ngayKT || ''); }
 
   /**
@@ -80,6 +89,6 @@ var NhacViec = (function () {
     h += (o.url ? '<p><a href="' + esc(o.url) + '">Mở phần mềm để xem chi tiết</a></p>' : '') + '<p style="color:#667;font-size:12px">Thư gửi tự động mỗi sáng thứ Hai từ dữ liệu đã đồng bộ lên máy chủ. Số liệu chỉ đúng tới lần đồng bộ gần nhất.</p></div>';
     return { tieuDe: td, html: h, soViec: n };
   }
-  return { tomTat: tomTat, thu: thu, hdHan: hdHan, daQDThuHoi: daQDThuHoi };
+  return { tomTat: tomTat, thu: thu, hdHan: hdHan, daQDThuHoi: daQDThuHoi, tachQDThuHoi: tachQDThuHoi };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = NhacViec;

@@ -92,7 +92,7 @@
     const g = L.giaiNgan(nam, f), chuan = g.mt.tuDat ? g.mtNay : g.tyLeTG;
     return g.leaves.filter(n => n.sum.tong > 0).map(n => {
       const ty = U.pct(n.sum.giaiNgan, n.sum.tong) || 0, lech = ty - chuan, con = n.sum.tong - n.sum.giaiNgan;
-      return { n, r: n.r, tong: n.sum.tong, gn: n.sum.giaiNgan, con, ty, lech, cham: con > 0.5 && lech <= -A.nguong('gnLech') && !NhacViec.daQDThuHoi(n.r), chuaGN: n.sum.giaiNgan <= 0 };
+      return { n, r: n.r, tong: n.sum.tong, gn: n.sum.giaiNgan, con, ty, lech, qdTH: NhacViec.daQDThuHoi(n.r), cham: con > 0.5 && lech <= -A.nguong('gnLech') && !NhacViec.daQDThuHoi(n.r), chuaGN: n.sum.giaiNgan <= 0 };
     });
   };
   // Nhóm theo đơn vị / cán bộ
