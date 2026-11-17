@@ -5,7 +5,33 @@
 (function (A) {
   const U = A.U, S = A.Store, L = A.L, UI = A.UI, Sc = A.Schema, e = U.esc, ic = A.icon, $ = UI.$, $$ = UI.$$, P = UI.PAL;
   const fs = U.fmtShort, ty = v => U.fmtNum(v / 1e9, Math.abs(v) >= 1e10 ? 0 : 1);
-  const kpi = (cls, l, v, s) => '<div class="kpi ' + cls + ' static"><span class="k-l">' + e(l) + '</span><span class="k-v">' + v + '</span><span class="k-s">' + (s || '&nbsp;') + '</span></div>';
+  const kpi = (cls, l, v, s, ct) => '<div class="kpi ' + cls + (ct ? '" role="button" tabindex="0" data-ct="' + ct + '" title="Bấm để xem các nội dung chi tiết' : ' static') + '"><span class="k-l">' + e(l) + '</span><span class="k-v">' + v + '</span><span class="k-s">' + (s || '&nbsp;') + '</span></div>';
+
+  /* ---------- Hộp chi tiết khi bấm vào thẻ số liệu ----------
+     o.nodes: các dòng chi tiết ({ r, sum }); o.cols: [[nhãn, (node) => giá trị, 'money'|'pct'|'date'|'text', cộng?]].
+     Dòng cộng ở cuối bằng đúng số trên thẻ (cùng tập dòng). Bấm dòng mở nội dung; bấm tiêu đề cột để sắp xếp. */
+  A.nsChiTiet = o => {
+    const cols = o.cols, st = { q: '', k: o.sortCol === undefined ? -1 : o.sortCol, d: -1 };
+    const fmt = (v, t) => v === null || v === undefined || v === '' ? '' : t === 'money' ? U.fmtMoney(v) : t === 'pct' ? U.fmtPct(v) : t === 'date' ? U.fmtDate(v) : String(v);
+    const dvTen = n => Sc.refName('donvi', n.r.donViId), cbTen = n => Sc.refName('canbo', n.r.canBoId), chaTen = n => { const c = n.r.parentId && S.get('ngansach', n.r.parentId); return c ? 'thuộc ' + U.trunc((c.stt ? c.stt + ' ' : '') + c.noiDung, 50) : ''; };
+    const m = UI.modal({ title: o.title, sub: o.sub || '', size: 'lg', body: '<div class="toolbar"><div class="search grow" style="max-width:320px">' + ic('search', 16) + '<input class="inp" type="search" data-ctq placeholder="Tìm nội dung, đơn vị…" aria-label="Tìm trong danh sách"></div><span class="sp"></span><span class="small soft" data-ctn></span></div><div data-ctb></div>',
+      buttons: [{ label: 'Xuất Excel', icon: 'download', on: () => xuat() }, 'sp', { label: 'Đóng', on: a => a.close() }] });
+    const loc = () => { const q = U.norm(st.q); let l = o.nodes.filter(n => !q || U.norm([n.r.stt, n.r.noiDung, dvTen(n), cbTen(n)].join(' ')).includes(q)); if (st.k >= 0) { const f = cols[st.k][1]; l = l.slice().sort((a, b) => { const x = f(a), y = f(b); return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x || '').localeCompare(String(y || ''), 'vi')) * st.d; }); } return l; };
+    const ve = () => {
+      const l = loc();
+      $('[data-ctn]', m.body).textContent = l.length + ' / ' + o.nodes.length + ' nội dung';
+      $('[data-ctb]', m.body).innerHTML = l.length ? '<div class="tbl-wrap" style="max-height:62vh;overflow:auto"><table class="tbl"><thead><tr><th>Nội dung</th>' + cols.map((c, i) => '<th class="' + (c[2] === 'text' || c[2] === 'date' ? '' : 'num ') + 'click" data-sk="' + i + '" title="Sắp xếp">' + e(c[0]) + (st.k === i ? (st.d > 0 ? ' ▲' : ' ▼') : '') + '</th>').join('') + '</tr></thead><tbody>' +
+        l.map(n => '<tr class="click" data-cid="' + e(n.r.id) + '"><td class="wrap" style="min-width:260px">' + e((n.r.stt ? n.r.stt + ' ' : '') + n.r.noiDung) + '<div class="t2">' + e([dvTen(n), chaTen(n), cbTen(n)].filter(Boolean).join(' · ')) + '</div></td>' + cols.map(c => { const v = c[1](n); return c[2] === 'pct' ? '<td style="min-width:110px">' + UI.pbar(v || 0) + '</td>' : '<td class="' + (c[2] === 'text' || c[2] === 'date' ? 'small' : 'num') + '">' + e(fmt(v, c[2])) + '</td>'; }).join('') + '</tr>').join('') +
+        '</tbody><tfoot><tr><td><b>Cộng ' + l.length + ' nội dung</b></td>' + cols.map(c => '<td class="num"><b>' + (c[3] ? U.fmtMoney(U.sum(l, c[1])) : c[2] === 'pct' && o.tyLe ? U.fmtPct(o.tyLe(l)) : '') + '</b></td>').join('') + '</tr></tfoot></table></div>' : UI.empty('Không có nội dung', st.q ? 'Không có dòng khớp từ khóa đang tìm.' : 'Phạm vi đang lọc không có dòng nào thuộc thẻ này.');
+      $$('[data-sk]', m.body).forEach(th => th.onclick = () => { const i = +th.dataset.sk; st.d = st.k === i ? -st.d : -1; st.k = i; ve(); });
+      $$('[data-cid]', m.body).forEach(tr => tr.onclick = () => A.open('ngansach', tr.dataset.cid));
+    };
+    const xuat = () => { const l = loc(); UI.xlsx('chi-tiet-' + U.norm(o.title).replace(/[^a-z0-9]+/g, '-').slice(0, 40) + '-' + UI.stamp() + '.xlsx', [{ name: 'Chi tiet', widths: [6, 60, 26, 18].concat(cols.map(() => 17)), aoa: [[o.title], [o.sub || ''], [], ['TT', 'Nội dung', 'Đơn vị', 'Cán bộ'].concat(cols.map(c => c[0]))].concat(l.map((n, i) => [i + 1, (n.r.stt ? n.r.stt + ' ' : '') + n.r.noiDung, dvTen(n), cbTen(n)].concat(cols.map(c => { const v = c[1](n); return c[2] === 'date' ? U.fmtDate(v) : c[2] === 'pct' ? (v === null || v === undefined ? '' : Math.round(v * 100) / 100) : v; })))).concat([['', 'Cộng', '', ''].concat(cols.map(c => c[3] ? U.sum(l, c[1]) : ''))]) }]); };
+    $('[data-ctq]', m.body).addEventListener('input', U.debounce(x => { st.q = x.target.value; ve(); }, 150));
+    ve();
+  };
+  // Gắn thẻ có data-ct trong khung: map ct → hàm mở hộp chi tiết
+  A.nsGanThe = (root, map) => $$('[data-ct]', root).forEach(k => { const f = map[k.dataset.ct]; if (!f) return; k.onclick = f; k.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); f(); } }; });
   const cbOpts = () => [['', 'Tất cả cán bộ'], ['__none', 'Chưa giao cán bộ']].concat(S.all('canbo').filter(c => c.trangThai !== 'nghi').map(c => [c.id, c.hoTen]));
   const opt = (list, v) => list.map(o => '<option value="' + e(o[0]) + '"' + (String(v || '') === String(o[0]) ? ' selected' : '') + '>' + e(o[1]) + '</option>').join('');
   const filt = (Sel, withCb) => '<div class="toolbar"><select class="sel" data-gdv aria-label="Đơn vị dự toán">' + opt([['', 'Tất cả đơn vị']].concat(S.all('donvi').map(d => [d.id, d.tenTat || d.ten])), Sel.dv) + '</select>' + (withCb ? '<select class="sel" data-gcb aria-label="Cán bộ theo dõi">' + opt(cbOpts(), Sel.cb) + '</select>' : '');
@@ -58,12 +84,12 @@
     let h = filt(Sel, true) + '<span class="sp"></span><button class="btn" data-gb>' + ic('board', 16) + 'Trang giao ban</button><button class="btn" data-mt>' + ic('flag', 16) + 'Mục tiêu giải ngân</button><button class="btn" data-rep>' + ic('report', 16) + 'Lập báo cáo tiến độ</button><button class="btn" data-imp>' + ic('upload', 16) + 'Nhập biểu Excel</button><button class="btn primary" data-goupd>' + ic('edit', 16) + 'Cập nhật số giải ngân</button></div>';
     h += '<div class="card mb gn-banner"><div class="card-b" style="display:flex;gap:18px;flex-wrap:wrap;align-items:center"><div style="min-width:0;flex:1 1 360px"><div class="eyebrow" style="margin:0">Tiến độ giải ngân năm ' + y + ' — số liệu đến ngày ' + U.fmtDate(g.asOf) + '</div><div style="font-size:18px;font-weight:700;margin-top:4px">Đã giải ngân ' + U.fmtPct(g.tyLe) + ' · ' + (g.mt.tuDat ? 'mục tiêu hết tháng ' + g.lastM + ': ' : 'thời gian đã qua: ') + U.fmtPct(mucTieu) + ' ' + UI.chip(M[0], M[1]) + '</div><div class="soft small">' + (g.lech >= 0 ? 'Vượt ' : 'Thấp hơn ') + U.fmtNum(Math.abs(g.lech), 1) + ' điểm % so với ' + (g.mt.tuDat ? 'mục tiêu Phòng đã đặt' : 'tỷ lệ thời gian (chưa đặt mục tiêu riêng)') + '. Dự báo đến 31/12: khoảng <b>' + U.fmtPct(U.pct(g.duBao, g.tong)) + '</b>.</div></div><div style="flex:0 1 280px;min-width:220px">' + UI.pbar(g.tyLe || 0, g.muc === 'cham' ? 'bad' : '') + '</div></div></div>';
     h += '<div class="kpis mb">' +
-      kpi('acc', 'Tổng kinh phí được sử dụng', '<small>' + fs(g.tong) + '</small>', g.leaves.length + ' nội dung chi tiết') +
-      kpi('ok', 'Đã giải ngân lũy kế', '<small>' + fs(g.gn) + '</small>', U.fmtPct(g.tyLe) + ' kế hoạch') +
-      kpi('warn', 'Còn phải giải ngân', '<small>' + fs(g.conLai) + '</small>', U.fmtNum(g.conNgay, 0) + ' ngày còn lại trong năm') +
-      kpi(g.nguyCo ? 'bad' : 'teal', 'Dự báo giải ngân đến 31/12', '<small>' + fs(g.duBao) + '</small>', U.fmtPct(U.pct(g.duBao, g.tong)) + (g.nguyCo ? ' · nguy cơ còn ' + fs(g.tong - g.duBao) : '')) +
-      kpi('violet', 'Cần giải ngân bình quân', g.canMoiThang !== null && g.conLai > 0.5 ? '<small>' + fs(g.canMoiThang) + '</small>' : '—', g.canMoiThang !== null && g.conLai > 0.5 ? 'mỗi tháng để hết kế hoạch' : '') +
-      kpi(cham.length ? 'bad' : 'ok', 'Nội dung giải ngân chậm', cham.length, cham.length ? 'Còn ' + fs(U.sum(cham, x => x.con)) : 'Không có') + '</div>';
+      kpi('acc', 'Tổng kinh phí được sử dụng', '<small>' + fs(g.tong) + '</small>', g.leaves.length + ' nội dung chi tiết', 'tong') +
+      kpi('ok', 'Đã giải ngân lũy kế', '<small>' + fs(g.gn) + '</small>', U.fmtPct(g.tyLe) + ' kế hoạch', 'gn') +
+      kpi('warn', 'Còn phải giải ngân', '<small>' + fs(g.conLai) + '</small>', U.fmtNum(g.conNgay, 0) + ' ngày còn lại trong năm', 'con') +
+      kpi(g.nguyCo ? 'bad' : 'teal', 'Dự báo giải ngân đến 31/12', '<small>' + fs(g.duBao) + '</small>', U.fmtPct(U.pct(g.duBao, g.tong)) + (g.nguyCo ? ' · nguy cơ còn ' + fs(g.tong - g.duBao) : ''), 'dubao') +
+      kpi('violet', 'Cần giải ngân bình quân', g.canMoiThang !== null && g.conLai > 0.5 ? '<small>' + fs(g.canMoiThang) + '</small>' : '—', g.canMoiThang !== null && g.conLai > 0.5 ? 'mỗi tháng để hết kế hoạch' : '', 'binhquan') +
+      kpi(cham.length ? 'bad' : 'ok', 'Nội dung giải ngân chậm', cham.length, cham.length ? 'Còn ' + fs(U.sum(cham, x => x.con)) : 'Không có', 'cham') + '</div>';
     h += '<div class="grid-21"><div class="card"><div class="card-h"><h3>Diễn biến giải ngân lũy kế theo tháng</h3><div class="sub">Tỷ đồng. Cột xanh: thực hiện; cột nhạt: dự báo theo tốc độ hiện tại; đường: mục tiêu ' + (g.mt.tuDat ? 'đã đặt' : 'theo tỷ lệ thời gian') + '</div></div><div class="card-b">' +
       UI.bars({ cats: thangCats, fmt: ty, labels: false, series: [{ name: 'Đã giải ngân lũy kế', color: P.acc, vals: g.thang }, { name: 'Dự báo', color: 'var(--idle)', vals: duBaoVals }], line: { name: 'Mục tiêu', color: 'var(--violet)', vals: g.mtTien }, label: 'Giải ngân lũy kế theo tháng' }) +
       '<div class="small muted">' + (g.coLS ? 'Dự báo lấy bình quân của hai cách: tốc độ từ đầu năm (' + fs(g.duBao1) + ') và tốc độ khoảng 60 ngày gần nhất (' + fs(g.duBao2) + '); không vượt tổng kế hoạch.' : 'Mới có số liệu một kỳ: dự báo tạm tính theo tốc độ bình quân từ đầu năm. Cập nhật số giải ngân định kỳ để dự báo sát thực tế hơn.') + '</div></div></div>' +
@@ -84,6 +110,19 @@
       if (q('[data-imp]')) q('[data-imp]').onclick = ctx.importBudget;
       if (q('[data-mt]')) q('[data-mt]').onclick = () => mucTieuDialog(y);
       if (q('[data-goupd]')) q('[data-goupd]').onclick = () => { Sel.tab = 'cn'; A.render(); };
+      // Thẻ số liệu: bấm để xem các nội dung chi tiết tạo nên con số trên thẻ
+      const pv = [Sel.dv ? Sc.refName('donvi', Sel.dv) : 'Tất cả đơn vị', Sel.cb ? (Sel.cb === '__none' ? 'Chưa giao cán bộ' : Sc.refName('canbo', Sel.cb)) : ''].filter(Boolean).join(' · ') + ' · năm ' + y + ' · số liệu đến ' + U.fmtDate(g.asOf);
+      const cT = ['Được sử dụng', x => x.tong, 'money', 1], cG = ['Đã giải ngân', x => x.gn, 'money', 1], cC = ['Còn lại', x => x.con, 'money', 1], cY = ['Tỷ lệ', x => x.ty, 'pct'], cN = ['Ngày số liệu', x => x.r.ngayGN, 'date'];
+      const tyL = l => U.pct(U.sum(l, x => x.gn), U.sum(l, x => x.tong)), thangCon = g.canMoiThang && g.conLai > 0.5 ? g.conLai / g.canMoiThang : null;
+      const ct = (title, list, cols, sortCol) => () => A.nsChiTiet({ title, sub: pv, nodes: list, cols, sortCol, tyLe: tyL });
+      A.nsGanThe(box, {
+        tong: ct('Tổng kinh phí được sử dụng: ' + rows.length + ' nội dung chi tiết', rows, [['Chuyển nguồn', x => x.n.sum.chuyenNguon, 'money', 1], ['Dự toán đầu năm', x => x.n.sum.duToan, 'money', 1], ['Bổ sung, điều chỉnh, thu hồi', x => x.n.sum.boSung + x.n.sum.dcTang - x.n.sum.dcGiam - x.n.sum.thuHoi, 'money', 1], ['Tiết kiệm', x => x.n.sum.tietKiem, 'money', 1], cT]),
+        gn: ct('Đã giải ngân lũy kế', rows.filter(x => x.gn > 0.5), [cT, cG, cY, cN], 1),
+        con: ct('Còn phải giải ngân', rows.filter(x => x.con > 0.5), [cT, cG, cC, cY], 2),
+        dubao: ct('Tiến độ từng nội dung so với mục tiêu', rows, [cT, cG, cC, cY, ['Lệch mục tiêu (điểm %)', x => Math.round(x.lech * 10) / 10, 'num']], 4),
+        binhquan: ct('Cần giải ngân bình quân mỗi tháng', rows.filter(x => x.con > 0.5), [cT, cC, ['Cần mỗi tháng', x => thangCon ? x.con / thangCon : null, 'money', 1], cY], 2),
+        cham: ct('Nội dung giải ngân chậm', cham, [cT, cG, cC, cY, ['Tiến độ, vướng mắc', x => x.r.tienDo || '', 'text']], 2)
+      });
       if (q('[data-rep]')) q('[data-rep]').onclick = () => { const t = U.today(); A.vs.bc = Object.assign(A.vs.bc || { kind: 'nam', n: 1, from: t.slice(0, 8) + '01', to: t, nhom: '', duan: '', cb: '', secs: [] }, { type: 'gnns', kind: 'nam', y, dv: Sel.dv || '', cb: Sel.cb && Sel.cb !== '__none' ? Sel.cb : '' }); A.go('baocao'); };
       $$('[data-gdv]', box).forEach(() => { });
       $$('tr[data-gdv]', box).forEach(tr => tr.onclick = () => dsNhom('dv', tr.dataset.gdv, y, Sel));
