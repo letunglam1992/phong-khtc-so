@@ -95,7 +95,7 @@
   }
 
   // Ghi một biểu đã đọc vào dự toán của đơn vị/năm (dùng chung cho nhập một tệp và nhập nhiều đơn vị). Trả về số dòng đã ghi.
-  async function luuBieu(parsed, dvId, nam, ngay, xoaCu, fname) {
+  async function luuBieu(parsed, dvId, nam, ngay, xoaCu, fname, vb) {
       const old = S.all('ngansach').filter(r => r.donViId === dvId && +r.nam === nam);
       const match = L.nsGhepDong(parsed.items, old), used = new Set(match.filter(Boolean).map(r => r.id));
       const bo = xoaCu ? old.filter(r => !used.has(r.id)) : [];
@@ -108,7 +108,7 @@
           const cu = match[i];
           const rec = { id: ids[i], nam, donViId: dvId, parentId: it.parent >= 0 ? ids[it.parent] : '', stt: it.stt, noiDung: it.noiDung, thuTu: i, quyetDinh: it.quyetDinh, tienDo: it.tienDo || (cu && cu.tienDo) || '', ghiChuBieu: it.ghiChuBieu || '', canBoId: cb ? cb.id : (cu && cu.canBoId) || '', ghiChu: it.keToan && !cb ? 'Người thực hiện ghi trên biểu: ' + it.keToan : (cu && cu.ghiChu) || '', ngayGN: ngay, bieuNgay: ngay || U.today(), nhomKP: (cu && cu.nhomKP) || '' };
           if (!cu) rec.createdAt = U.nowStamp();
-          if (!it.isGroup) rec.gnHist = L.gnPush(cu ? (cu.gnHist && cu.gnHist.length ? cu.gnHist : L.gnHistOf(cu)) : [], ngayHS, it.giaiNgan, 'excel');
+          if (!it.isGroup) { rec.gnHist = L.gnPush(cu ? (cu.gnHist && cu.gnHist.length ? cu.gnHist : L.gnHistOf(cu)) : [], ngayHS, it.giaiNgan, 'excel'); const mc = rec.gnHist.find(x => x.ngay === ngayHS); if (mc) { mc.tep = fname || ''; if (vb) mc.vb = vb; } }
           ['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi', 'tietKiem', 'giaiNgan'].forEach(k => { rec[k] = it[k]; });
           if (it.level <= 1 && !rec.nhomKP) rec.nhomKP = n.includes('khong tu chu') ? 'Kinh phí không thường xuyên (không tự chủ)' : (n.includes('tu chu') || n.includes('tien thuong') || n.includes('tien luong')) ? 'Kinh phí thường xuyên (tự chủ)' : n.includes('chuong trinh') ? 'Kinh phí chương trình, đề án' : '';
           if (it.isGroup) { rec.goc = { tong: it.tongGoc }; ['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi', 'tietKiem', 'giaiNgan'].forEach(k => { rec.goc[k] = it[k]; }); }
@@ -121,7 +121,9 @@
   }
 
   // Mục 6: nhập cùng lúc biểu Phụ lục II của nhiều đơn vị (Văn phòng Sở, chi cục, trung tâm…)
-  async function importNhieu() {
+  // opt.dvId: mở từ nút "Cập nhật biểu" của một đơn vị: biểu một đơn vị (không phải biểu tổng hợp) gán cho đơn vị đó
+  async function importNhieu(opt) {
+    const dvChon = opt && opt.dvId;
     const dvs = S.all('donvi');
     if (!dvs.length) { UI.toast('Chưa có đơn vị dự toán. Thêm đơn vị ở trang Cán bộ và phân công.', 'bad'); return; }
     const files = await UI.pickFile('.xlsx,.xls', true); if (!files || !files.length) return;
@@ -147,30 +149,40 @@
       // Biểu tổng hợp của Sở (mục I, II… là đơn vị): tách từng đơn vị; phần chưa có số liệu bỏ qua để không ghi đè số đã có
       const tach = !o.loi && L.nsTachDonVi(o.parsed, dvs);
       if (tach) tach.forEach(x => ds.push(Object.assign({}, o, { fname: f.name + ' — mục ' + x.parsed.items[0].stt + ' ' + x.ten, parsed: x.parsed, dvId: x.dvId, dvBieu: x.ten, tong: x.tong, gn: x.gn, loi: x.rong ? 'Phần này trên biểu chưa có số liệu: bỏ qua, giữ nguyên số đã có của đơn vị.' : x.parsed.warnings.some(w => w.includes('không ghi nội dung')) ? 'Có dòng ghi số tiền nhưng không ghi nội dung (' + x.parsed.warnings.filter(w => w.includes('không ghi nội dung')).map(w => w.split(' có số')[0]).join(', ') + '): bỏ qua phần này, sửa biểu rồi nhập lại.' : '' })));
-      else ds.push(o);
+      else { if (dvChon && !o.loi) o.dvId = dvChon; ds.push(o); }
     }
     const dvOpt = v => '<option value="">— Chọn đơn vị —</option>' + dvs.map(d => '<option value="' + d.id + '"' + (d.id === v ? ' selected' : '') + '>' + e(d.ten) + '</option>').join('');
     const m = UI.modal({
       title: 'Nhập biểu giải ngân nhiều đơn vị', sub: ds.length + ' tệp', size: 'lg',
       body: '<p class="small soft">Phần mềm đoán đơn vị theo dòng "Đơn vị:" trên biểu, tiêu đề hoặc tên tệp — kiểm tra lại cột Đơn vị trước khi nhập. Mỗi biểu thay toàn bộ dự toán năm đó của đơn vị (dòng khớp được cập nhật, giữ lịch sử giải ngân, cán bộ theo dõi). Trước khi nhập phần mềm tự lưu một bản chụp dữ liệu.</p>' +
         '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Tệp</th><th style="min-width:200px">Đơn vị</th><th style="width:90px">Năm</th><th>Số liệu đến ngày</th><th class="num">Dòng</th><th class="num">Được sử dụng</th><th class="num">Đã giải ngân</th></tr></thead><tbody>' +
-        ds.map((o, i) => '<tr data-i="' + i + '"><td class="wrap small">' + e(o.fname) + (o.loi ? '<div class="t2" style="color:var(--bad-fg)">' + e(o.loi) + '</div>' : o.parsed.warnings.length ? '<details class="t2" style="color:var(--warn-fg)"><summary>' + o.parsed.warnings.length + ' điểm cần rà soát trên biểu</summary>' + o.parsed.warnings.slice(0, 8).map(w => '<div>• ' + e(w) + '</div>').join('') + '</details>' : '') + (o.dvBieu ? '<div class="t2">Trên biểu: ' + e(o.dvBieu) + '</div>' : '') + '</td>' +
+        ds.map((o, i) => '<tr data-i="' + i + '"><td class="wrap small">' + e(o.fname) + (o.loi ? '<div class="t2" style="color:var(--bad-fg)">' + e(o.loi) + '</div>' : o.parsed.warnings.length ? '<details class="t2" style="color:var(--warn-fg)"><summary>' + o.parsed.warnings.length + ' điểm cần rà soát trên biểu</summary>' + o.parsed.warnings.slice(0, 8).map(w => '<div>• ' + e(w) + '</div>').join('') + '</details>' : '') + (o.dvBieu ? '<div class="t2">Trên biểu: ' + e(o.dvBieu) + '</div>' : '') + (o.loi ? '' : '<input class="inp mt" data-vb style="height:30px" placeholder="Văn bản gửi biểu (số, ngày), không bắt buộc" aria-label="Văn bản gửi biểu của tệp ' + e(o.fname) + '">') + '</td>' +
           (o.loi ? '<td colspan="6" class="small muted">Bỏ qua tệp này</td>' : '<td><select class="sel" data-dv aria-label="Đơn vị của tệp ' + e(o.fname) + '">' + dvOpt(o.dvId) + '</select></td><td><input class="inp" type="number" data-nam value="' + o.nam + '" aria-label="Năm"></td><td><input class="inp" type="date" data-ngay value="' + e(o.ngay) + '" aria-label="Ngày số liệu"></td><td class="num">' + o.parsed.items.length + '</td><td class="num">' + U.fmtShort(o.tong) + '</td><td class="num">' + U.fmtShort(o.gn) + '</td>') + '</tr>').join('') + '</tbody></table></div><div data-canh class="mt"></div>',
       buttons: [{ label: 'Hủy', on: a => a.close() }, 'sp', { label: 'Nhập các biểu', cls: 'primary', icon: 'check', on: async a => {
-        const chon = ds.map((o, i) => { const tr = $('tr[data-i="' + i + '"]', m.body); return o.loi ? null : Object.assign(o, { dvId: $('[data-dv]', tr).value, nam: +$('[data-nam]', tr).value, ngay: $('[data-ngay]', tr).value }); }).filter(Boolean);
+        const chon = ds.map((o, i) => { const tr = $('tr[data-i="' + i + '"]', m.body); return o.loi ? null : Object.assign(o, { dvId: $('[data-dv]', tr).value, nam: +$('[data-nam]', tr).value, ngay: $('[data-ngay]', tr).value, vb: ($('[data-vb]', tr) || {}).value || '' }); }).filter(Boolean);
         const thieu = chon.filter(o => !o.dvId), trung = chon.filter((o, i) => o.dvId && chon.findIndex(x => x.dvId === o.dvId && x.nam === o.nam) !== i);
         if (thieu.length) { UI.toast('Chưa chọn đơn vị cho ' + thieu.length + ' tệp.', 'bad'); return; }
         if (trung.length) { UI.toast('Có hai tệp cùng đơn vị, cùng năm: ' + trung.map(o => o.fname).join(', ') + '. Bỏ bớt một tệp hoặc sửa đơn vị.', 'bad'); return; }
         if (chon.some(o => !(o.nam >= 2000 && o.nam <= 2100))) { UI.toast('Năm ngân sách không hợp lệ.', 'bad'); return; }
         try {
           await S.snapshot('Trước khi nhập biểu nhiều đơn vị');
-          let n = 0; for (const o of chon) n += await luuBieu(o.parsed, o.dvId, o.nam, o.ngay, true, o.fname);
+          let n = 0; for (const o of chon) n += await luuBieu(o.parsed, o.dvId, o.nam, o.ngay, true, o.fname, o.vb);
           A.vs.nsSel = Object.assign(A.vs.nsSel || {}, { dv: '', tab: 'dv' });
           a.close(true); UI.toast('Đã nhập ' + chon.length + ' biểu, ' + n + ' dòng dự toán.', 'ok'); A.render();
         } catch (er) { UI.fail(er); }
       } }]
     });
     return m;
+  }
+
+  // Sổ nhận biểu: mỗi lần nhập biểu đơn vị gửi về là một kỳ; lọc theo đơn vị
+  function soNhanBieu(y, Sel, dvs) {
+    const ds = L.nsKyBieu(y, Sel.skDv || null), ten = id => (S.get('donvi', id) || {}).ten || '(không rõ đơn vị)';
+    return '<div class="card mt"><div class="card-h" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div class="grow"><h3>Sổ nhận biểu giải ngân</h3><div class="sub">Mỗi lần nhập biểu đơn vị gửi về là một kỳ. Lũy kế tính lại từ lịch sử từng dòng; tỷ lệ so với kinh phí được sử dụng hiện tại.</div></div>' +
+      '<select class="sel" data-sk-dv aria-label="Lọc sổ nhận biểu theo đơn vị" style="max-width:280px"><option value="">Tất cả đơn vị</option>' + dvs.map(d => '<option value="' + d.id + '"' + (d.id === Sel.skDv ? ' selected' : '') + '>' + e(d.ten) + '</option>').join('') + '</select></div>' +
+      (ds.length ? '<div class="tbl-wrap" style="max-height:52vh;overflow:auto"><table class="tbl"><thead><tr><th>Số liệu đến ngày</th><th>Đơn vị</th><th>Văn bản, tệp</th><th class="num">Lũy kế giải ngân</th><th class="num">Tăng so với kỳ trước</th><th style="min-width:120px">Tỷ lệ</th><th>Người nhập</th></tr></thead><tbody>' +
+        ds.map(k => '<tr><td class="nowrap">' + U.fmtDate(k.ngay) + '</td><td>' + e(ten(k.dvId)) + '</td><td class="small wrap">' + (k.vb ? '<b>' + e(k.vb) + '</b>' : '') + (k.tep ? '<div class="t2">' + e(k.tep) + '</div>' : (k.vb ? '' : '<span class="muted">—</span>')) + '</td><td class="num">' + U.fmtMoney(k.gn) + '</td><td class="num">' + (k.tang === null ? '<span class="muted">Kỳ đầu</span>' : (k.tang >= 0 ? '+' : '') + U.fmtMoney(k.tang)) + '</td><td>' + UI.pbar(k.ty || 0) + '</td><td class="small">' + e(k.by || '') + '</td></tr>').join('') + '</tbody></table></div>'
+        : '<div class="card-b">' + UI.empty('Chưa có kỳ nhận biểu' + (Sel.skDv ? ' của đơn vị này' : ''), 'Bấm "Cập nhật biểu" ở dòng đơn vị, hoặc "Nhập biểu nhiều đơn vị", mỗi khi đơn vị gửi biểu về.') + '</div>') + '</div>';
   }
 
   // Tình hình gửi biểu của các đơn vị: kỳ số liệu mới nhất toàn ngành và đơn vị chưa gửi kỳ đó
@@ -239,8 +251,9 @@
       } else if (Sel.tab === 'dv') {
         const rows = L.nsByDonVi(y), gb = A.nsGuiBieu(y), ngayDV = id => (gb.ds.find(o => o.d.id === id) || {}).ngay || '', chua = gb.ds.filter(o => o.chua);
         h += '<div class="toolbar"><span class="small soft">Kỳ số liệu mới nhất toàn ngành: <b>' + (gb.ky ? U.fmtDate(gb.ky) : '—') + '</b> · ' + (gb.ds.length - chua.length) + '/' + gb.ds.length + ' đơn vị đã gửi</span><span class="sp"></span><button class="btn" data-tn-xls>' + ic('download', 16) + 'Xuất báo cáo toàn ngành</button><button class="btn primary" data-tn-imp>' + ic('upload', 16) + 'Nhập biểu nhiều đơn vị</button></div>';
-        h += rows.length ? '<div class="grid-21"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Đơn vị dự toán</th><th>Số liệu đến ngày</th><th class="num">Dự toán đầu năm</th><th class="num">Tổng được sử dụng</th><th class="num">Đã giải ngân</th><th class="num">Còn lại</th><th class="num">Quyết toán</th><th>Tỷ lệ giải ngân</th></tr></thead><tbody>' + rows.map(x => { const nd = ngayDV(x.dv.id), cu = gb.ky && nd < gb.ky; return '<tr class="click" data-pick="' + x.dv.id + '"><td><b>' + e(x.dv.ten) + '</b></td><td class="nowrap">' + (nd ? U.fmtDate(nd) : '—') + (cu ? ' <span class="chip plain quahan">Chưa gửi kỳ mới</span>' : '') + '</td><td class="num">' + U.fmtMoney(x.total.duToan) + '</td><td class="num">' + U.fmtMoney(x.total.tong) + '</td><td class="num">' + U.fmtMoney(x.total.giaiNgan) + '</td><td class="num">' + U.fmtMoney(x.total.conLai) + '</td><td class="num">' + U.fmtMoney(x.total.quyetToan) + '</td><td style="min-width:130px">' + UI.pbar(x.total.tyLe || 0) + '</td></tr>'; }).join('') + '</tbody><tfoot><tr><td>Toàn ngành (' + rows.length + ' đơn vị có dữ liệu)</td><td></td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.duToan)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.tong)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.giaiNgan)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.conLai)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.quyetToan)) + '</td><td>' + U.fmtPct(U.pct(U.sum(rows, x => x.total.giaiNgan), U.sum(rows, x => x.total.tong))) + '</td></tr></tfoot></table></div>' +
-          '<div class="card"><div class="card-h"><h3>Đơn vị chưa gửi biểu (' + chua.length + ')</h3><div class="sub">' + (gb.ky ? 'So với kỳ số liệu đến ' + U.fmtDate(gb.ky) : 'Năm ' + y) + '</div></div><div class="card-b">' + (chua.map(o => '<div class="small" style="padding:3px 0"><b>' + e(o.d.ten) + '</b><div class="t2">' + (o.ngay ? 'Số liệu gần nhất đến ' + U.fmtDate(o.ngay) : 'Chưa có số liệu năm ' + y) + '</div></div>').join('') || '<div class="note ok">Mọi đơn vị đã gửi biểu kỳ này.</div>') + '</div></div></div>' : '<div class="card">' + UI.empty('Chưa có dự toán năm ' + y, 'Bấm "Nhập biểu nhiều đơn vị" và chọn cùng lúc các tệp Phụ lục II do Văn phòng Sở, chi cục, trung tâm gửi về.') + '</div>';
+        h += rows.length ? '<div class="grid-21"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Đơn vị dự toán</th><th>Số liệu đến ngày</th><th class="num">Dự toán đầu năm</th><th class="num">Tổng được sử dụng</th><th class="num">Đã giải ngân</th><th class="num">Còn lại</th><th class="num">Quyết toán</th><th>Tỷ lệ giải ngân</th></tr></thead><tbody>' + rows.map(x => { const nd = ngayDV(x.dv.id), cu = gb.ky && nd < gb.ky; return '<tr class="click" data-pick="' + x.dv.id + '"><td><b>' + e(x.dv.ten) + '</b><div><button class="btn sm mt" data-capnhat="' + x.dv.id + '" title="Nhập biểu mới đơn vị vừa gửi">' + ic('upload', 14) + 'Cập nhật biểu</button></div></td><td class="nowrap">' + (nd ? U.fmtDate(nd) : '—') + (cu ? ' <span class="chip plain quahan">Chưa gửi kỳ mới</span>' : '') + '</td><td class="num">' + U.fmtMoney(x.total.duToan) + '</td><td class="num">' + U.fmtMoney(x.total.tong) + '</td><td class="num">' + U.fmtMoney(x.total.giaiNgan) + '</td><td class="num">' + U.fmtMoney(x.total.conLai) + '</td><td class="num">' + U.fmtMoney(x.total.quyetToan) + '</td><td style="min-width:130px">' + UI.pbar(x.total.tyLe || 0) + '</td></tr>'; }).join('') + '</tbody><tfoot><tr><td>Toàn ngành (' + rows.length + ' đơn vị có dữ liệu)</td><td></td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.duToan)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.tong)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.giaiNgan)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.conLai)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.quyetToan)) + '</td><td>' + U.fmtPct(U.pct(U.sum(rows, x => x.total.giaiNgan), U.sum(rows, x => x.total.tong))) + '</td></tr></tfoot></table></div>' +
+          '<div class="card"><div class="card-h"><h3>Đơn vị chưa gửi biểu (' + chua.length + ')</h3><div class="sub">' + (gb.ky ? 'So với kỳ số liệu đến ' + U.fmtDate(gb.ky) : 'Năm ' + y) + '</div></div><div class="card-b">' + (chua.map(o => '<div class="small" style="padding:3px 0;display:flex;gap:8px;align-items:center"><div class="grow"><b>' + e(o.d.ten) + '</b><div class="t2">' + (o.ngay ? 'Số liệu gần nhất đến ' + U.fmtDate(o.ngay) : 'Chưa có số liệu năm ' + y) + '</div></div><button class="btn sm" data-capnhat="' + o.d.id + '">' + ic('upload', 14) + 'Nhập biểu</button></div>').join('') || '<div class="note ok">Mọi đơn vị đã gửi biểu kỳ này.</div>') + '</div></div></div>' : '<div class="card">' + UI.empty('Chưa có dự toán năm ' + y, 'Bấm "Nhập biểu nhiều đơn vị" và chọn cùng lúc các tệp Phụ lục II do Văn phòng Sở, chi cục, trung tâm gửi về.') + '</div>';
+        h += soNhanBieu(y, Sel, dvs);
       } else if (Sel.tab === 'nhom') {
         const g = L.nsByNhom(y), ty = v => U.fmtNum(v / 1e9, v >= 1e10 ? 0 : 1);
         h += g.length ? '<div class="grid2"><div class="card"><div class="card-h"><h3>So sánh dự toán, thực hiện, quyết toán</h3><div class="sub">Tỷ đồng — theo nhóm kinh phí, năm ' + y + '</div></div><div class="card-b">' + UI.bars({ cats: g.map(x => U.trunc(x.k.replace('Kinh phí ', ''), 22)), fmt: ty, labels: true, series: [{ name: 'Được sử dụng', color: 'var(--violet)', vals: g.map(x => x.tong) }, { name: 'Đã giải ngân', color: 'var(--accent)', vals: g.map(x => x.giaiNgan) }, { name: 'Quyết toán', color: 'var(--teal)', vals: g.map(x => x.quyetToan) }] }) + '</div></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Nhóm kinh phí</th><th class="num">Dự toán đầu năm</th><th class="num">Được sử dụng</th><th class="num">Đã giải ngân</th><th class="num">Quyết toán</th><th class="num">Giải ngân − quyết toán</th></tr></thead><tbody>' + g.map(x => '<tr><td>' + e(x.k) + '</td><td class="num">' + U.fmtMoney(x.duToan) + '</td><td class="num">' + U.fmtMoney(x.tong) + '</td><td class="num">' + U.fmtMoney(x.giaiNgan) + '</td><td class="num">' + U.fmtMoney(x.quyetToan) + '</td><td class="num">' + (x.quyetToan ? U.fmtMoney(x.giaiNgan - x.quyetToan) : '—') + '</td></tr>').join('') + '</tbody><tfoot><tr><td>Cộng</td><td class="num">' + U.fmtMoney(U.sum(g, x => x.duToan)) + '</td><td class="num">' + U.fmtMoney(U.sum(g, x => x.tong)) + '</td><td class="num">' + U.fmtMoney(U.sum(g, x => x.giaiNgan)) + '</td><td class="num">' + U.fmtMoney(U.sum(g, x => x.quyetToan)) + '</td><td></td></tr></tfoot></table></div></div><div class="note mt">Nhóm kinh phí lấy theo trường "Nhóm kinh phí" của dòng hoặc của dòng cấp trên gần nhất. Dòng chưa phân nhóm được gộp vào "(chưa phân nhóm)".</div>' : '<div class="card">' + UI.empty('Chưa có dự toán năm ' + y, '') + '</div>';
@@ -248,7 +261,9 @@
       root.innerHTML = h;
       $$('[data-tab]', root).forEach(b => b.onclick = () => { Sel.tab = b.dataset.tab; A.render(); });
       $$('[data-pick]', root).forEach(tr => tr.onclick = () => { Sel.dv = tr.dataset.pick; Sel.tab = 'ct'; A.render(); });
-      if ($('[data-tn-imp]', root)) $('[data-tn-imp]', root).onclick = importNhieu;
+      if ($('[data-tn-imp]', root)) $('[data-tn-imp]', root).onclick = () => importNhieu();
+      $$('[data-capnhat]', root).forEach(b => b.onclick = ev => { ev.stopPropagation(); importNhieu({ dvId: b.dataset.capnhat }); });
+      if ($('[data-sk-dv]', root)) $('[data-sk-dv]', root).onchange = ev => { Sel.skDv = ev.target.value; A.render(); };
       if ($('[data-tn-xls]', root)) $('[data-tn-xls]', root).onclick = () => A.nsXuatToanNganh(y);
       if ($('[data-gn]', root)) { A.gnPane(Sel.tab, $('[data-gn]', root), y, Sel, { importBudget }); return; }
       if (Sel.tab !== 'ct') return;

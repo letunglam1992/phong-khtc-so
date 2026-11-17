@@ -144,3 +144,15 @@ test('đọc biểu: lấy cột lũy kế, ngày "đến ngày", STT có dấu 
   const it = p.items; assert.equal(it[2].level, 2); assert.equal(it[3].level, 2); assert.equal(it[4].level, 1);   // 1.2. là anh em của 1.1., không phải con
   gan(it[2].giaiNgan, 60); assert.equal(p.warnings.length, 0);
 });
+
+test('sổ nhận biểu: mỗi ngày nhập biểu là một kỳ, lũy kế cộng dòng chi tiết, tăng so với kỳ trước', () => {
+  lam();
+  S.put('ngansach', { id: 'g', nam: 2026, donViId: 'dv1', noiDung: 'Nhóm' });
+  ns('a', { parentId: 'g', duToan: 100 * ty, gnHist: [{ ngay: '2026-10-15', giaiNgan: 20 * ty, nguon: 'excel', tep: 'pl10.xls' }, { ngay: '2026-11-15', giaiNgan: 50 * ty, nguon: 'excel', tep: 'pl11.xls', vb: 'CV 12' }] });
+  ns('b', { parentId: 'g', duToan: 100 * ty, gnHist: [{ ngay: '2026-10-15', giaiNgan: 10 * ty, nguon: 'excel' }, { ngay: '2026-11-02', giaiNgan: 15 * ty, nguon: 'tay' }] });
+  const k = L.nsKyBieu(2026);
+  assert.deepEqual(k.map(x => x.ngay), ['2026-11-15', '2026-10-15']);   // mốc nhập tay không là một kỳ
+  gan(k[1].gn, 30 * ty); gan(k[0].gn, 65 * ty); gan(k[0].tang, 35 * ty); assert.equal(k[1].tang, null);   // 50 + 15 (b lấy mốc gần nhất ≤ 15/11)
+  gan(k[0].ty, 32.5); assert.equal(k[0].vb, 'CV 12'); assert.equal(k[1].tep, 'pl10.xls');
+  assert.equal(L.nsKyBieu(2026, 'dv2').length, 0);
+});

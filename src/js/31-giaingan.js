@@ -23,6 +23,24 @@
   // Lũy kế của 1 dòng tại ngày d: mốc gần nhất ≤ d
   const valAt = (h, d) => { let v = 0; for (const x of h) { if (x.ngay <= d) v = x.giaiNgan; else break; } return v; };
 
+  // Sổ nhận biểu: mỗi ngày số liệu có mốc 'excel' (nhập từ biểu đơn vị gửi) là một kỳ.
+  // Lũy kế kỳ = cộng các dòng chi tiết tại ngày đó; tăng thêm = so với kỳ trước của cùng đơn vị. Mới nhất trước.
+  L.nsKyBieu = (y, dvId) => {
+    const rs = S.all('ngansach').filter(r => +r.nam === y && (!dvId || r.donViId === dvId)), cha = new Set(rs.map(r => r.parentId).filter(Boolean)), by = new Map();
+    rs.filter(r => !cha.has(r.id)).forEach(r => { if (!by.has(r.donViId)) by.set(r.donViId, []); by.get(r.donViId).push(r); });
+    const out = [];
+    by.forEach((leaf, dv) => {
+      const hs = leaf.map(L.gnHistOf), ex = hs.flat().filter(h => h.nguon === 'excel'), tong = U.sum(leaf, L.nsTong);
+      let truoc = null;
+      Array.from(new Set(ex.map(h => h.ngay))).sort().forEach(d => {
+        const gn = U.sum(hs, h => valAt(h, d)), m = ex.find(h => h.ngay === d && (h.tep || h.vb)) || {};
+        out.push({ dvId: dv, ngay: d, gn, tang: truoc === null ? null : gn - truoc, tong, ty: U.pct(gn, tong), tep: m.tep || '', vb: m.vb || '', by: m.by || '' });
+        truoc = gn;
+      });
+    });
+    return out.sort((a, b) => a.ngay === b.ngay ? 0 : a.ngay < b.ngay ? 1 : -1);
+  };
+
   Sc.C.ngansach.normalize = r => {
     const old = r.id ? S.get('ngansach', r.id) : null;
     if (!old) { if (U.num(r.giaiNgan)) r.gnHist = L.gnPush([], U.isISO(r.ngayGN) ? r.ngayGN : U.today(), r.giaiNgan, 'tay'); return; }
