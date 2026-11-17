@@ -320,6 +320,7 @@
     find('tong', c => /^tong (kinh phi|kp)/.test(c)); find('giaiNgan', c => c.startsWith('luy ke') && c.includes('giai ngan')); find('giaiNgan', c => c.includes('da giai ngan'));
     find('conLai', c => c.includes('kinh phi con lai') || c === 'con lai'); find('tienDo', c => c.includes('tien do')); find('ghiChu', c => c === 'ghi chu'); find('tyLe', c => c.includes('ty le'));
     find('keToan', c => c.includes('ke toan') || c === 'thuc hien');
+    find('tamUng', c => c.includes('tam ung') && !c.startsWith('ghi chu'));   // cột "trong đó tạm ứng" (nếu biểu có)
     for (let i = hr + 1; i <= hr + 3 && i < rows.length; i++) (rows[i] || []).forEach((c, j) => { const t = nrm(c); if (t === 'tang' && col.dcTang === undefined) col.dcTang = j; if (t === 'giam' && col.dcGiam === undefined) col.dcGiam = j; });
     const dc = H.findIndex(c => c === 'dieu chinh');
     if (col.dcTang === undefined && dc >= 0) { col.dcTang = dc; col.dcGiam = dc + 1; }
@@ -364,6 +365,7 @@
       const it = { row: i + 1, stt: sttTxt, noiDung: String(nd).trim().replace(/\s+/g, ' '), level, parent };
       ['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi', 'tietKiem', 'giaiNgan'].forEach(k => { it[k] = col[k] === undefined ? 0 : money(r[col[k]]); });
       it.tongGoc = col.tong === undefined ? null : money(r[col.tong]);
+      if (col.tamUng !== undefined) it.tamUng = money(r[col.tamUng]);
       it.quyetDinh = col.quyetDinh === undefined || r[col.quyetDinh] == null ? '' : String(r[col.quyetDinh]).trim();
       it.tienDo = col.tienDo === undefined || r[col.tienDo] == null ? '' : String(r[col.tienDo]).trim();
       it.keToan = col.keToan === undefined || r[col.keToan] == null ? '' : String(r[col.keToan]).trim();
@@ -412,6 +414,66 @@
       return { ten: sub[0].noiDung, dvId: d ? d.id : '', tong: U.sum(leaf, L.nsTong), gn: U.sum(leaf, x => x.giaiNgan), rong: !sub.some(x => L.nsTong(x) || x.giaiNgan),
         parsed: Object.assign({}, p, { items: sub, warnings: p.warnings.filter(w => { const m = w.match(/^Dòng (\d+)/); return m && +m[1] >= r0 && +m[1] <= r1; }) }) };
     });
+  };
+
+  /* ===== Đơn vị dự toán / phòng, bộ phận thực hiện ===== */
+  // Phòng thuộc Văn phòng Sở (KHTC, QLMT…) không phải đơn vị dự toán: loai = 'phong', hoặc tên bắt đầu "Phòng"
+  L.laPhong = d => { const l = U.norm(d && d.loai); if (l === 'dutoan' || l.includes('du toan')) return false; if (l === 'phong' || l.startsWith('phong')) return true; return /^phong\b/.test(U.norm(d && d.ten)); };
+  // Danh sách đơn vị dự toán (giữ cả "phòng" nếu đang có dòng dự toán, để thấy và chuyển về đúng đơn vị)
+  L.dvDuToan = () => { const co = new Set(A.Store.all('ngansach').map(r => r.donViId)); return A.Store.all('donvi').filter(d => !L.laPhong(d) || co.has(d.id)); };
+
+  /* ===== Mã ngân sách: Chương, Loại, Khoản, mã nguồn ===== */
+  // Tách từ chữ: "Chương 412, Loại 340, khoản 341", "C412; K341", "C412 L340 K341", "Loại 100 - Khoản 123"
+  L.nsMaTach = t => {
+    const s = U.norm(t), o = {}, m = (re) => { const x = s.match(re); return x ? x[1] : ''; };
+    o.chuong = m(/(?:\bchuong|\bc)\s*\.?\s*(\d{3})\b/); o.loai = m(/(?:\bloai|\bl)\s*\.?\s*(\d{3})\b/); o.khoan = m(/(?:\bkhoan|\bk)\s*\.?\s*(\d{3})\b/);
+    return o;
+  };
+  L.NS_NGUON = [['tuchu', 'Kinh phí tự chủ'], ['khongtuchu', 'Kinh phí không tự chủ'], ['cctl', 'Tiết kiệm 10% thực hiện CCTL'], ['thuong', 'Tiền thưởng (NĐ 73/2024)'], ['ctmtqg', 'Chương trình mục tiêu quốc gia'], ['nstw', 'NSTW bổ sung có mục tiêu'], ['khcn', 'KH-CN, đổi mới sáng tạo, chuyển đổi số'], ['sdd', 'Nguồn thu tiền sử dụng đất'], ['khac', 'Nguồn khác']];
+  const nguonTuChu = s => /\bcctl\b|cai cach tien luong/.test(s) ? 'cctl' : /khen thuong|tien thuong|\bnd 73\b|nghi dinh (so )?73/.test(s) ? 'thuong' : /\b1719\b|muc tieu quoc gia|\bmtqg\b|nong thon moi|giam ngheo ben vung/.test(s) ? 'ctmtqg'
+    : /trung uong|\bnstw\b/.test(s) ? 'nstw' : /chuyen doi so|khoa hoc|doi moi sang tao|\bkhcn\b/.test(s) ? 'khcn' : /tien su dung dat/.test(s) ? 'sdd' : /khong (duoc )?(giao )?tu chu|khong thuc hien tu chu/.test(s) ? 'khongtuchu' : /tu chu/.test(s) ? 'tuchu' : '';
+  // Mã hiệu lực của một dòng: trường đã nhập > chữ của dòng > dòng cha gần nhất. tu: 'nhap' | 'chu' | 'cha'
+  L.nsMa = r => {
+    const o = { chuong: '', loai: '', khoan: '', nguon: '' }, src = {};
+    let x = r, cap = 0;
+    while (x && cap < 12) {
+      const t = L.nsMaTach([x.chuongKhoan, x.noiDung].join(' ')), ng = x.maNguon || nguonTuChu(U.norm(x.noiDung));
+      [['chuong', x.chuong || t.chuong], ['loai', x.loaiNS || t.loai], ['khoan', x.khoan || t.khoan], ['nguon', ng]].forEach(([k, v]) => { if (!o[k] && v) { o[k] = String(v); src[k] = x === r ? (x[k === 'loai' ? 'loaiNS' : k === 'nguon' ? 'maNguon' : k] ? 'nhap' : 'chu') : 'cha'; } });
+      x = x.parentId ? A.Store.get('ngansach', x.parentId) : null; cap++;
+    }
+    if (!o.nguon && o.loai === '100') o.nguon = 'khcn';
+    o.src = src; return o;
+  };
+  L.nsNguonTen = k => (L.NS_NGUON.find(x => x[0] === k) || [k, k ? k : 'Chưa xác định nguồn'])[1];
+  // Nguồn để dành (tạo nguồn CCTL, tiền thưởng chi cuối năm): không tính vào tỷ lệ giải ngân nhiệm vụ chuyên môn
+  L.nsDeDanh = r => ['cctl', 'thuong'].includes(L.nsMa(r).nguon);
+  // Tỷ lệ giải ngân nhiệm vụ chuyên môn trên một tập dòng chi tiết (node {r, sum})
+  L.nsTyLeCM = leaves => { const l = leaves.filter(n => !L.nsDeDanh(n.r)), tong = U.sum(l, n => n.sum.tong), gn = U.sum(l, n => n.sum.giaiNgan); return { tong, gn, ty: U.pct(gn, tong), n: l.length, boQua: leaves.length - l.length }; };
+  // Tổng hợp theo mã: by = 'khoan' (Chương-Loại-Khoản) | 'nguon'
+  L.nsTheoMa = (leaves, by) => {
+    const m = new Map();
+    leaves.forEach(n => { const c = L.nsMa(n.r), k = by === 'nguon' ? (c.nguon || '') : [c.chuong ? 'C' + c.chuong : '', c.loai ? 'L' + c.loai : '', c.khoan ? 'K' + c.khoan : ''].filter(Boolean).join(' - ');
+      const g = m.get(k) || { k, ten: by === 'nguon' ? L.nsNguonTen(k) : (k || 'Chưa xác định Chương, Loại, Khoản'), n: 0, tong: 0, gn: 0, tamUng: 0 }; g.n++; g.tong += n.sum.tong; g.gn += n.sum.giaiNgan; g.tamUng += U.num(n.r.tamUng); m.set(k, g); });
+    return Array.from(m.values()).map(g => Object.assign(g, { ty: U.pct(g.gn, g.tong) })).sort((a, b) => (a.k ? 0 : 1) - (b.k ? 0 : 1) || b.tong - a.tong);
+  };
+
+  /* ===== Sổ quyết định dự toán: đối chiếu số trên dòng với tổng các quyết định ===== */
+  L.QD_COT = [['chuyenNguon', 'Chuyển nguồn'], ['duToan', 'Dự toán giao đầu năm'], ['boSung', 'Bổ sung'], ['dcTang', 'Điều chỉnh tăng'], ['dcGiam', 'Điều chỉnh giảm'], ['thuHoi', 'Thu hồi'], ['tietKiem', 'Tiết kiệm']];
+  // → { dong: [{ r, cot, so, qd, chenh, st }], am: [{ r, tong }], mat: [{ qd, d }] }   st: 'khop' | 'lech' | 'chuaqd' | 'thuaqd'
+  L.qdDoiChieu = (y, dv) => {
+    const rs = A.Store.all('ngansach').filter(r => +r.nam === y && (!dv || r.donViId === dv)), cha = new Set(rs.map(r => r.parentId).filter(Boolean)), la = rs.filter(r => !cha.has(r.id));
+    const cong = {}, mat = [];
+    A.Store.all('qddt').filter(q => +q.nam === y).forEach(q => (q.dong || []).forEach(d => {
+      const r = d.nsId && A.Store.get('ngansach', d.nsId);
+      if (!r) { if (!dv || d.donViId === dv) mat.push({ qd: q, d }); return; }
+      const k = r.id + '|' + d.cot; cong[k] = (cong[k] || 0) + U.num(d.soTien);
+    }));
+    const dong = [], am = [];
+    la.forEach(r => {
+      L.QD_COT.forEach(([c]) => { const so = U.num(r[c]), qd = cong[r.id + '|' + c] || 0; if (!so && !qd) return; const chenh = so - qd; dong.push({ r, cot: c, so, qd, chenh, st: Math.abs(chenh) < 0.5 ? 'khop' : !qd ? 'chuaqd' : !so ? 'thuaqd' : 'lech' }); });
+      const t = L.nsTong(r); if (t < -0.5) am.push({ r, tong: t });
+    });
+    return { dong, am, mat };
   };
 
   /* ================= TÀI SẢN ================= */

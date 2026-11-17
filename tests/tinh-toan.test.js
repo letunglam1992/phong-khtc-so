@@ -156,3 +156,45 @@ test('sổ nhận biểu: mỗi ngày nhập biểu là một kỳ, lũy kế c�
   gan(k[0].ty, 32.5); assert.equal(k[0].vb, 'CV 12'); assert.equal(k[1].tep, 'pl10.xls');
   assert.equal(L.nsKyBieu(2026, 'dv2').length, 0);
 });
+
+test('mã ngân sách: tách Chương-Loại-Khoản, lấy theo dòng cha, xác định nguồn', () => {
+  lam();
+  assert.deepEqual(L.nsMaTach('Kinh phí được giao tự chủ Chương 412, Loại 340, khoản 341'), { chuong: '412', loai: '340', khoan: '341' });
+  assert.deepEqual(L.nsMaTach('C412; K341'), { chuong: '412', loai: '', khoan: '341' });
+  assert.equal(L.nsMaTach('(Chương 412, Loại 100 - Khoản 123)').khoan, '123');
+  ns('g', { noiDung: 'Kinh phí không tự chủ Chương 412, Loại 280, khoản 282' });
+  ns('a', { parentId: 'g', noiDung: 'Điều tra rừng', duToan: 100 * ty, giaiNgan: 40 * ty });
+  ns('c', { noiDung: 'Tiết kiệm 10% thực hiện CCTL', duToan: 50 * ty });
+  ns('t', { noiDung: 'Kinh phí khen thưởng theo NĐ 73', duToan: 50 * ty });
+  const m = L.nsMa(S.get('ngansach', 'a'));
+  assert.equal(m.khoan, '282'); assert.equal(m.nguon, 'khongtuchu'); assert.equal(m.src.khoan, 'cha');
+  assert.equal(L.nsMa(S.get('ngansach', 'c')).nguon, 'cctl'); assert.equal(L.nsMa(S.get('ngansach', 't')).nguon, 'thuong');
+  S.get('ngansach', 'a').maNguon = 'nstw'; assert.equal(L.nsMa(S.get('ngansach', 'a')).nguon, 'nstw');   // trường đã nhập được ưu tiên
+  // tỷ lệ nhiệm vụ chuyên môn: bỏ CCTL, tiền thưởng khỏi mẫu số
+  const leaves = ['a', 'c', 't'].map(id => { const r = S.get('ngansach', id); return { r, sum: { tong: L.nsTong(r), giaiNgan: U_num(r.giaiNgan) } }; });
+  const cm = L.nsTyLeCM(leaves); gan(cm.ty, 40); assert.equal(cm.boQua, 2);   // chung: 40/200 = 20%
+});
+function U_num(v) { return +v || 0; }
+
+test('đơn vị dự toán và phòng: phòng không hiện trừ khi đang có dòng dự toán', () => {
+  lam();
+  S.put('donvi', { id: 'vp', ten: 'Văn phòng Sở' }); S.put('donvi', { id: 'kh', ten: 'Phòng Kế hoạch - Tài chính' }); S.put('donvi', { id: 'ql', ten: 'QLMT', loai: 'phong' }); S.put('donvi', { id: 'x', ten: 'Phòng X', loai: 'dutoan' });
+  assert.equal(L.laPhong(S.get('donvi', 'vp')), false); assert.equal(L.laPhong(S.get('donvi', 'kh')), true); assert.equal(L.laPhong(S.get('donvi', 'ql')), true); assert.equal(L.laPhong(S.get('donvi', 'x')), false);
+  assert.deepEqual(L.dvDuToan().map(d => d.id).sort(), ['vp', 'x']);
+  S.put('ngansach', { id: 'n', nam: 2026, donViId: 'kh', noiDung: 'Nhập nhầm', boSung: 1 });
+  assert.deepEqual(L.dvDuToan().map(d => d.id).sort(), ['kh', 'vp', 'x']);
+});
+
+test('sổ quyết định: khớp, chưa có căn cứ, giảm trùng làm dòng âm', () => {
+  lam();
+  ns('d', { noiDung: 'Đề án trung tâm chế biến', duToan: 1450 * ty, dcGiam: 1995.4865 * ty });   // giảm hai lần 1.450 + 545,4865
+  ns('e', { noiDung: 'Phần mềm', duToan: 29 * ty, tietKiem: 2 * ty });
+  S.put('qddt', { id: 'q1', nam: 2026, so: '1155/QĐ-SNNMT', loai: 'giao', dong: [{ nsId: 'd', cot: 'duToan', soTien: 1450 * ty }, { nsId: 'e', cot: 'duToan', soTien: 29 * ty }] });
+  S.put('qddt', { id: 'q2', nam: 2026, so: '580/QĐ-SNNMT', loai: 'dieuchinh', dong: [{ nsId: 'd', cot: 'dcGiam', soTien: 1450 * ty }, { nsId: 'xoa', cot: 'dcTang', soTien: 5 }] });
+  const dc = L.qdDoiChieu(2026);
+  const o = (id, c) => dc.dong.find(x => x.r.id === id && x.cot === c);
+  assert.equal(o('d', 'duToan').st, 'khop'); assert.equal(o('e', 'tietKiem').st, 'chuaqd');
+  assert.equal(o('d', 'dcGiam').st, 'lech'); gan(o('d', 'dcGiam').chenh, 545.4865 * ty);
+  assert.equal(dc.am.length, 1); assert.equal(dc.am[0].r.id, 'd');   // 1.450 − 1.995,4865 < 0
+  assert.equal(dc.mat.length, 1);
+});

@@ -34,7 +34,7 @@
   A.nsGanThe = (root, map) => $$('[data-ct]', root).forEach(k => { const f = map[k.dataset.ct]; if (!f) return; k.onclick = f; k.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); f(); } }; });
   const cbOpts = () => [['', 'Tất cả cán bộ'], ['__none', 'Chưa giao cán bộ']].concat(S.all('canbo').filter(c => c.trangThai !== 'nghi').map(c => [c.id, c.hoTen]));
   const opt = (list, v) => list.map(o => '<option value="' + e(o[0]) + '"' + (String(v || '') === String(o[0]) ? ' selected' : '') + '>' + e(o[1]) + '</option>').join('');
-  const filt = (Sel, withCb) => '<div class="toolbar"><select class="sel" data-gdv aria-label="Đơn vị dự toán">' + opt([['', 'Tất cả đơn vị']].concat(S.all('donvi').map(d => [d.id, d.tenTat || d.ten])), Sel.dv) + '</select>' + (withCb ? '<select class="sel" data-gcb aria-label="Cán bộ theo dõi">' + opt(cbOpts(), Sel.cb) + '</select>' : '');
+  const filt = (Sel, withCb) => '<div class="toolbar"><select class="sel" data-gdv aria-label="Đơn vị dự toán">' + opt([['', 'Tất cả đơn vị']].concat(L.dvDuToan().map(d => [d.id, d.tenTat || d.ten])), Sel.dv) + '</select>' + (withCb ? '<select class="sel" data-gcb aria-label="Cán bộ theo dõi">' + opt(cbOpts(), Sel.cb) + '</select>' : '');
 
   /* ---------- Đặt mục tiêu giải ngân lũy kế ---------- */
   function mucTieuDialog(nam) {
@@ -76,7 +76,7 @@
   function tongQuan(box, y, Sel, ctx) {
     const f = { dv: Sel.dv, cb: Sel.cb }, g = L.giaiNgan(y, f);
     if (!g.tong) { box.innerHTML = filt(Sel, true) + '</div><div class="card">' + UI.empty('Chưa có số liệu dự toán năm ' + y + (Sel.dv || Sel.cb ? ' trong phạm vi đang lọc' : ''), 'Nhập biểu giải ngân từ Excel (mỗi lần nhập lại phần mềm tự ghi một mốc giải ngân) hoặc cập nhật số giải ngân ở thẻ "Cập nhật giải ngân".', '<button class="btn primary" data-imp>' + ic('upload', 16) + 'Nhập biểu giải ngân</button>') + '</div>'; bind(); return; }
-    const mucTieu = g.mt.tuDat ? g.mtNay : g.tyLeTG, M = L.GN_MUC[g.muc];
+    const mucTieu = g.mt.tuDat ? g.mtNay : g.tyLeTG, M = L.GN_MUC[g.muc], cm = L.nsTyLeCM(g.leaves);
     const thangCats = Array.from({ length: 12 }, (_, i) => 'T' + (i + 1));
     const duBaoVals = thangCats.map((_, i) => i + 1 > g.lastM && g.lastM < 12 ? g.gn + (g.duBao - g.gn) * (i + 1 - g.lastM) / (12 - g.lastM) : null);
     const dx = L.gnDeXuat(y, f), rows = L.gnDong(y, f), cham = rows.filter(x => x.cham).sort((a, b) => b.con - a.con);
@@ -85,7 +85,7 @@
     h += '<div class="card mb gn-banner"><div class="card-b" style="display:flex;gap:18px;flex-wrap:wrap;align-items:center"><div style="min-width:0;flex:1 1 360px"><div class="eyebrow" style="margin:0">Tiến độ giải ngân năm ' + y + ' — số liệu đến ngày ' + U.fmtDate(g.asOf) + '</div><div style="font-size:18px;font-weight:700;margin-top:4px">Đã giải ngân ' + U.fmtPct(g.tyLe) + ' · ' + (g.mt.tuDat ? 'mục tiêu hết tháng ' + g.lastM + ': ' : 'thời gian đã qua: ') + U.fmtPct(mucTieu) + ' ' + UI.chip(M[0], M[1]) + '</div><div class="soft small">' + (g.lech >= 0 ? 'Vượt ' : 'Thấp hơn ') + U.fmtNum(Math.abs(g.lech), 1) + ' điểm % so với ' + (g.mt.tuDat ? 'mục tiêu Phòng đã đặt' : 'tỷ lệ thời gian (chưa đặt mục tiêu riêng)') + '. Dự báo đến 31/12: khoảng <b>' + U.fmtPct(U.pct(g.duBao, g.tong)) + '</b>.</div></div><div style="flex:0 1 280px;min-width:220px">' + UI.pbar(g.tyLe || 0, g.muc === 'cham' ? 'bad' : '') + '</div></div></div>';
     h += '<div class="kpis mb">' +
       kpi('acc', 'Tổng kinh phí được sử dụng', '<small>' + fs(g.tong) + '</small>', g.leaves.length + ' nội dung chi tiết', 'tong') +
-      kpi('ok', 'Đã giải ngân lũy kế', '<small>' + fs(g.gn) + '</small>', U.fmtPct(g.tyLe) + ' kế hoạch', 'gn') +
+      kpi('ok', 'Đã giải ngân lũy kế', '<small>' + fs(g.gn) + '</small>', U.fmtPct(g.tyLe) + ' kế hoạch' + (cm.boQua ? ' · nhiệm vụ chuyên môn ' + U.fmtPct(cm.ty) : ''), 'gn') +
       kpi('warn', 'Còn phải giải ngân', '<small>' + fs(g.conLai) + '</small>', U.fmtNum(g.conNgay, 0) + ' ngày còn lại trong năm', 'con') +
       kpi(g.nguyCo ? 'bad' : 'teal', 'Dự báo giải ngân đến 31/12', '<small>' + fs(g.duBao) + '</small>', U.fmtPct(U.pct(g.duBao, g.tong)) + (g.nguyCo ? ' · nguy cơ còn ' + fs(g.tong - g.duBao) : ''), 'dubao') +
       kpi('violet', 'Cần giải ngân bình quân', g.canMoiThang !== null && g.conLai > 0.5 ? '<small>' + fs(g.canMoiThang) + '</small>' : '—', g.canMoiThang !== null && g.conLai > 0.5 ? 'mỗi tháng để hết kế hoạch' : '', 'binhquan') +
@@ -171,21 +171,21 @@
       });
     };
     /* Sửa các khoản cấu thành kinh phí được sử dụng; tổng vẫn tính bằng L.nsTong, không đổi công thức */
-    const TIEN = [['chuyenNguon', 'KP chuyển nguồn năm trước sang'], ['duToan', 'Dự toán giao đầu năm'], ['boSung', 'KP bổ sung trong năm'], ['dcTang', 'Điều chỉnh tăng'], ['dcGiam', 'Điều chỉnh giảm', 1], ['thuHoi', 'KP thu hồi trong năm', 1], ['tietKiem', 'Chỉ tiêu tiết kiệm', 1], ['giaiNgan', 'Đã giải ngân (lũy kế)'], ['quyetToan', 'Số quyết toán']];
+    const TIEN = [['chuyenNguon', 'KP chuyển nguồn năm trước sang'], ['duToan', 'Dự toán giao đầu năm'], ['boSung', 'KP bổ sung trong năm'], ['dcTang', 'Điều chỉnh tăng'], ['dcGiam', 'Điều chỉnh giảm', 1], ['thuHoi', 'KP thu hồi trong năm', 1], ['tietKiem', 'Chỉ tiêu tiết kiệm', 1], ['giaiNgan', 'Đã giải ngân (lũy kế)'], ['tamUng', 'Trong đó tạm ứng chưa thanh toán'], ['quyetToan', 'Số quyết toán']];
     const docSo = raw => { raw = String(raw || '').trim(); return raw === '' ? '' : U.num(raw.replace(/[.\s]/g, '').replace(',', '.')); };
     const suaTien = async n => {
       if (changed.size && !await UI.confirm({ title: 'Còn số lũy kế chưa lưu', msg: changed.size + ' dòng có số lũy kế mới chưa lưu sẽ bị bỏ khi lưu số tiền dự toán. Tiếp tục?', ok: 'Tiếp tục' })) return;
       const r = S.get('ngansach', n.r.id), val = k => docSo($('[data-f="' + k + '"]', m.body).value);
       const m = UI.modal({
         title: 'Sửa số tiền dự toán', sub: (r.stt ? r.stt + ' ' : '') + U.trunc(r.noiDung, 90),
-        body: '<div class="grid2">' + TIEN.map(([k, t, tru]) => '<div class="fld"><label class="small" for="st_' + k + '">' + e(t) + ' (đồng)' + (tru ? ' <span class="muted">· trừ</span>' : '') + '</label><input class="inp num" id="st_' + k + '" inputmode="numeric" data-f="' + k + '" value="' + U.fmtMoney(r[k]) + '"></div>').join('') + '</div><div class="note mt" data-tg></div>',
+        body: '<div class="grid2">' + TIEN.map(([k, t, tru]) => '<div class="fld"><label class="small" for="st_' + k + '">' + e(t) + ' (đồng)' + (tru ? ' <span class="muted">· trừ</span>' : '') + '</label><input class="inp num" id="st_' + k + '" inputmode="numeric" data-f="' + k + '" value="' + U.fmtMoney(r[k]) + '"></div>').join('') + '</div><div class="fld mt"><label class="small" for="st_qd">Căn cứ quyết định (ghi phần chênh của các cột dự toán vào sổ quyết định)</label><select class="sel" id="st_qd"><option value="">— Không ghi vào sổ quyết định —</option>' + S.all('qddt').filter(q => +q.nam === y).map(q => '<option value="' + q.id + '">' + e(Sc.C.qddt.title(q)) + '</option>').join('') + '</select></div><div class="note mt" data-tg></div>',
         buttons: [{ label: 'Hủy', on: a => a.close() }, 'sp', { label: 'Lưu số tiền', cls: 'primary', icon: 'check', on: async a => {
           const rec = { id: r.id }, doi = [];
           TIEN.forEach(([k, t]) => { const v = val(k), cu = r[k] === undefined || r[k] === null ? '' : r[k]; if (U.num(v) !== U.num(cu) || (v === '') !== (cu === '')) { rec[k] = v; doi.push(t + ': ' + U.fmtMoney(U.num(cu)) + ' → ' + U.fmtMoney(U.num(v))); } });
           if (!doi.length) { a.close(); return; }
           if (TIEN.some(([k]) => U.num(val(k)) < 0)) { UI.toast('Số tiền không được âm.', 'bad'); return; }
           if (rec.giaiNgan !== undefined) { const ngay = U.isISO(U2.ngay) && +U2.ngay.slice(0, 4) === y ? U2.ngay : U.today(); rec.ngayGN = ngay; rec.gnHist = L.gnPush(r.gnHist && r.gnHist.length ? r.gnHist : L.gnHistOf(r), ngay, U.num(rec.giaiNgan), 'tay'); }
-          try { await S.saveMany([{ c: 'ngansach', rec }], { note: 'Sửa số tiền dòng dự toán "' + U.trunc(r.noiDung, 60) + '": ' + doi.join('; ') }); a.close(); UI.toast('Đã lưu số tiền.', 'ok'); }
+          try { const qd = $('#st_qd', m.body).value, nq = qd ? await A.nsGhiQD(qd, r, rec) : 0; await S.saveMany([{ c: 'ngansach', rec }], { note: 'Sửa số tiền dòng dự toán "' + U.trunc(r.noiDung, 60) + '": ' + doi.join('; ') }); a.close(); UI.toast('Đã lưu số tiền' + (nq ? ', ghi ' + nq + ' khoản vào sổ quyết định' : '') + '.', 'ok'); }
           catch (er) { UI.fail(er); }
         } }]
       });
