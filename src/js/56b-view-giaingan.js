@@ -110,7 +110,8 @@
       if (q('[data-imp]')) q('[data-imp]').onclick = ctx.importBudget;
       if (q('[data-mt]')) q('[data-mt]').onclick = () => mucTieuDialog(y);
       if (q('[data-goupd]')) q('[data-goupd]').onclick = () => { Sel.tab = 'cn'; A.render(); };
-      // Thẻ số liệu: bấm để xem các nội dung chi tiết tạo nên con số trên thẻ
+      // Thẻ số liệu: bấm để xem các nội dung chi tiết tạo nên con số trên thẻ (chỉ khi có số liệu: nhánh "chưa có dự toán" gọi bind() trước khi có rows, cham)
+      if (g.tong) {
       const pv = [Sel.dv ? Sc.refName('donvi', Sel.dv) : 'Tất cả đơn vị', Sel.cb ? (Sel.cb === '__none' ? 'Chưa giao cán bộ' : Sc.refName('canbo', Sel.cb)) : ''].filter(Boolean).join(' · ') + ' · năm ' + y + ' · số liệu đến ' + U.fmtDate(g.asOf);
       const cT = ['Được sử dụng', x => x.tong, 'money', 1], cG = ['Đã giải ngân', x => x.gn, 'money', 1], cC = ['Còn lại', x => x.con, 'money', 1], cY = ['Tỷ lệ', x => x.ty, 'pct'], cN = ['Ngày số liệu', x => x.r.ngayGN, 'date'];
       const tyL = l => U.pct(U.sum(l, x => x.gn), U.sum(l, x => x.tong)), thangCon = g.canMoiThang && g.conLai > 0.5 ? g.conLai / g.canMoiThang : null;
@@ -122,7 +123,7 @@
         dubao: ct('Tiến độ từng nội dung so với mục tiêu', rows, [cT, cG, cC, cY, ['Lệch mục tiêu (điểm %)', x => Math.round(x.lech * 10) / 10, 'num']], 4),
         binhquan: ct('Cần giải ngân bình quân mỗi tháng', rows.filter(x => x.con > 0.5), [cT, cC, ['Cần mỗi tháng', x => thangCon ? x.con / thangCon : null, 'money', 1], cY], 2),
         cham: ct('Nội dung giải ngân chậm', cham, [cT, cG, cC, cY, ['Tiến độ, vướng mắc', x => x.r.tienDo || '', 'text']], 2)
-      });
+      }); }
       if (q('[data-rep]')) q('[data-rep]').onclick = () => { const t = U.today(); A.vs.bc = Object.assign(A.vs.bc || { kind: 'nam', n: 1, from: t.slice(0, 8) + '01', to: t, nhom: '', duan: '', cb: '', secs: [] }, { type: 'gnns', kind: 'nam', y, dv: Sel.dv || '', cb: Sel.cb && Sel.cb !== '__none' ? Sel.cb : '' }); A.go('baocao'); };
       $$('[data-gdv]', box).forEach(() => { });
       $$('tr[data-gdv]', box).forEach(tr => tr.onclick = () => dsNhom('dv', tr.dataset.gdv, y, Sel));
