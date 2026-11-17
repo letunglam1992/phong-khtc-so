@@ -136,7 +136,7 @@
         // Dòng "ĐƠN VỊ: …" phía trên tiêu đề bảng (nếu có)
         const tren = raw.slice(0, Math.max(0, o.parsed.headerRow)).flat().filter(c => typeof c === 'string');
         o.dvBieu = (tren.find(c => /^\s*đơn vị\s*:/i.test(c)) || '').replace(/^\s*đơn vị\s*:\s*/i, '').trim();
-        const hay = U.norm([o.dvBieu, o.parsed.title, f.name.replace(/[_-]+/g, ' ')].join(' '));
+        const hay = U.norm([o.dvBieu, o.parsed.title, f.name.replace(/[_-]+/g, ' '), (o.parsed.items.find(x => x.level === 0) || {}).noiDung].join(' '));
         o.dvId = (dvs.map(d => ({ d, k: [d.ten, d.tenTat].filter(Boolean).map(U.norm).filter(t => t && hay.includes(t)).sort((a, b) => b.length - a.length)[0] || '' })).filter(x => x.k).sort((a, b) => b.k.length - a.k.length)[0] || {}).d;
         o.dvId = o.dvId ? o.dvId.id : '';
         const dm = (o.parsed.title.match(/(\d{1,2}\/\d{1,2}\/\d{4})/) || [])[1];
@@ -144,14 +144,17 @@
         o.nam = o.parsed.nam || (o.ngay ? +o.ngay.slice(0, 4) : (A.year() || +U.today().slice(0, 4)));
         const leaf = o.parsed.items.filter(i => !i.isGroup); o.tong = U.sum(leaf, L.nsTong); o.gn = U.sum(leaf, i => i.giaiNgan);
       } catch (er) { o.loi = er.message || String(er); }
-      ds.push(o);
+      // Biểu tổng hợp của Sở (mục I, II… là đơn vị): tách từng đơn vị; phần chưa có số liệu bỏ qua để không ghi đè số đã có
+      const tach = !o.loi && L.nsTachDonVi(o.parsed, dvs);
+      if (tach) tach.forEach(x => ds.push(Object.assign({}, o, { fname: f.name + ' — mục ' + x.parsed.items[0].stt + ' ' + x.ten, parsed: x.parsed, dvId: x.dvId, dvBieu: x.ten, tong: x.tong, gn: x.gn, loi: x.rong ? 'Phần này trên biểu chưa có số liệu: bỏ qua, giữ nguyên số đã có của đơn vị.' : x.parsed.warnings.some(w => w.includes('không ghi nội dung')) ? 'Có dòng ghi số tiền nhưng không ghi nội dung (' + x.parsed.warnings.filter(w => w.includes('không ghi nội dung')).map(w => w.split(' có số')[0]).join(', ') + '): bỏ qua phần này, sửa biểu rồi nhập lại.' : '' })));
+      else ds.push(o);
     }
     const dvOpt = v => '<option value="">— Chọn đơn vị —</option>' + dvs.map(d => '<option value="' + d.id + '"' + (d.id === v ? ' selected' : '') + '>' + e(d.ten) + '</option>').join('');
     const m = UI.modal({
       title: 'Nhập biểu giải ngân nhiều đơn vị', sub: ds.length + ' tệp', size: 'lg',
       body: '<p class="small soft">Phần mềm đoán đơn vị theo dòng "Đơn vị:" trên biểu, tiêu đề hoặc tên tệp — kiểm tra lại cột Đơn vị trước khi nhập. Mỗi biểu thay toàn bộ dự toán năm đó của đơn vị (dòng khớp được cập nhật, giữ lịch sử giải ngân, cán bộ theo dõi). Trước khi nhập phần mềm tự lưu một bản chụp dữ liệu.</p>' +
         '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Tệp</th><th style="min-width:200px">Đơn vị</th><th style="width:90px">Năm</th><th>Số liệu đến ngày</th><th class="num">Dòng</th><th class="num">Được sử dụng</th><th class="num">Đã giải ngân</th></tr></thead><tbody>' +
-        ds.map((o, i) => '<tr data-i="' + i + '"><td class="wrap small">' + e(o.fname) + (o.loi ? '<div class="t2" style="color:var(--bad-fg)">' + e(o.loi) + '</div>' : o.parsed.warnings.length ? '<div class="t2" style="color:var(--warn-fg)">' + o.parsed.warnings.length + ' điểm số tổng khác tổng chi tiết</div>' : '') + (o.dvBieu ? '<div class="t2">Trên biểu: ' + e(o.dvBieu) + '</div>' : '') + '</td>' +
+        ds.map((o, i) => '<tr data-i="' + i + '"><td class="wrap small">' + e(o.fname) + (o.loi ? '<div class="t2" style="color:var(--bad-fg)">' + e(o.loi) + '</div>' : o.parsed.warnings.length ? '<details class="t2" style="color:var(--warn-fg)"><summary>' + o.parsed.warnings.length + ' điểm cần rà soát trên biểu</summary>' + o.parsed.warnings.slice(0, 8).map(w => '<div>• ' + e(w) + '</div>').join('') + '</details>' : '') + (o.dvBieu ? '<div class="t2">Trên biểu: ' + e(o.dvBieu) + '</div>' : '') + '</td>' +
           (o.loi ? '<td colspan="6" class="small muted">Bỏ qua tệp này</td>' : '<td><select class="sel" data-dv aria-label="Đơn vị của tệp ' + e(o.fname) + '">' + dvOpt(o.dvId) + '</select></td><td><input class="inp" type="number" data-nam value="' + o.nam + '" aria-label="Năm"></td><td><input class="inp" type="date" data-ngay value="' + e(o.ngay) + '" aria-label="Ngày số liệu"></td><td class="num">' + o.parsed.items.length + '</td><td class="num">' + U.fmtShort(o.tong) + '</td><td class="num">' + U.fmtShort(o.gn) + '</td>') + '</tr>').join('') + '</tbody></table></div><div data-canh class="mt"></div>',
       buttons: [{ label: 'Hủy', on: a => a.close() }, 'sp', { label: 'Nhập các biểu', cls: 'primary', icon: 'check', on: async a => {
         const chon = ds.map((o, i) => { const tr = $('tr[data-i="' + i + '"]', m.body); return o.loi ? null : Object.assign(o, { dvId: $('[data-dv]', tr).value, nam: +$('[data-nam]', tr).value, ngay: $('[data-ngay]', tr).value }); }).filter(Boolean);

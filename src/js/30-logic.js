@@ -316,7 +316,8 @@
     find('quyetDinh', c => c.startsWith('quyet dinh')); find('chuyenNguon', c => c.includes('chuyen nguon'));
     find('duToan', c => c.includes('du toan giao') || c.includes('du toan duoc giao')); find('boSung', c => /^(kp |kinh phi )?bo sung/.test(c));
     find('thuHoi', c => c.includes('thu hoi')); find('tietKiem', c => c.includes('tiet kiem'));
-    find('tong', c => /^tong (kinh phi|kp)/.test(c)); find('giaiNgan', c => c.includes('da giai ngan'));
+    // Biểu có cả cột "đã giải ngân (từ ngày… đến ngày…)" (phát sinh trong kỳ) và "Lũy kế giải ngân": lấy cột lũy kế
+    find('tong', c => /^tong (kinh phi|kp)/.test(c)); find('giaiNgan', c => c.startsWith('luy ke') && c.includes('giai ngan')); find('giaiNgan', c => c.includes('da giai ngan'));
     find('conLai', c => c.includes('kinh phi con lai') || c === 'con lai'); find('tienDo', c => c.includes('tien do')); find('ghiChu', c => c === 'ghi chu'); find('tyLe', c => c.includes('ty le'));
     find('keToan', c => c.includes('ke toan') || c === 'thuc hien');
     for (let i = hr + 1; i <= hr + 3 && i < rows.length; i++) (rows[i] || []).forEach((c, j) => { const t = nrm(c); if (t === 'tang' && col.dcTang === undefined) col.dcTang = j; if (t === 'giam' && col.dcGiam === undefined) col.dcGiam = j; });
@@ -325,7 +326,11 @@
     ['noiDung', 'duToan', 'giaiNgan'].forEach(k => { if (col[k] === undefined) out.warnings.push('Thiếu cột bắt buộc: ' + k); });
     if (col.noiDung === undefined) return out;
     out.cols = col;
-    if (col.giaiNgan !== undefined) { const m = String(rows[hr][col.giaiNgan] || '').match(/(\d{1,2}\/\d{1,2}\/\d{4})/); if (m) out.ngaySoLieu = U.parseDate(m[1]); }
+    if (col.giaiNgan !== undefined) {
+      // Ngày số liệu: ưu tiên "đến ngày dd/mm/yyyy", sau đó ngày cuối cùng trong tiêu đề các cột giải ngân
+      const tx = H.filter(c => c.includes('giai ngan')).join(' | ') + ' | ' + nrm(out.title), den = tx.match(/den (?:ngay )?(\d{1,2}\/\d{1,2}\/\d{4})/), all = tx.match(/\d{1,2}\/\d{1,2}\/\d{4}/g);
+      const d = den ? den[1] : (all ? all[all.length - 1] : ''); if (d) out.ngaySoLieu = U.parseDate(d);
+    }
     { const m = out.title.match(/năm\s*(\d{4})/i) || String(rows[hr][col.duToan] || '').match(/(\d{4})/); if (m) out.nam = +m[1]; }
     // dòng bắt đầu dữ liệu: sau dòng đánh số cột (1,2,3…)
     let start = hr + 1;
@@ -335,12 +340,16 @@
     let lastNumLevel = 0, dashLevel = null, blankLevel = null, prevLevel = 0;
     for (let i = start; i < rows.length; i++) {
       const r = rows[i] || [], nd = r[col.noiDung];
-      if (nd === null || nd === undefined || String(nd).trim() === '') continue;
+      if (nd === null || nd === undefined || String(nd).trim() === '') {
+        const so = ['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi', 'tietKiem', 'giaiNgan'].filter(k => col[k] !== undefined && money(r[col[k]]));
+        if (so.length) out.warnings.push('Dòng ' + (i + 1) + ' có số tiền (' + so.map(k => U.fmtMoney(money(r[col[k]]))).join('; ') + ') nhưng không ghi nội dung: phần mềm bỏ qua dòng này, số trên dòng tổng phía trên có thể không khớp.');
+        continue;
+      }
       const rawS = col.stt === undefined ? '' : r[col.stt];
       let sttTxt = (fmt && fmt[i] && col.stt !== undefined && fmt[i][col.stt] !== undefined && fmt[i][col.stt] !== null) ? String(fmt[i][col.stt]).trim() : (rawS === null || rawS === undefined ? '' : String(rawS).trim());
       if (typeof rawS === 'number' && rawS < 0 && Number.isInteger(rawS)) sttTxt = '(' + (-rawS) + ')';  // Excel hiểu "(1)" là -1
       let level, kind;
-      const s = sttTxt.replace(/\s/g, '');
+      const s = sttTxt.replace(/\s/g, '').replace(/^(\d+(?:\.\d+)?)\.$/, '$1'); // "3.4." → "3.4", "2." → "2"
       if (/^[IVXLC]+$/.test(s)) { level = 0; kind = 'num'; }
       else if (/^\d+$/.test(s)) { level = 1; kind = 'num'; }
       else if (/^\d+\.\d+$/.test(s)) { level = 2; kind = 'num'; }
@@ -377,11 +386,28 @@
     const sumKids = (i, k) => kids[i].length ? U.sum(kids[i], j => sumKids(j, k)) : out.items[i][k];
     out.items.forEach((it, i) => {
       if (!it.isGroup) return;
-      const NM = { chuyenNguon: 'Chuyển nguồn', duToan: 'Dự toán đầu năm', boSung: 'Bổ sung', dcTang: 'Điều chỉnh tăng', dcGiam: 'Điều chỉnh giảm', thuHoi: 'Thu hồi', giaiNgan: 'Giải ngân' };
+      if (!['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi', 'tietKiem', 'giaiNgan'].some(k => it[k]) && !it.tongGoc) return;   // dòng tiêu đề nhóm không ghi số
+      const NM ={ chuyenNguon: 'Chuyển nguồn', duToan: 'Dự toán đầu năm', boSung: 'Bổ sung', dcTang: 'Điều chỉnh tăng', dcGiam: 'Điều chỉnh giảm', thuHoi: 'Thu hồi', giaiNgan: 'Giải ngân' };
       const bad = Object.keys(NM).filter(k => Math.abs(sumKids(i, k) - it[k]) > 0.5);
       if (bad.length) out.warnings.push('Dòng ' + it.row + ' "' + U.trunc(it.noiDung, 50) + '": số trên dòng tổng khác tổng các dòng chi tiết (' + bad.map(k => NM[k] + ': ' + U.fmtMoney(it[k]) + ' ≠ ' + U.fmtMoney(sumKids(i, k))).join('; ') + ').');
     });
     return out;
+  };
+
+  /* Biểu tổng hợp của Sở: mục La Mã (I, II…) là từng đơn vị. Tách thành từng biểu đơn vị (mỗi phần giữ nguyên cấp bậc dòng).
+     dvs: danh sách đơn vị để đoán theo tên. Trả null nếu biểu không phải dạng tổng hợp (ít hơn 2 mục khớp tên đơn vị).
+     Phần chưa có số liệu (mọi dòng bằng 0) đánh dấu rong = true để không ghi đè dữ liệu đã có của đơn vị. */
+  L.nsTachDonVi = (p, dvs) => {
+    const k = s => U.norm(s).replace(/[^a-z0-9]+/g, ' ').trim(), it = p.items || [];
+    const doan = ten => { const h = k(ten); return (dvs.map(d => ({ d, t: [d.ten, d.tenTat].filter(Boolean).map(k).filter(t => t.length > 3 && h.includes(t)).sort((a, b) => b.length - a.length)[0] || '' })).filter(x => x.t).sort((a, b) => b.t.length - a.t.length)[0] || {}).d || null; };
+    const goc = it.map((x, i) => i).filter(i => it[i].level === 0 && /^[IVXLC]+$/.test(String(it[i].stt).replace(/\s/g, '')));
+    if (goc.length < 2 || goc.filter(i => doan(it[i].noiDung)).length < 2) return null;
+    return goc.map((g, j) => {
+      const het = j + 1 < goc.length ? goc[j + 1] : it.length, sub = it.slice(g, het).map(x => Object.assign({}, x, { parent: x.parent < g ? -1 : x.parent - g }));
+      const r0 = sub[0].row, r1 = het < it.length ? it[het].row - 1 : Infinity, leaf = sub.filter(x => !x.isGroup), d = doan(sub[0].noiDung);
+      return { ten: sub[0].noiDung, dvId: d ? d.id : '', tong: U.sum(leaf, L.nsTong), gn: U.sum(leaf, x => x.giaiNgan), rong: !sub.some(x => L.nsTong(x) || x.giaiNgan),
+        parsed: Object.assign({}, p, { items: sub, warnings: p.warnings.filter(w => { const m = w.match(/^Dòng (\d+)/); return m && +m[1] >= r0 && +m[1] <= r1; }) }) };
+    });
   };
 
   /* ================= TÀI SẢN ================= */

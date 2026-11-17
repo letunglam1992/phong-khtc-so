@@ -130,3 +130,17 @@ test('nhắc việc: giải ngân chậm theo mục tiêu tháng đã đặt', (
     { today: '2026-11-14', gnLech: 20, mucTieu: { 2026: [0, 0, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0] } });
   assert.equal(t.tuDat, true); gan(t.chuan, 40); assert.deepEqual(t.gn.map(x => x.ten), ['B']);   // A: 30% (−10), B: 10% (−30)
 });
+
+test('đọc biểu: lấy cột lũy kế, ngày "đến ngày", STT có dấu chấm cuối', () => {
+  const H = ['TT', 'Nội dung', 'KP chuyển nguồn', 'Dự toán giao đầu năm 2026', 'KP Bổ sung trong năm', 'Tổng KP được sử dụng', 'Kinh phí đã giải ngân (từ ngày 16/10/2026 đến ngày 15/11/2026)', 'Lũy kế giải ngân', 'Kinh phí còn lại'];
+  const rows = [['BÁO CÁO GIẢI NGÂN'], H,
+    ['I', 'Đơn vị A', 0, 300, 0, 300, 15, 150, 150],
+    [1, 'Mục 1', 0, 100, 0, 100, 5, 60, 40],
+    ['1.1.', 'Việc 1.1', 0, 100, 0, 100, 5, 60, 40],
+    ['1.2.', 'Việc 1.2', 0, 0, 0, 0, 0, 0, 0],
+    [2, 'Mục 2', 0, 200, 0, 200, 10, 90, 110]];
+  const p = L.parseBudget(rows, rows);
+  assert.equal(p.cols.giaiNgan, 7); assert.equal(p.ngaySoLieu, '2026-11-15');
+  const it = p.items; assert.equal(it[2].level, 2); assert.equal(it[3].level, 2); assert.equal(it[4].level, 1);   // 1.2. là anh em của 1.1., không phải con
+  gan(it[2].giaiNgan, 60); assert.equal(p.warnings.length, 0);
+});
