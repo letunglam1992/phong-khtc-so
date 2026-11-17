@@ -397,9 +397,13 @@
   /* Biểu tổng hợp của Sở: mục La Mã (I, II…) là từng đơn vị. Tách thành từng biểu đơn vị (mỗi phần giữ nguyên cấp bậc dòng).
      dvs: danh sách đơn vị để đoán theo tên. Trả null nếu biểu không phải dạng tổng hợp (ít hơn 2 mục khớp tên đơn vị).
      Phần chưa có số liệu (mọi dòng bằng 0) đánh dấu rong = true để không ghi đè dữ liệu đã có của đơn vị. */
+  // Đoán đơn vị dự toán từ một đoạn chữ (dòng "Đơn vị:", tiêu đề, tên tệp…): đơn vị có tên dài nhất nằm trong đoạn chữ; không có thì null
+  L.nsDoanDonVi = (txt, dvs) => {
+    const k = s => U.norm(s).replace(/[^a-z0-9]+/g, ' ').trim(), h = ' ' + k(txt) + ' ';
+    return (dvs.map(d => ({ d, t: [d.ten, d.tenTat].filter(Boolean).map(k).filter(t => t.length > 3 && h.includes(' ' + t + ' ')).sort((a, b) => b.length - a.length)[0] || '' })).filter(x => x.t).sort((a, b) => b.t.length - a.t.length)[0] || {}).d || null;
+  };
   L.nsTachDonVi = (p, dvs) => {
-    const k = s => U.norm(s).replace(/[^a-z0-9]+/g, ' ').trim(), it = p.items || [];
-    const doan = ten => { const h = k(ten); return (dvs.map(d => ({ d, t: [d.ten, d.tenTat].filter(Boolean).map(k).filter(t => t.length > 3 && h.includes(t)).sort((a, b) => b.length - a.length)[0] || '' })).filter(x => x.t).sort((a, b) => b.t.length - a.t.length)[0] || {}).d || null; };
+    const it = p.items || [], doan = ten => L.nsDoanDonVi(ten, dvs);
     const goc = it.map((x, i) => i).filter(i => it[i].level === 0 && /^[IVXLC]+$/.test(String(it[i].stt).replace(/\s/g, '')));
     if (goc.length < 2 || goc.filter(i => doan(it[i].noiDung)).length < 2) return null;
     return goc.map((g, j) => {
