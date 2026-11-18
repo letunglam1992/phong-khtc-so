@@ -67,8 +67,24 @@
     }
     const hdOp = (key, title, h, push, fields, keys) => ops.push({ key, title: (h ? '' : '[Chưa tìm thấy hợp đồng — chọn hợp đồng] ') + title, coll: 'hopdong', id: h ? h.id : '', mustExist: true, choices: choicesOf('hopdong').slice(1), fields: fields || {}, keys: keys || [], push, dinhKem: dk, on: !!h });
     if (r.loai === 'phu_luc_hd') { const p = r.phu_luc || {}, h = L.vbTimHD(p.so_hop_dong); hdOp('pl', 'Ghi phụ lục hợp đồng', h, [{ k: 'phuLuc', label: 'Phụ lục', row: { so: p.so_phu_luc || so || '', ngay, noiDung: p.noi_dung || r.trich_yeu || '', giaTriDC: p.gia_tri_dieu_chinh || '', giaHanDen: p.gia_han_den || '' } }]); }
-    if (r.loai === 'nghiem_thu') { const n = r.nghiem_thu || {}, h = L.vbTimHD(n.so_hop_dong); hdOp('nt', 'Ghi lần nghiệm thu', h, [{ k: 'nghiemThu', label: 'Nghiệm thu', row: { ngay: ngay || U.today(), noiDung: n.noi_dung || r.trich_yeu || '', giaTri: n.gia_tri || '' } }], h && (h.trangThai || 'dang') === 'dang' ? { trangThai: 'dang' } : {}, ['trangThai']); }
-    if (r.loai === 'thanh_ly_hd') { const t = r.thanh_ly || {}, h = L.vbTimHD(t.so_hop_dong); hdOp('tl', 'Thanh lý hợp đồng', h, [], { trangThai: 'thanhly', thanhLyNgay: ngay || U.today(), thanhLySo: so, quyetToanHD: t.gia_tri_quyet_toan || '' }, ['trangThai', 'thanhLyNgay', 'thanhLySo', 'quyetToanHD']); }
+    // Tìm hợp đồng: số hợp đồng → tên gói thầu, nhà thầu → hợp đồng của gói thầu trùng tên
+    const timHD = x => L.vbTimHD(x.so_hop_dong, x.ten_goi_thau, x.nha_thau) || (() => { const g = L.vbTimGT(x.ten_goi_thau); return g ? S.all('hopdong').find(h => h.goiThauId === g.id) : null; })();
+    const lechGT = (x, h) => h && x.gia_tri_hop_dong && Math.abs(x.gia_tri_hop_dong - L.hd(h).giaTriHL) > 0.5 ? 'Biên bản ghi giá trị hợp đồng ' + U.fmtMoney(x.gia_tri_hop_dong) + ' đồng, phần mềm đang ghi ' + U.fmtMoney(L.hd(h).giaTriHL) + ' đồng (gồm phụ lục).' : '';
+    if (r.loai === 'nghiem_thu') {
+      const n = r.nghiem_thu || {}, h = timHD(n), x = h ? L.hd(h) : null, dangHD = h && (h.trangThai || 'dang') === 'dang';
+      const vuot = x && n.gia_tri && x.nghiemThu + n.gia_tri > x.giaTriHL + 0.5 ? 'Cộng dồn nghiệm thu (' + U.fmtMoney(x.nghiemThu + n.gia_tri) + ') vượt giá trị hợp đồng (' + U.fmtMoney(x.giaTriHL) + ').' : '';
+      const trung = h && (h.nghiemThu || []).some(z => z.ngay === ngay && Math.abs(U.num(z.giaTri) - U.num(n.gia_tri)) < 0.5) ? 'Hợp đồng đã có lần nghiệm thu cùng ngày, cùng giá trị — có thể trùng.' : '';
+      hdOp('nt', 'Ghi lần nghiệm thu' + (n.lan ? ' đợt ' + n.lan : '') + (n.hoan_thanh ? ' (hoàn thành hợp đồng)' : ''), h, [{ k: 'nghiemThu', label: 'Nghiệm thu', row: { ngay: ngay || U.today(), noiDung: [n.lan ? 'Đợt ' + n.lan : '', n.hoan_thanh ? 'Nghiệm thu hoàn thành' : '', so ? 'BB ' + so : ''].filter(Boolean).join(' · ') || n.noi_dung || r.trich_yeu || '', giaTri: n.gia_tri || '' } }],
+        dangHD && n.hoan_thanh ? { trangThai: 'nghiemthu' } : {}, dangHD && n.hoan_thanh ? ['trangThai'] : []);
+      ops[ops.length - 1].canhBao = [vuot, trung, lechGT(n, h)].filter(Boolean).join(' ');
+    }
+    if (r.loai === 'thanh_ly_hd') {
+      const t = r.thanh_ly || {}, h = timHD(t), x = h ? L.hd(h) : null;
+      const lechTT = x && t.da_thanh_toan != null && Math.abs(t.da_thanh_toan - x.thanhToan) > 0.5 ? 'Biên bản ghi đã thanh toán ' + U.fmtMoney(t.da_thanh_toan) + ' đồng, phần mềm ghi ' + U.fmtMoney(x.thanhToan) + ' đồng.' : '';
+      const ghi = [t.con_phai_thanh_toan ? 'Thanh lý: còn phải thanh toán ' + U.fmtMoney(t.con_phai_thanh_toan) + ' đồng.' : '', t.thu_hoi ? 'Thanh lý: nhà thầu phải hoàn trả ' + U.fmtMoney(t.thu_hoi) + ' đồng.' : ''].filter(Boolean).join(' ');
+      hdOp('tl', 'Thanh lý hợp đồng', h, [], Object.assign({ trangThai: 'thanhly', thanhLyNgay: ngay || U.today(), thanhLySo: so, quyetToanHD: t.gia_tri_quyet_toan || '' }, ghi ? { ghiChu: [(h && h.ghiChu) || '', ghi].filter(Boolean).join(' ') } : {}), ['trangThai', 'thanhLyNgay', 'thanhLySo', 'quyetToanHD'].concat(ghi ? ['ghiChu'] : []));
+      ops[ops.length - 1].canhBao = [lechTT, lechGT(t, h), x && t.gia_tri_quyet_toan && t.gia_tri_quyet_toan > x.giaTriHL + 0.5 ? 'Giá trị quyết toán vượt giá trị hợp đồng.' : ''].filter(Boolean).join(' ');
+    }
     if (r.loai === 'du_toan_qd') {
       const dt = r.du_toan || {}, nam = ngay ? +ngay.slice(0, 4) : +U.today().slice(0, 4), lv = L.nsTree(nam, null).flat.filter(n => !n.children.length);
       const loai = U.norm(dt.loai_dieu_chinh || r.trich_yeu || ''), truong = /thu hoi/.test(loai) ? 'thuHoi' : /giam/.test(loai) ? 'dcGiam' : /dieu chinh tang|tang/.test(loai) ? 'dcTang' : /giao du toan|giao dau nam/.test(loai) ? 'duToan' : 'boSung';

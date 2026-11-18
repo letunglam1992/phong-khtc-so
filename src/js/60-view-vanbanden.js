@@ -195,16 +195,18 @@
     if (f.type === 'date') inner = '<input class="inp" type="date" id="' + id + '" data-p="' + e(path) + '" data-t="date" value="' + e(v || '') + '">';
     else if (f.type === 'money') inner = '<input class="inp num" inputmode="numeric" id="' + id + '" data-p="' + e(path) + '" data-t="money" value="' + (v === '' || v === null || v === undefined ? '' : U.fmtMoney(v)) + '">';
     else if (f.type === 'select') inner = '<select class="sel" id="' + id + '" data-p="' + e(path) + '"><option value=""></option>' + Sc.options(f).map(o => '<option value="' + e(o[0]) + '"' + (o[0] === v ? ' selected' : '') + '>' + e(o[1]) + '</option>').join('') + (v && !Sc.options(f).some(o => o[0] === v) ? '<option selected value="' + e(v) + '">' + e(v) + '</option>' : '') + '</select>';
-    else if (f.type === 'ref') inner = '<select class="sel" id="' + id + '" data-p="' + e(path) + '"><option value="">(không chọn)</option>' + S.all(f.ref).map(r => '<option value="' + r.id + '"' + (r.id === v ? ' selected' : '') + '>' + e(Sc.refName(f.ref, r.id)) + '</option>').join('') + '</select>';
+    else if (f.type === 'ref') inner = refPick(f.ref, v, id, 'data-p="' + e(path) + '"');
     else if (f.type === 'textarea') inner = '<textarea class="inp" rows="2" id="' + id + '" data-p="' + e(path) + '">' + e(v || '') + '</textarea>';
     else inner = '<input class="inp" id="' + id + '" data-p="' + e(path) + '" value="' + e(v === null || v === undefined ? '' : v) + '">';
     return '<div class="fld' + (f.type === 'textarea' ? ' full' : '') + '">' + lab + inner + '</div>';
   }
+  // Ô chọn có tìm kiếm, danh sách hiện tên đầy đủ kèm giá, KHLCNT, nhà thầu, dự án; dưới ô ghi thông tin bản ghi đang chọn
+  const refPick = (ref, v, id, attr, empty) => UI.refPickHtml({ k: '', ref, empty }, v, id).replace('<input type="hidden" data-k=""', '<input type="hidden" ' + attr) + '<div class="help" data-rpsub>' + e(UI.refSub(ref, v)) + '</div>';
   const ADD_TEN = [['duToan', 'Dự toán giao đầu năm'], ['boSung', 'Bổ sung trong năm'], ['dcTang', 'Điều chỉnh tăng'], ['dcGiam', 'Điều chỉnh giảm'], ['thuHoi', 'Thu hồi']];
   function opHtml(o, i) {
     const sc = Sc.C[o.coll];
     return '<div class="card vb-op' + (o.on ? '' : ' off') + '" data-op="' + i + '"><div class="card-h"><label class="check" style="font-weight:600"><input type="checkbox" data-on' + (o.on ? ' checked' : '') + '> ' + e(o.title) + '</label><span class="grow"></span><span class="tag">' + e(sc.label) + '</span></div><div class="card-b">' +
-      (o.choices && o.choices.length ? '<div class="fld"><label for="vt_' + i + '">' + (o.mustExist ? 'Bản ghi cần cập nhật' : 'Tạo mới hay cập nhật bản ghi đã có') + '</label><select class="sel" id="vt_' + i + '" data-target>' + (o.mustExist ? '<option value="">— chọn —</option>' : '') + o.choices.map(c => '<option value="' + e(c[0]) + '"' + (c[0] === o.id ? ' selected' : '') + '>' + e(c[1]) + '</option>').join('') + '</select></div>' : '') +
+      (o.choices && o.choices.length ? '<div class="fld"><label for="vt_' + i + '">' + (o.mustExist ? 'Bản ghi cần cập nhật' : 'Tạo mới hay cập nhật bản ghi đã có') + '</label>' + (['goithau', 'hopdong'].includes(o.coll) ? refPick(o.coll, o.id, 'vt_' + i, 'data-target', o.mustExist ? '— Chọn ' + Sc.C[o.coll].label.toLowerCase() + ' —' : 'Tạo mới') : '<select class="sel" id="vt_' + i + '" data-target>' + (o.mustExist ? '<option value="">— chọn —</option>' : '') + o.choices.map(c => '<option value="' + e(c[0]) + '"' + (c[0] === o.id ? ' selected' : '') + '>' + e(c[1]) + '</option>').join('') + '</select>') + '</div>' : '') +
       (o.keys.length ? '<div class="form mt">' + o.keys.map(k => { const f = Sc.field(o.coll, k); return f ? inputFor(f, o.fields[k], i + '.f.' + k) : ''; }).join('') + '</div>' : '') +
       (o.push || []).map((p, j) => { const f = Sc.field(o.coll, p.k); return '<div class="mt"><label class="check"><input type="checkbox" data-push="' + j + '"' + (p.skip ? '' : ' checked') + '> ' + e(p.label + ' — thêm 1 dòng vào "' + f.label + '"') + '</label><div class="form mt">' + f.cols.map(cf => inputFor(cf, p.row[cf.k], i + '.p.' + j + '.' + cf.k)).join('') + '</div></div>'; }).join('') +
       (o.add ? '<div class="form mt"><div class="fld"><label for="va_' + i + '">Cộng vào cột</label><select class="sel" id="va_' + i + '" data-addt>' + ADD_TEN.map(a => '<option value="' + a[0] + '"' + (a[0] === o.add.truong ? ' selected' : '') + '>' + a[1] + '</option>').join('') + '</select></div>' + inputFor({ label: 'Số tiền (đồng)', type: 'money' }, o.add.soTien, i + '.a.soTien') + '</div>' : '') +
@@ -241,6 +243,7 @@
       $$('[data-op]', body).forEach(card => {
         const o = ops[+card.dataset.op];
         $('[data-on]', card).onchange = x => { o.on = x.target.checked; card.classList.toggle('off', !o.on); };
+        UI.on(card, 'change', '.refpick input[type=hidden]', h => { const w = h.closest('.refpick'), sub = w && w.nextElementSibling; if (sub && sub.hasAttribute('data-rpsub')) sub.textContent = UI.refSub(w.dataset.ref, h.value); });
         const t = $('[data-target]', card); if (t) t.onchange = x => { o.id = x.target.value; if (o.mustExist && o.id) { o.on = true; $('[data-on]', card).checked = true; card.classList.remove('off'); } };
         $$('[data-push]', card).forEach(c => c.onchange = x => { o.push[+c.dataset.push].skip = !x.target.checked; });
         const at = $('[data-addt]', card); if (at) at.onchange = x => { o.add.truong = x.target.value; };
@@ -251,7 +254,7 @@
         }));
       });
     };
-    draw();
+    draw(); UI.bindRefPick(body);
     const m = UI.modal({ title: 'Duyệt văn bản: ' + U.trunc(it.name, 70), sub: loaiTen(r.loai), size: 'xl', body, onClose: ctx && ctx.onClose,
       buttons: [{ label: 'Đóng', on: x => x.close() }, { label: 'Bỏ qua văn bản này', on: async x => { x.close(true); await resolve(it, 'bo_qua', ''); UI.toast('Đã chuyển văn bản sang "Đã xử lý" (bỏ qua).', 'ok'); } }, { label: 'Cập nhật vào phần mềm', cls: 'primary', icon: 'check', on: async x => {
         let plan; try { plan = L.vbApply(ops); } catch (er) { UI.toast(er.message, 'bad'); return; }

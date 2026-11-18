@@ -66,16 +66,25 @@
     if (f.ref === 'canbo') list = list.filter(c => c.trangThai !== 'nghi' || c.id === cur || (Array.isArray(cur) && cur.includes(c.id)));
     // phần tử thứ 3: tên đầy đủ, chỉ dùng trong danh sách thả xuống của ô chọn (không cắt ngắn)
     const duoi = r => f.ref === 'ngansach' ? ' — ' + (Sc.refName('donvi', r.donViId) || '') + ' ' + (r.nam || '') : '';
-    return list.map(r => { if (f.ref === 'canbo') return [r.id, r.hoTen]; if (f.ref === 'donvi') return [r.id, r.ten]; const t = Sc.C[f.ref].title(r); return [r.id, U.trunc(t, f.ref === 'ngansach' ? 100 : 110) + duoi(r), t + duoi(r)]; }).sort((a, b) => f.ref === 'danhmuc' || f.ref === 'ngansach' ? 0 : U.cmp(a[1], b[1]));
+    return list.map(r => { if (f.ref === 'canbo') return [r.id, r.hoTen]; if (f.ref === 'donvi') return [r.id, r.ten]; const t = Sc.C[f.ref].title(r); return [r.id, U.trunc(t, f.ref === 'ngansach' ? 100 : 110) + duoi(r), t + duoi(r), refSub(f.ref, r)]; }).sort((a, b) => f.ref === 'danhmuc' || f.ref === 'ngansach' ? 0 : U.cmp(a[1], b[1]));
   }
   UI.refOptions = refOptions;
+  UI.refSub = (c, id) => { const r = id && S.get(c, id); return r ? refSub(c, r) : ''; };
+  // Dòng phụ trong danh sách chọn: phân biệt các gói thầu, hợp đồng trùng tên (giá, KHLCNT, nhà thầu, dự án, tình trạng)
+  function refSub(c, r) {
+    const tien = v => U.num(v) ? U.fmtMoney(v) + ' đ' : '';
+    if (c === 'goithau') return [tien(r.giaGoiThau) ? 'Giá gói thầu ' + tien(r.giaGoiThau) : '', r.qdKHSo ? 'KHLCNT ' + r.qdKHSo + (r.qdKHNgay ? ' ngày ' + U.fmtDate(r.qdKHNgay) : '') : '', r.nhaThau ? 'Nhà thầu ' + U.trunc(r.nhaThau, 45) : '', r.duAnId ? U.trunc(Sc.refName('duan', r.duAnId) || '', 60) : '', A.optLabel ? A.optLabel('ttGT', r.trangThai || 'nhucau') : ''].filter(Boolean).join(' · ');
+    if (c === 'hopdong') { const g = r.goiThauId && S.get('goithau', r.goiThauId); return [r.nhaThau ? U.trunc(r.nhaThau, 45) : '', tien(r.giaTri), r.ngayKy ? 'ký ' + U.fmtDate(r.ngayKy) : '', g ? 'Gói: ' + U.trunc(g.ten, 60) : '', A.optLabel ? A.optLabel('ttHD', r.trangThai || 'dang') : ''].filter(Boolean).join(' · '); }
+    if (c === 'khlcnt') return [r.so ? 'Số ' + r.so : '', r.ngay ? U.fmtDate(r.ngay) : ''].filter(Boolean).join(' · ');
+    return '';
+  }
   /* Ô chọn bản ghi liên kết có tìm kiếm, thêm mới, sửa (thay cho <select> dài).
      Giá trị nằm ở <input type=hidden data-k>; đổi giá trị phát sự kiện change để form nhận. */
   const REF_ADD = ['donvi', 'canbo', 'duan', 'goithau', 'ngansach', 'vanban', 'hopdong'];
-  const refEmpty = f => '— ' + (f.ref === 'canbo' ? 'Chưa phân công' : 'Không chọn') + ' —';
+  const refEmpty = f => f.empty || '— ' + (f.ref === 'canbo' ? 'Chưa phân công' : 'Không chọn') + ' —';
   UI.refPickHtml = (f, v, id) => {
     const o = v ? (refOptions(f, v).find(o => o[0] === v) || [v, '(đã xóa)']) : [v, refEmpty(f)], lab = o[1];
-    return '<div class="refpick" data-ref="' + e(f.ref) + '"><input type="hidden" data-k="' + f.k + '" value="' + e(v || '') + '"><button type="button" class="sel refpick-btn" id="' + id + '"' + (o[2] ? ' title="' + e(o[2]) + '"' : '') + ' aria-haspopup="listbox" aria-expanded="false"><span class="rp-l">' + e(lab) + '</span></button>' +
+    return '<div class="refpick" data-ref="' + e(f.ref) + '"' + (f.empty ? ' data-empty="' + e(f.empty) + '"' : '') + '><input type="hidden" data-k="' + f.k + '" value="' + e(v || '') + '"><button type="button" class="sel refpick-btn" id="' + id + '"' + (o[2] ? ' title="' + e(o[2]) + '"' : '') + ' aria-haspopup="listbox" aria-expanded="false"><span class="rp-l">' + e(lab) + '</span></button>' +
       (REF_ADD.includes(f.ref) ? '<button type="button" class="btn icon sm rp-edit" title="Sửa bản ghi đang chọn" aria-label="Sửa ' + e(Sc.C[f.ref].label) + ' đang chọn"' + (v ? '' : ' hidden') + '>' + ic('edit', 15) + '</button>' : '') + '</div>';
   };
   UI.bindRefPick = root => {
@@ -84,7 +93,7 @@
   };
   UI.refSet = (w, id) => setVal(w, id);
   function setVal(w, id) {
-    const hid = $('input[type=hidden]', w), c = w.dataset.ref, f = { ref: c };
+    const hid = $('input[type=hidden]', w), c = w.dataset.ref, f = { ref: c, empty: w.dataset.empty };
     hid.value = id || '';
     const o = id ? (refOptions(f, id).find(o => o[0] === id) || [id, Sc.refName(c, id)]) : [id, refEmpty(f)];
     $('.rp-l', w).textContent = o[1]; $('.refpick-btn', w).title = o[2] || '';
@@ -93,19 +102,19 @@
   }
   function openPick(w) {
     const prev = $('.rp-pop', document.body); if (prev) prev.parentNode.removeChild(prev);
-    const hid = $('input[type=hidden]', w), c = w.dataset.ref, f = { ref: c }, cur = hid.value, btn = $('.refpick-btn', w);
+    const hid = $('input[type=hidden]', w), c = w.dataset.ref, f = { ref: c, empty: w.dataset.empty }, cur = hid.value, btn = $('.refpick-btn', w);
     const all = refOptions(f, cur), sc = Sc.C[c];
     const pop = UI.el('<div class="rp-pop" role="dialog" aria-label="Chọn ' + e(sc.label) + '"><input class="inp" type="search" placeholder="Gõ để tìm ' + e(sc.label.toLowerCase()) + '…" aria-label="Tìm"><div class="rp-list" role="listbox"></div>' + (REF_ADD.includes(c) ? '<button type="button" class="rp-add">' + ic('plus', 15) + '<span>Thêm ' + e(sc.label.toLowerCase()) + ' mới</span></button>' : '') + '</div>');
     document.body.appendChild(pop);
-    const r0 = btn.getBoundingClientRect(), wd = Math.max(r0.width, c === 'ngansach' || c === 'goithau' || c === 'khlcnt' ? 520 : 320), below = window.innerHeight - r0.bottom;
+    const r0 = btn.getBoundingClientRect(), wd = Math.max(r0.width, c === 'goithau' || c === 'hopdong' ? 680 : c === 'ngansach' || c === 'khlcnt' ? 520 : 320), below = window.innerHeight - r0.bottom;
     pop.style.width = Math.min(wd, window.innerWidth - 16) + 'px'; pop.style.left = Math.max(8, Math.min(r0.left, window.innerWidth - wd - 8)) + 'px';
     if (below < 300 && r0.top > below) pop.style.bottom = (window.innerHeight - r0.top + 4) + 'px'; else pop.style.top = (r0.bottom + 4) + 'px';
     const inp = $('input', pop), list = $('.rp-list', pop); let shown = [], idx = 0;
     const draw = () => {
       const ws = U.norm(inp.value).split(' ').filter(Boolean);
-      shown = [['', refEmpty(f)]].concat(all.filter(o => ws.every(x => U.norm(o[2] || o[1]).includes(x)))).slice(0, 300);
+      shown = [['', refEmpty(f)]].concat(all.filter(o => ws.every(x => U.norm((o[2] || o[1]) + ' ' + (o[3] || '')).includes(x)))).slice(0, 300);
       idx = Math.max(0, shown.findIndex(o => o[0] === cur)); if (ws.length) idx = shown.length > 1 ? 1 : 0;
-      list.innerHTML = shown.map((o, i) => '<button type="button" role="option" class="rp-i' + (i === idx ? ' on' : '') + (o[0] === cur ? ' cur' : '') + '" data-i="' + i + '">' + e(o[2] || o[1]) + '</button>').join('') + (shown.length === 1 && ws.length ? '<div class="small muted" style="padding:8px 10px">Không tìm thấy "' + e(inp.value) + '".</div>' : '');
+      list.innerHTML = shown.map((o, i) => '<button type="button" role="option" class="rp-i' + (i === idx ? ' on' : '') + (o[0] === cur ? ' cur' : '') + '" data-i="' + i + '">' + e(o[2] || o[1]) + (o[3] ? '<span class="rp-s">' + e(o[3]) + '</span>' : '') + '</button>').join('') + (shown.length === 1 && ws.length ? '<div class="small muted" style="padding:8px 10px">Không tìm thấy "' + e(inp.value) + '".</div>' : '');
       const on = $('.rp-i.on', list); if (on) on.scrollIntoView({ block: 'nearest' });
     };
     const close = () => { if (pop.parentNode) pop.parentNode.removeChild(pop); document.removeEventListener('mousedown', outside, true); window.removeEventListener('resize', close); btn.setAttribute('aria-expanded', 'false'); };

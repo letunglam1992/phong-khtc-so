@@ -977,8 +977,21 @@ var TrichVB = (function () {
       var gh = sau(t, 'Gia hạn (?:thời gian thực hiện )?(?:hợp đồng )?đến', 80) || ((t.match(/gia\s*hạn[^\n]{0,120}?đến\s*(?:hết\s*)?ngày\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{4}|\d{1,2}\s*tháng\s*\d{1,2}\s*năm\s*\d{4})/i) || [])[1]);
       r.phu_luc = { so_hop_dong: soHopDongTrong(t), so_phu_luc: r.so_van_ban || ((t.slice(0, 1500).match(/PH[ỤU]\s*L[ỤU]C(?:\s*H[ỢO]P\s*Đ[ỒÒO]NG)?\s*S[ỐO]\s*[:：]?\s*([0-9][^\s,;]{0,40})/i) || [])[1]) || null, noi_dung: r.trich_yeu, gia_tri_dieu_chinh: tien(t, 'Giá trị (?:hợp đồng )?điều chỉnh|Giá trị (?:tăng|giảm)(?: thêm)?|Giá trị phát sinh'), gia_han_den: ngayISO(gh) || null };
     }
-    if (loai === 'nghiem_thu') r.nghiem_thu = { so_hop_dong: soHopDongTrong(t), noi_dung: r.trich_yeu, gia_tri: tien(t, 'Giá trị nghiệm thu|Giá trị khối lượng hoàn thành|Giá trị đề nghị thanh toán') };
-    if (loai === 'thanh_ly_hd') r.thanh_ly = { so_hop_dong: soHopDongTrong(t), gia_tri_quyet_toan: tien(t, 'Giá trị quyết toán|Giá trị thanh lý|Giá trị hoàn thành'), da_thanh_toan: tien(t, 'Đã thanh toán|Giá trị đã thanh toán') };
+    if (loai === 'nghiem_thu' || loai === 'thanh_ly_hd') {
+      // Biên bản: ngày ở câu "Hôm nay, ngày …"; gói thầu, nhà thầu để tìm hợp đồng khi không ghi số hợp đồng
+      var tenBB = tenGoiHD(t), dd2 = boDau(t).replace(/\s+/g, ' ');
+      if (!r.ngay_van_ban) r.ngay_van_ban = ngayHomNay(t) || null;
+      if (!r.trich_yeu && tenBB) r.trich_yeu = (loai === 'nghiem_thu' ? 'Nghiệm thu' : 'Thanh lý hợp đồng') + ' gói thầu: ' + tenBB;
+      var chung = { so_hop_dong: soHopDongTrong(t), ten_goi_thau: goi.ten || tenBB || tenTY, nha_thau: tenBenB(t) || null, gia_tri_hop_dong: tien(t, 'Giá (?:trị )?hợp đồng(?: đã ký| sau điều chỉnh)?|Giá trị hợp đồng theo (?:hợp đồng|phụ lục)') };
+      if (loai === 'nghiem_thu') {
+        var lan = dd2.slice(0, 2500).match(/nghiem thu (?:khoi luong |thanh toan )?(?:hoan thanh )?(?:dot|lan|giai doan) (?:thu )?(\d+)/);
+        r.nghiem_thu = Object.assign(chung, { noi_dung: r.trich_yeu, lan: lan ? +lan[1] : null, hoan_thanh: /nghiem thu (hoan thanh|ban giao) (hop dong|toan bo|goi thau|cong trinh|san pham)|nghiem thu hoan thanh,? dua vao su dung/.test(dd2.slice(0, 3000)) || null,
+          gia_tri: tien(t, 'Giá trị (?:khối lượng )?(?:nghiệm thu|hoàn thành)(?: (?:đợt|lần) \\d+)?|Tổng giá trị nghiệm thu|Giá trị (?:khối lượng )?(?:công việc )?(?:hoàn thành )?đề nghị thanh toán|Giá trị đề nghị thanh toán|Giá trị thanh toán(?: (?:đợt|lần) \\d+)?') });
+      } else {
+        r.thanh_ly = Object.assign(chung, { gia_tri_quyet_toan: tien(t, 'Giá trị (?:quyết toán|thanh lý|hoàn thành|thực hiện)(?: hợp đồng)?|Giá trị quyết toán'), da_thanh_toan: tien(t, 'Đã thanh toán|Giá trị đã thanh toán|Số tiền đã thanh toán|Bên A đã (?:tạm ứng, )?thanh toán(?: cho Bên B)?|Đã tạm ứng và thanh toán'),
+          con_phai_thanh_toan: tien(t, 'Giá trị còn (?:lại )?phải thanh toán|Số tiền còn (?:lại )?phải thanh toán|Bên A (?:còn )?phải thanh toán(?: (?:tiếp )?cho Bên B)?|Còn phải thanh toán|Giá trị còn lại'), thu_hoi: tien(t, 'Số tiền (?:phải )?thu hồi|Giá trị (?:phải )?thu hồi|Bên B phải hoàn trả(?: cho Bên A)?') });
+      }
+    }
     if (loai === 'du_toan_qd') { var dd = boDau(t.slice(0, 1500)); r.du_toan = { loai_dieu_chinh: /thu hoi/.test(dd) ? 'thu_hoi' : /bo sung/.test(dd) ? 'bo_sung' : /dieu chinh/.test(dd) ? 'dieu_chinh' : 'giao', dong: [], tong_so_tien: tien(t, 'Tổng (?:số )?(?:kinh phí|dự toán|số tiền)') } ; }
     return r;
   }
@@ -1003,8 +1016,8 @@ var TrichVB = (function () {
     '"hop_dong":{"so_hop_dong":null,"ngay_ky":null,"ten":null,"ten_goi_thau":null,"ben_a":null,"nha_thau":null,"gia_tri":null,"loai_hop_dong":null,"ngay_bat_dau":null,"ngay_ket_thuc":null,"thoi_gian_thuc_hien":null,"tam_ung":null,"bao_lanh_thuc_hien":null,"bao_lanh_thuc_hien_den":null,"ma_so_thue":null,"nguon_von":null,"phuong_thuc_thanh_toan":null},',
     '"thuong_thao":{"ten_goi_thau":null,"nha_thau":null,"ma_so_thue":null,"gia_du_thau":null,"gia_sau_thuong_thao":null,"thoi_gian_thuc_hien":null,"ngay_ket_thuc":null,"loai_hop_dong":null,"tam_ung_ghi":null,"phuong_thuc_thanh_toan":null},',
     '"phu_luc":{"so_hop_dong":null,"so_phu_luc":null,"noi_dung":null,"gia_tri_dieu_chinh":null,"gia_han_den":null},',
-    '"nghiem_thu":{"so_hop_dong":null,"noi_dung":null,"gia_tri":null},',
-    '"thanh_ly":{"so_hop_dong":null,"gia_tri_quyet_toan":null,"da_thanh_toan":null},',
+    '"nghiem_thu":{"so_hop_dong":null,"ten_goi_thau":null,"nha_thau":null,"gia_tri_hop_dong":null,"noi_dung":null,"lan":null,"hoan_thanh":null,"gia_tri":null},',
+    '"thanh_ly":{"so_hop_dong":null,"ten_goi_thau":null,"nha_thau":null,"gia_tri_hop_dong":null,"gia_tri_quyet_toan":null,"da_thanh_toan":null,"con_phai_thanh_toan":null,"thu_hoi":null},',
     '"du_toan":{"loai_dieu_chinh":null,"tong_so_tien":null,"dong":[{"don_vi":null,"noi_dung":null,"so_tien":null}]},',
     '"trich_dan":{}}'
   ].join('\n');
@@ -1022,7 +1035,7 @@ var TrichVB = (function () {
     try { return JSON.parse(j); }
     catch (e) { return JSON.parse(j.replace(/,\s*([}\]])/g, '$1').replace(/[“”]/g, '"')); }
   }
-  var TRUONG_TIEN = { goi_thau: ['gia_goi_thau'], ket_qua: ['gia_trung_thau', 'gia_goi_thau'], hop_dong: ['gia_tri', 'tam_ung', 'bao_lanh_thuc_hien'], thuong_thao: ['gia_du_thau', 'gia_sau_thuong_thao'], phu_luc: ['gia_tri_dieu_chinh'], nghiem_thu: ['gia_tri'], thanh_ly: ['gia_tri_quyet_toan', 'da_thanh_toan'], du_toan: ['tong_so_tien'] };
+  var TRUONG_TIEN = { goi_thau: ['gia_goi_thau'], ket_qua: ['gia_trung_thau', 'gia_goi_thau'], hop_dong: ['gia_tri', 'tam_ung', 'bao_lanh_thuc_hien'], thuong_thao: ['gia_du_thau', 'gia_sau_thuong_thao'], phu_luc: ['gia_tri_dieu_chinh'], nghiem_thu: ['gia_tri', 'gia_tri_hop_dong'], thanh_ly: ['gia_tri_quyet_toan', 'da_thanh_toan', 'con_phai_thanh_toan', 'thu_hoi', 'gia_tri_hop_dong'], du_toan: ['tong_so_tien'] };
   var TRUONG_NGAY = { hop_dong: ['ngay_ky', 'ngay_bat_dau', 'ngay_ket_thuc', 'bao_lanh_thuc_hien_den'], phu_luc: ['gia_han_den'], thuong_thao: ['ngay_ket_thuc'] };
   function rong(v) { return v == null || v === '' || (typeof v === 'string' && /^(null|không có|khong co|n\/a|-)$/i.test(v.trim())); }
   function chuanHoa(o) {

@@ -456,6 +456,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 .rp-i{border:0;background:none;text-align:left;padding:7px 10px;border-radius:6px;cursor:pointer;font:inherit;font-size:14px;color:var(--text);line-height:1.35}
 .rp-i:hover,.rp-i.on{background:var(--hover)}
 .rp-i.cur{font-weight:600;color:var(--accent)}
+.rp-i .rp-s{display:block;font-size:12.5px;font-weight:400;color:var(--muted);margin-top:2px}
+.rp-i + .rp-i{border-top:1px solid var(--border)}
 .rp-add{display:flex;align-items:center;gap:6px;border:1px dashed var(--border-strong);background:none;border-radius:6px;padding:7px 10px;cursor:pointer;font:inherit;font-size:14px;color:var(--accent)}
 .rp-add:hover{background:var(--accent-soft)}
 .rp-edit[hidden]{display:none}

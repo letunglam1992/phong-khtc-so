@@ -218,3 +218,27 @@ Mãsốthuết 0110000000
   assert.equal(b.nha_thau, 'CÔNG TY TNHH DỊCH VỤ THỬ NGHIỆM ABC'); assert.equal(b.ma_so_thue, '0110000000');
   assert.equal(b.gia_sau_thuong_thao, 46860000); assert.equal(b.thoi_gian_thuc_hien, '60 ngày'); assert.equal(b.loai_hop_dong, 'trọn gói'); assert.equal(b.tam_ung_ghi, 'Không tạm ứng');
 });
+
+test('biên bản nghiệm thu hoàn thành, thanh lý hợp đồng: số hợp đồng, ngày "Hôm nay", giá trị, đã/còn phải thanh toán', () => {
+  const nt = T.chuanHoa(T.trichQuyTac(`CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+BIÊN BẢN NGHIỆM THU HOÀN THÀNH HỢP ĐỒNG
+Gói thầu: Tư vấn thử nghiệm lập bản đồ
+Căn cứ Hợp đồng số 09/2026/HĐTV-SNNMT-ABC ngày 05/11/2026 giữa Sở và Công ty ABC;
+Hôm nay, ngày 20 tháng 12 năm 2026, tại Sở, chúng tôi gồm:
+Nhà thầu (Bên B): CÔNG TY TNHH THỬ NGHIỆM ABC
+3. Giá trị nghiệm thu: 1.250.000.000 đồng`));
+  assert.equal(nt.loai, 'nghiem_thu'); assert.equal(nt.ngay_van_ban, '2026-12-20');
+  assert.equal(nt.nghiem_thu.so_hop_dong, '09/2026/HĐTV-SNNMT-ABC'); assert.equal(nt.nghiem_thu.gia_tri, 1250000000); assert.equal(nt.nghiem_thu.hoan_thanh, true);
+  assert.equal(nt.nghiem_thu.ten_goi_thau, 'Tư vấn thử nghiệm lập bản đồ');
+  const tl = T.chuanHoa(T.trichQuyTac(`CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+BIÊN BẢN THANH LÝ HỢP ĐỒNG
+Căn cứ Hợp đồng số 09/2026/HĐTV-SNNMT-ABC ngày 05/11/2026;
+Hôm nay, ngày 25 tháng 12 năm 2026, chúng tôi gồm:
+- Giá trị hợp đồng: 1.270.000.000 đồng
+- Giá trị quyết toán hợp đồng: 1.250.000.000 đồng
+- Đã thanh toán: 0 đồng
+- Giá trị còn phải thanh toán: 1.250.000.000 đồng`));
+  assert.equal(tl.loai, 'thanh_ly_hd'); assert.equal(tl.ngay_van_ban, '2026-12-25');
+  assert.equal(tl.thanh_ly.gia_tri_hop_dong, 1270000000); assert.equal(tl.thanh_ly.gia_tri_quyet_toan, 1250000000);
+  assert.equal(tl.thanh_ly.da_thanh_toan, 0); assert.equal(tl.thanh_ly.con_phai_thanh_toan, 1250000000);
+});
