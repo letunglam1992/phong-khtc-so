@@ -71,6 +71,32 @@
     }
     return out.join('\n').trim();
   }
+  /* Nhận dạng chữ (OCR) bản quét PDF, ảnh chụp ngay trên trình duyệt: Tesseract.js, dữ liệu tiếng Việt tải lần đầu (~1,4 MB) rồi lưu sẵn */
+  const TESS = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/', TESS_CORE = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1';
+  const loadTess = () => window.Tesseract ? Promise.resolve(window.Tesseract) : new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = TESS + 'tesseract.min.js'; s.crossOrigin = 'anonymous';
+    s.onload = () => res(window.Tesseract); s.onerror = () => rej(new Error('Không tải được bộ nhận dạng chữ (cần mạng Internet).')); document.head.appendChild(s);
+  });
+  VB.ocr = async (buf, laPdf, ten) => {
+    const T = await loadTess(), w = await T.createWorker('vie', 1, { workerPath: TESS + 'worker.min.js', corePath: TESS_CORE }), out = [];
+    try {
+      if (laPdf) {
+        const pdfjs = await loadPdfJs(), doc = await pdfjs.getDocument({ data: buf }).promise, n = Math.min(doc.numPages, 30);
+        for (let p = 1; p <= n; p++) {
+          UI.toast('Đang nhận dạng chữ ' + (ten ? '"' + U.trunc(ten, 40) + '" ' : '') + 'trang ' + p + '/' + n + '…');
+          const pg = await doc.getPage(p), v1 = pg.getViewport({ scale: 1 }), vp = pg.getViewport({ scale: Math.min(3.5, 2200 / v1.width) });
+          const cv = document.createElement('canvas'); cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+          const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height);
+          await pg.render({ canvasContext: cx, viewport: vp }).promise;
+          out.push((await w.recognize(cv)).data.text); cv.width = cv.height = 0;
+        }
+        if (doc.numPages > n) out.push('[Chỉ nhận dạng ' + n + '/' + doc.numPages + ' trang đầu]');
+      } else { UI.toast('Đang nhận dạng chữ ' + (ten ? '"' + U.trunc(ten, 40) + '"' : '') + '…'); out.push((await w.recognize(new Blob([buf]))).data.text); }
+    } finally { try { await w.terminate(); } catch (x) { } }
+    const t = out.join('\n').replace(/[ \t]+\n/g, '\n').trim();
+    if (t.replace(/\s/g, '').length < 60) throw new Error('Không nhận dạng được chữ (ảnh mờ, nghiêng hoặc không phải văn bản).');
+    return t;
+  };
   // Đọc 1 mục trong tệp .zip (docx) bằng DecompressionStream, không cần thư viện ngoài
   async function unzipEntry(buf, name) {
     const v = new DataView(buf), u8 = new Uint8Array(buf);
@@ -94,14 +120,20 @@
   VB.readFile = async file => {
     const buf = await file.arrayBuffer(), nm = file.name || '';
     if (/\.pdf$/i.test(nm) || file.type === 'application/pdf') {
-      const t = await pdfText(buf);
-      if (t.replace(/\s/g, '').length < 60) throw Object.assign(new Error('Tệp PDF là bản scan (không có lớp chữ). Hãy đưa tệp vào thư mục Văn bản đến trên Google Drive để máy chủ nhận dạng chữ (OCR).'), { scan: true });
+      const ban = buf.slice(0), t = await pdfText(buf);   // pdf.js chuyển (tách) bộ nhớ đệm sang luồng phụ → giữ bản sao để nhận dạng chữ
+      if (t.replace(/\s/g, '').length < 60) {
+        try { return { text: await VB.ocr(ban, true, nm), cach: 'PDF scan — nhận dạng chữ (OCR) trên máy, cần soát lỗi chính tả, số' }; }
+        catch (er) { throw Object.assign(new Error('Tệp PDF là bản scan (không có lớp chữ); nhận dạng chữ trên máy không được: ' + er.message + ' Có thể đưa tệp vào thư mục Văn bản đến trên Google Drive để máy chủ nhận dạng.'), { scan: true }); }
+      }
       return { text: t, cach: 'PDF có lớp chữ (đọc trên máy)' };
     }
     if (/\.docx$/i.test(nm)) return { text: TV.docxText(await unzipEntry(buf, 'word/document.xml')), cach: 'Word .docx (đọc trên máy, giữ bảng)' };
     if (/\.(txt|md)$/i.test(nm) || /^text\//.test(file.type)) return { text: new TextDecoder().decode(buf), cach: 'tệp chữ' };
     if (/\.doc$/i.test(nm)) throw new Error('Tệp Word cũ (.doc) chưa đọc được. Lưu lại thành .docx hoặc PDF.');
-    if (/^image\//.test(file.type)) throw Object.assign(new Error('Ảnh chụp văn bản cần nhận dạng chữ trên máy chủ: đưa vào thư mục Văn bản đến trên Google Drive.'), { scan: true });
+    if (/^image\//.test(file.type) || /\.(png|jpe?g|webp|bmp)$/i.test(nm)) {
+      try { return { text: await VB.ocr(buf, false, nm), cach: 'ảnh chụp — nhận dạng chữ (OCR) trên máy, cần soát lỗi chính tả, số' }; }
+      catch (er) { throw Object.assign(new Error('Nhận dạng chữ ảnh chụp trên máy không được: ' + er.message + ' Có thể đưa ảnh vào thư mục Văn bản đến trên Google Drive để máy chủ nhận dạng.'), { scan: true }); }
+    }
     throw new Error('Chưa hỗ trợ định dạng tệp này. Dùng PDF, Word .docx hoặc dán nội dung.');
   };
   // Bóc tách: quy tắc + AI (nếu có), AI lỗi vẫn có kết quả theo quy tắc
@@ -179,9 +211,19 @@
       (o.sau ? '<div class="small soft mt">Kèm theo: ' + e(o.sau.note) + '</div>' : '') +
       ((o.dinhKem || []).length ? '<div class="small muted mt">' + ic('clip', 14) + ' Đính kèm tệp văn bản gốc vào hồ sơ</div>' : '') + '</div></div>';
   }
-  function review(it, onDone) {
+  // ctx: {hopDongId | goiThauId, onClose} — quét từ hồ sơ hợp đồng, gói thầu đang mở: gắn sẵn bản ghi đích
+  const ganDich = (ops, ctx) => {
+    if (!ctx) return ops;
+    ops.forEach(o => {
+      if (o.coll !== 'hopdong') return;
+      if (ctx.hopDongId && (o.mustExist || o.key === 'hd')) { o.id = ctx.hopDongId; o.on = true; if (o.key === 'hd') o.title = 'Cập nhật hợp đồng đang mở'; o.title = o.title.replace(/^\[Chưa tìm thấy hợp đồng — chọn hợp đồng\] /, ''); }
+      if (ctx.goiThauId && o.key === 'hd') { const g = S.get('goithau', ctx.goiThauId); o.fields.goiThauId = ctx.goiThauId; if (g && !o.fields.duAnId) o.fields.duAnId = g.duAnId || ''; if (g && g.trangThai !== 'dakyhd') o.sau = { coll: 'goithau', id: g.id, rec: { trangThai: 'dakyhd' }, note: 'Chuyển gói thầu "' + U.trunc(g.ten, 60) + '" sang "Đã ký hợp đồng"' }; }
+    });
+    return ops;
+  };
+  function review(it, onDone, ctx) {
     const r = it.result || {}, dk = it.src === 'may' ? (it.dinhKem || null) : (it.url ? { url: it.url, ten: it.name } : null);
-    let ops = L.vbPlan(r, { ten: it.name, dinhKem: dk });
+    let ops = ganDich(L.vbPlan(r, { ten: it.name, dinhKem: dk }), ctx);
     const trich = r.trich_dan && typeof r.trich_dan === 'object' ? Object.keys(r.trich_dan).map(k => [k, r.trich_dan[k]]).filter(x => x[1]) : [];
     const body = document.createElement('div');
     const draw = () => {
@@ -192,8 +234,8 @@
         '<details class="mt"' + (ops.filter(o => o.on).length ? '' : ' open') + '><summary class="small">Nội dung văn bản đã đọc' + (r.van_ban_cat ? ' (8.000 ký tự đầu)' : '') + '</summary><pre class="vb-text">' + e(r.van_ban || '') + '</pre></details>' +
         (it.url ? '<div class="mt"><a class="btn sm" href="' + e(it.url) + '" target="_blank" rel="noopener">' + ic('eye', 15) + 'Mở tệp gốc trên Drive</a></div>' : '') + '</div>' +
         '<div class="vb-ops"><div class="eyebrow" style="margin-top:0">Phương án cập nhật (' + ops.filter(o => o.on).length + ' thao tác được chọn)</div>' + ops.map(opHtml).join('') + '</div></div>';
-      $('#vr_l', body).onchange = x => { r.loai = x.target.value; ops = L.vbPlan(r, { ten: it.name, dinhKem: dk }); draw(); };
-      [['vr_s', 'so_van_ban'], ['vr_n', 'ngay_van_ban'], ['vr_t', 'trich_yeu']].forEach(([id, k]) => $('#' + id, body).addEventListener('change', x => { r[k] = x.target.value; ops = L.vbPlan(r, { ten: it.name, dinhKem: dk }); draw(); }));
+      $('#vr_l', body).onchange = x => { r.loai = x.target.value; ops = ganDich(L.vbPlan(r, { ten: it.name, dinhKem: dk }), ctx); draw(); };
+      [['vr_s', 'so_van_ban'], ['vr_n', 'ngay_van_ban'], ['vr_t', 'trich_yeu']].forEach(([id, k]) => $('#' + id, body).addEventListener('change', x => { r[k] = x.target.value; ops = ganDich(L.vbPlan(r, { ten: it.name, dinhKem: dk }), ctx); draw(); }));
       $$('[data-op]', body).forEach(card => {
         const o = ops[+card.dataset.op];
         $('[data-on]', card).onchange = x => { o.on = x.target.checked; card.classList.toggle('off', !o.on); };
@@ -208,7 +250,7 @@
       });
     };
     draw();
-    const m = UI.modal({ title: 'Duyệt văn bản: ' + U.trunc(it.name, 70), sub: loaiTen(r.loai), size: 'xl', body,
+    const m = UI.modal({ title: 'Duyệt văn bản: ' + U.trunc(it.name, 70), sub: loaiTen(r.loai), size: 'xl', body, onClose: ctx && ctx.onClose,
       buttons: [{ label: 'Đóng', on: x => x.close() }, { label: 'Bỏ qua văn bản này', on: async x => { x.close(true); await resolve(it, 'bo_qua', ''); UI.toast('Đã chuyển văn bản sang "Đã xử lý" (bỏ qua).', 'ok'); } }, { label: 'Cập nhật vào phần mềm', cls: 'primary', icon: 'check', on: async x => {
         let plan; try { plan = L.vbApply(ops); } catch (er) { UI.toast(er.message, 'bad'); return; }
         if (!plan.items.length) { UI.toast('Chưa chọn thao tác nào. Bỏ chọn hết thì dùng "Bỏ qua văn bản này".', 'bad'); return; }
@@ -245,6 +287,26 @@
     guiMayChu(it.id, 0);
   }
   VB.review = review;
+  /* Quét hợp đồng, phụ lục, biên bản từ hồ sơ hợp đồng hoặc gói thầu đang mở: đọc (kể cả bản scan), lưu vào Văn bản đến, mở hộp duyệt
+     với bản ghi đích gắn sẵn; nhiều tệp thì duyệt lần lượt. */
+  VB.quetHD = async (ctx, reopen) => {
+    const files = await UI.pickFile('.pdf,.docx,.txt,.png,.jpg,.jpeg', true); if (!files || !files.length) return;
+    let ok = 0;
+    for (const f of files) {
+      const it = { id: U.uid('vbd'), name: f.name, size: f.size, mime: f.type, received: U.nowStamp(), src: 'may' };
+      try {
+        UI.toast('Đang đọc "' + U.trunc(f.name, 50) + '"…');
+        const c = await VB.readFile(f);
+        it.result = await VB.extract(c.text, f.name); it.result.cach_doc = c.cach; it.status = 'cho_duyet';
+        if (f.size <= 15 * 1048576 && !S.adapter.noFiles) { try { it.dinhKem = await S.addFile(f); } catch (x) { } }
+      } catch (er) { it.status = 'loi'; it.error = er.message; }
+      await S.save('vbden', it, { silent: true }); badge();
+      if (it.status !== 'cho_duyet') { UI.toast('"' + f.name + '": ' + it.error, 'bad'); continue; }
+      await new Promise(res => review(it, () => { ok++; }, Object.assign({}, ctx, { onClose: res })));
+    }
+    S.emit({ c: 'vbden' });
+    if (ok && reopen) reopen();
+  };
 
   /* ---------- Trang Văn bản đến ---------- */
   A.views.vanbanden = {
@@ -261,7 +323,7 @@
           (VB.err ? '<div class="note bad mt">' + e(VB.err) + '</div>' : '') + '</div>' +
           '<div class="gap" style="align-self:flex-start"><label class="check"><input type="checkbox" data-auto' + (st && st.tuDong ? ' checked' : '') + (st ? '' : ' disabled') + '> Tự quét mỗi 15 phút</label><button class="btn" data-folder' + (st ? '' : ' disabled') + '>' + ic('link', 16) + 'Đổi thư mục</button><label class="btn">' + ic('upload', 16) + 'Gửi tệp lên thư mục<input type="file" multiple class="sr" data-up accept=".pdf,.docx,.png,.jpg,.jpeg,.txt"></label><button class="btn primary" data-scan>' + ic('sync', 16) + 'Quét và đọc ngay</button></div>';
       } else h += '<div class="grow" style="min-width:0"><div class="eyebrow" style="margin:0">Chưa kết nối thư mục Google Drive</div><p class="soft" style="margin:4px 0 0">Để tự động quét thư mục và đọc cả PDF scan, ảnh chụp (nhận dạng chữ trên máy chủ): triển khai <b>gas/Code.gs</b> bản 2 rồi nhập địa chỉ Web App và mã bí mật tại <a href="#" data-goto="thietlap">Thiết lập</a> (xem HUONG-DAN.md, mục 4d). Hiện vẫn đọc được ngay trên máy: PDF có lớp chữ, Word .docx, nội dung dán.</p></div>';
-      h += '<div class="gap" style="align-self:flex-start"><label class="btn">' + ic('doc', 16) + 'Đọc văn bản trên máy này<input type="file" multiple class="sr" data-local accept=".pdf,.docx,.txt"></label><button class="btn" data-paste>' + ic('copy', 16) + 'Dán nội dung</button><button class="btn" data-timnd>' + ic('search', 16) + 'Tìm trong nội dung</button></div></div></div>';
+      h += '<div class="gap" style="align-self:flex-start"><label class="btn">' + ic('doc', 16) + 'Đọc văn bản trên máy này<input type="file" multiple class="sr" data-local accept=".pdf,.docx,.txt,.png,.jpg,.jpeg"></label><button class="btn" data-paste>' + ic('copy', 16) + 'Dán nội dung</button><button class="btn" data-timnd>' + ic('search', 16) + 'Tìm trong nội dung</button></div></div></div>';
       const tab = (k, l) => '<button role="tab" data-t="' + k + '" class="' + (T.t === k ? 'on' : '') + '">' + l + ' (' + grp[k].length + ')</button>';
       h += '<div class="tabs" role="tablist">' + tab('cho', 'Chờ duyệt') + tab('doi', 'Chờ đọc, lỗi') + tab('xong', 'Đã xử lý') + '</div>';
       const list = grp[T.t];

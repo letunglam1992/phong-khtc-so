@@ -152,3 +152,43 @@ test('docx: bảng Word dựng thành cột canh thẳng', () => {
   const t = T.docxText(xml);
   assert.match(t, /^Đoạn đầu\nSTT\s{3,}Tên nhà thầu\n1\s{3,}Công ty A\nĐoạn cuối$/);
 });
+
+test('hợp đồng bản quét OCR (sai dấu, số viết tay): loại, số, ngày ký, gói thầu, nhà thầu, giá trị, thời gian', () => {
+  const t = `CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+HỢP ĐÒNG DỊCH VỤ TƯ VÁN
+Gói thầu: Tư vấn lập bản đồ thử nghiệm trên địa bàn
+xã Thử Nghiệm năm 2027
+Số: 09/2026/HĐTV-SNNMT-ABC
+Căn cứ Quyết định số 660/QĐ-SNNMT ngày 21/9/2026 về việc Phê duyệt Kế hoạch lựa chọn nhà thầu;
+Hôm nay, ngày0 5 tháng L1 năm 2026, chúng tôi gồm:
+_ Chủ đầu tư (gọi tắt là Bên A): SỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG
+- Mã số thuế: 5500000000
+Nhà thầu (gọi tắt là Bên B): CÔNG TY TNHH THỬ NGHIỆM ABC ~=
+- Mã số thuế: 0312 345678
+Điều 3. Giá trị hợp đồng
+- Loại hợp đồng: Hợp đồng trọn gói.
+- Giá trị thực hiện hợp đồng: 1.270.000.000 đồng (Bằng chữ: Một tỷ hai trăm bảy mươi triệu đồng)
+- Tạm ứng: Không.
+Điều 4. Thời gian thực hiện hợp đồng
+Công việc được tiên hành trong thời gian 49 ngày kê từ ngày ký hợp
+đông.`;
+  const r = T.chuanHoa(T.trichQuyTac(t)), h = r.hop_dong;
+  assert.equal(r.loai, 'hop_dong');
+  assert.equal(h.so_hop_dong, '09/2026/HĐTV-SNNMT-ABC');
+  assert.equal(h.ngay_ky, '2026-11-05'); assert.equal(h.ngay_bat_dau, '2026-11-05');
+  assert.equal(h.ten_goi_thau, 'Tư vấn lập bản đồ thử nghiệm trên địa bàn xã Thử Nghiệm năm 2027');
+  assert.equal(h.nha_thau, 'CÔNG TY TNHH THỬ NGHIỆM ABC'); assert.equal(h.ben_a, 'SỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG');
+  assert.equal(h.gia_tri, 1270000000); assert.equal(h.loai_hop_dong, 'trọn gói'); assert.equal(h.thoi_gian_thuc_hien, '49 ngày');
+  assert.equal(h.ma_so_thue, '0312345678'); assert.equal(h.tam_ung, null); assert.equal(h.tam_ung_ghi, 'Không tạm ứng');
+});
+
+test('phụ lục hợp đồng: số hợp đồng không có dấu hai chấm, gia hạn đến ngày', () => {
+  const t = `CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+PHỤ LỤC HỢP ĐỒNG SỐ 01
+Căn cứ Hợp đồng số 09/2026/HĐTV-SNNMT-ABC ngày 05/11/2026 giữa Bên A và Bên B;
+Hai bên thống nhất gia hạn thời gian thực hiện hợp đồng đến ngày 31/3/2027.`;
+  const r = T.chuanHoa(T.trichQuyTac(t));
+  assert.equal(r.loai, 'phu_luc_hd');
+  assert.equal(r.phu_luc.so_hop_dong, '09/2026/HĐTV-SNNMT-ABC'); assert.equal(r.phu_luc.so_phu_luc, '01'); assert.equal(r.phu_luc.gia_han_den, '2027-03-31');
+});
