@@ -192,3 +192,29 @@ Hai bên thống nhất gia hạn thời gian thực hiện hợp đồng đến
   assert.equal(r.loai, 'phu_luc_hd');
   assert.equal(r.phu_luc.so_hop_dong, '09/2026/HĐTV-SNNMT-ABC'); assert.equal(r.phu_luc.so_phu_luc, '01'); assert.equal(r.phu_luc.gia_han_den, '2027-03-31');
 });
+
+test('biên bản thương thảo, hoàn thiện hợp đồng: không nhận nhầm là hợp đồng; giá sau thương thảo, nhà thầu xuống dòng, loại HĐ xuống dòng', () => {
+  const t = `CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+Sơn La, ngày26 tháng 10 năm 2026
+BIÊN BẢN THƯƠNG THẢO, HOÀN THIỆN HỢP ĐÔNG
+Gói thầu số 3: Tư vấn thử nghiệm lập hồ sơ mời thầu
+gói thầu thuê phần mềm thử nghiệm
+Căn cứ Quyết định số 752/QĐ-SNNMT ngày 15/10/2026 về việc phê duyệt kế hoạch lựa chọn nhà thầu;
+Chủ đầu tư (sau đây gọi là Bên A): SỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG
+Nhà thầu (sau đây gọi là Bên B): CÔNG TY TNHH DỊCH VỤ THỬ
+NGHIỆM ABC
+Đại diện là: Ông Nguyễn Văn A
+Mãsốthuết 0110000000
+3.2. Giá trị hợp đồng là: 46.860.000 VNĐ (Bằng chữ: Bốn mươi sáu triệu, tám trăm sáu mươi nghìn đồng).
++ Tạm ứng hợp đồng: Không.
+3.4. Thời gian thực hiện hợp đồng:
+- Thời gian thực hiện hợp đồng: 60 ngày.
+3.5. Loại hợp đồng:
+- Hợp đồng trọn gói.`;
+  const r = T.chuanHoa(T.trichQuyTac(t)), b = r.thuong_thao;
+  assert.equal(r.loai, 'thuong_thao'); assert.equal(r.hop_dong, null); assert.equal(r.ngay_van_ban, '2026-10-26');
+  assert.equal(b.ten_goi_thau, 'Tư vấn thử nghiệm lập hồ sơ mời thầu gói thầu thuê phần mềm thử nghiệm');
+  assert.equal(b.nha_thau, 'CÔNG TY TNHH DỊCH VỤ THỬ NGHIỆM ABC'); assert.equal(b.ma_so_thue, '0110000000');
+  assert.equal(b.gia_sau_thuong_thao, 46860000); assert.equal(b.thoi_gian_thuc_hien, '60 ngày'); assert.equal(b.loai_hop_dong, 'trọn gói'); assert.equal(b.tam_ung_ghi, 'Không tạm ứng');
+});

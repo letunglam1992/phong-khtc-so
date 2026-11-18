@@ -409,6 +409,7 @@
       F('nhaThau', 'Nhà thầu trúng thầu'),
       F('qdKQSo', 'Quyết định phê duyệt kết quả LCNT — số'), F('qdKQNgay', 'Quyết định kết quả — ngày', 'date'),
       F('giaTrung', 'Giá trúng thầu (đồng)', 'money'),
+      F('ngayThuongThao', 'Ngày thương thảo, hoàn thiện hợp đồng', 'date'), F('giaThuongThao', 'Giá hợp đồng sau thương thảo (đồng)', 'money'),
       F('canBoId', 'Cán bộ theo dõi', 'ref', { ref: 'canbo', table: true }),
       F('dinhKem', 'Hồ sơ', 'files'),
       F('ghiChu', 'Ghi chú', 'textarea')

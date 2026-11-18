@@ -621,6 +621,8 @@
     if (h.trangThai === 'nghiemthu') { o.chuaThanhLy = true; o.note = 'Đã nghiệm thu, chưa thanh lý'; if (o.conLai > 0.5) o.note += '; còn ' + U.fmtMoney(o.conLai) + ' đồng chưa thanh toán'; }
     if (o.ntChuaTT > 0.5 && chuaTL) o.canhBao.push({ sev: 1, t: 'Đã nghiệm thu ' + U.fmtShort(o.ntChuaTT) + ' chưa thanh toán' });
     if (U.num(h.tamUng) > tt + 0.5 && dang) o.tamUngCao = true;
+    const gtt = h.goiThauId && S.get('goithau', h.goiThauId), giaTT = gtt ? U.num(gtt.giaThuongThao) : 0;
+    if (giaTT > 0 && U.num(h.giaTri) > 0 && Math.abs(U.num(h.giaTri) - giaTT) > 0.5) o.canhBao.push({ sev: 2, t: 'Giá trị hợp đồng ký (' + U.fmtMoney(h.giaTri) + ') khác giá sau thương thảo (' + U.fmtMoney(giaTT) + '), chênh ' + U.fmtMoney(U.num(h.giaTri) - giaTT) + ' đồng' });
     return o;
   };
 
