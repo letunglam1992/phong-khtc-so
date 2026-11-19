@@ -300,6 +300,8 @@
 
   /* Đọc biểu "Báo cáo tình hình thực hiện giải ngân thanh toán NSNN" (mẫu Phòng đang dùng).
      rows: mảng 2 chiều giá trị thô; fmt: mảng 2 chiều chuỗi hiển thị (để lấy STT đúng như trên biểu). */
+  // Trang tính chứa biểu giải ngân: "Nhiệm vụ" nếu có, không thì trang đầu tiên có dòng tiêu đề đúng mẫu và có dòng dữ liệu (bỏ qua trang tổng hợp theo đơn vị)
+  L.nsTrangBieu = wb => wb.SheetNames.find(n => U.norm(n) === 'nhiem vu') || wb.SheetNames.find(n => { try { const o = { header: 1, defval: null }, ws = wb.Sheets[n]; return L.parseBudget(XLSX.utils.sheet_to_json(ws, Object.assign({ raw: true }, o)), XLSX.utils.sheet_to_json(ws, Object.assign({ raw: false }, o))).items.length > 0; } catch (x) { return false; } }) || wb.SheetNames[0];
   L.parseBudget = (rows, fmt) => {
     const nrm = v => U.norm(v), out = { items: [], warnings: [], headerRow: -1, title: '' };
     let hr = -1;

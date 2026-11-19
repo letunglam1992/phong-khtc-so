@@ -88,7 +88,7 @@
       const file = await UI.pickFile('.xlsx,.xls'); if (!file) return;
       try {
         wb = await UI.readWorkbook(file); fname = file.name;
-        const pref = wb.SheetNames.find(n => U.norm(n) === 'nhiem vu') || wb.SheetNames[0];
+        const pref = L.nsTrangBieu(wb);
         step.innerHTML = '<div class="fld"><label for="ib_s">Trang tính (tệp có ' + wb.SheetNames.length + ' trang — chọn trang chứa số liệu mới nhất)</label><select class="sel" id="ib_s">' + wb.SheetNames.map(n => '<option' + (n === pref ? ' selected' : '') + '>' + e(n) + '</option>').join('') + '</select></div><div data-out class="mt"></div>';
         $('#ib_s', step).onchange = x => parseSheet(x.target.value);
         parseSheet(pref);
@@ -134,7 +134,7 @@
     for (const f of Array.from(files)) {
       const o = { fname: f.name, parsed: null, loi: '' };
       try {
-        const wb = await UI.readWorkbook(f), sh = wb.SheetNames.find(n => U.norm(n) === 'nhiem vu') || wb.SheetNames[0], ws = wb.Sheets[sh];
+        const wb = await UI.readWorkbook(f), sh = L.nsTrangBieu(wb), ws = wb.Sheets[sh];
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }), fmt = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null });
         o.parsed = L.parseBudget(raw, fmt);
         if (!o.parsed.items.length) o.loi = o.parsed.warnings.join(' ') || 'Không đọc được dòng dữ liệu nào.';
@@ -154,7 +154,7 @@
       if (tach) tach.forEach(x => ds.push(Object.assign({}, o, { fname: f.name + ' — mục ' + x.parsed.items[0].stt + ' ' + x.ten, parsed: x.parsed, dvId: x.dvId, dvBieu: x.ten, tong: x.tong, gn: x.gn, loi: x.rong ? 'Phần này trên biểu chưa có số liệu: bỏ qua, giữ nguyên số đã có của đơn vị.' : x.parsed.warnings.some(w => w.includes('không ghi nội dung')) ? 'Có dòng ghi số tiền nhưng không ghi nội dung (' + x.parsed.warnings.filter(w => w.includes('không ghi nội dung')).map(w => w.split(' có số')[0]).join(', ') + '): bỏ qua phần này, sửa biểu rồi nhập lại.' : '' })));
       else { if (dvChon && !o.loi) o.dvId = dvChon; ds.push(o); }
     }
-    const dvOpt = v => '<option value="">— Chọn đơn vị —</option>' + dvs.map(d => '<option value="' + d.id + '"' + (d.id === v ? ' selected' : '') + '>' + e(d.ten) + '</option>').join('');
+    const dvOpt = v => '<option value="">— Chọn đơn vị —</option><option value="-"' + (v === '-' ? ' selected' : '') + '>— Không nhập phần này —</option>' + dvs.map(d => '<option value="' + d.id + '"' + (d.id === v ? ' selected' : '') + '>' + e(d.ten) + '</option>').join('');
     const m = UI.modal({
       title: 'Nhập biểu giải ngân nhiều đơn vị', sub: ds.length + ' tệp', size: 'lg',
       body: '<p class="small soft">Phần mềm đoán đơn vị theo dòng "Đơn vị:" trên biểu, tiêu đề hoặc tên tệp — kiểm tra lại cột Đơn vị trước khi nhập. Mỗi biểu thay toàn bộ dự toán năm đó của đơn vị (dòng khớp được cập nhật, giữ lịch sử giải ngân, cán bộ theo dõi). Trước khi nhập phần mềm tự lưu một bản chụp dữ liệu.</p>' +
@@ -162,7 +162,8 @@
         ds.map((o, i) => '<tr data-i="' + i + '"><td class="wrap small">' + e(o.fname) + (o.loi ? '<div class="t2" style="color:var(--bad-fg)">' + e(o.loi) + '</div>' : o.parsed.warnings.length ? '<details class="t2" style="color:var(--warn-fg)"><summary>' + o.parsed.warnings.length + ' điểm cần rà soát trên biểu</summary>' + o.parsed.warnings.slice(0, 8).map(w => '<div>• ' + e(w) + '</div>').join('') + '</details>' : '') + (o.dvBieu ? '<div class="t2">Trên biểu: ' + e(o.dvBieu) + '</div>' : '') + (o.loi ? '' : '<input class="inp mt" data-vb style="height:30px" placeholder="Văn bản gửi biểu (số, ngày), không bắt buộc" aria-label="Văn bản gửi biểu của tệp ' + e(o.fname) + '">') + '</td>' +
           (o.loi ? '<td colspan="6" class="small muted">Bỏ qua tệp này</td>' : '<td><select class="sel" data-dv aria-label="Đơn vị của tệp ' + e(o.fname) + '">' + dvOpt(o.dvId) + '</select></td><td><input class="inp" type="number" data-nam value="' + o.nam + '" aria-label="Năm"></td><td><input class="inp" type="date" data-ngay value="' + e(o.ngay) + '" aria-label="Ngày số liệu"></td><td class="num">' + o.parsed.items.length + '</td><td class="num">' + U.fmtShort(o.tong) + '</td><td class="num">' + U.fmtShort(o.gn) + '</td>') + '</tr>').join('') + '</tbody></table></div><div data-canh class="mt"></div>',
       buttons: [{ label: 'Hủy', on: a => a.close() }, 'sp', { label: 'Nhập các biểu', cls: 'primary', icon: 'check', on: async a => {
-        const chon = ds.map((o, i) => { const tr = $('tr[data-i="' + i + '"]', m.body); return o.loi ? null : Object.assign(o, { dvId: $('[data-dv]', tr).value, nam: +$('[data-nam]', tr).value, ngay: $('[data-ngay]', tr).value, vb: ($('[data-vb]', tr) || {}).value || '' }); }).filter(Boolean);
+        const chon = ds.map((o, i) => { const tr = $('tr[data-i="' + i + '"]', m.body); return o.loi ? null : Object.assign(o, { dvId: $('[data-dv]', tr).value, nam: +$('[data-nam]', tr).value, ngay: $('[data-ngay]', tr).value, vb: ($('[data-vb]', tr) || {}).value || '' }); }).filter(o => o && o.dvId !== '-');
+        if (!chon.length) { UI.toast('Chưa có phần nào được chọn để nhập.', 'bad'); return; }
         const thieu = chon.filter(o => !o.dvId), trung = chon.filter((o, i) => o.dvId && chon.findIndex(x => x.dvId === o.dvId && x.nam === o.nam) !== i);
         if (thieu.length) { UI.toast('Chưa chọn đơn vị cho ' + thieu.length + ' tệp.', 'bad'); return; }
         if (trung.length) { UI.toast('Có hai tệp cùng đơn vị, cùng năm: ' + trung.map(o => o.fname).join(', ') + '. Bỏ bớt một tệp hoặc sửa đơn vị.', 'bad'); return; }
