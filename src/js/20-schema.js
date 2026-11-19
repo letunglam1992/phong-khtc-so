@@ -21,10 +21,10 @@
     nguonTaiSan: ['Ngân sách nhà nước', 'Tiếp nhận, điều chuyển', 'Dự án, viện trợ', 'Nguồn thu sự nghiệp, quỹ phát triển hoạt động sự nghiệp', 'Khác'],
     tinhTrangTS: ['Đang sử dụng', 'Hư hỏng, chờ sửa chữa', 'Không còn nhu cầu sử dụng', 'Chờ điều chuyển', 'Chờ thanh lý', 'Đã điều chuyển', 'Đã thanh lý'],
     loaiBienDongTS: ['Mua sắm, tiếp nhận', 'Điều chuyển', 'Sửa chữa, bảo dưỡng', 'Thanh lý', 'Kiểm kê', 'Khác'],
-    loaiGoiThau: ['Tư vấn', 'Phi tư vấn', 'Mua sắm hàng hóa', 'Xây lắp', 'Hỗn hợp'],
-    hinhThucLCNT: ['Đấu thầu rộng rãi', 'Đấu thầu hạn chế', 'Chào hàng cạnh tranh', 'Chỉ định thầu', 'Mua sắm trực tiếp', 'Tự thực hiện', 'Đặt hàng, giao nhiệm vụ', 'Hình thức khác'],
+    loaiGoiThau: ['Tư vấn', 'Phi tư vấn', 'Mua sắm hàng hóa', 'Xây lắp', 'Hỗn hợp', 'Dịch vụ sự nghiệp công'],
+    hinhThucLCNT: ['Đấu thầu rộng rãi', 'Đấu thầu hạn chế', 'Chào hàng cạnh tranh', 'Chỉ định thầu', 'Mua sắm trực tiếp', 'Tự thực hiện', 'Đặt hàng', 'Giao nhiệm vụ', 'Hình thức khác'],
     loaiHopDong: ['Trọn gói', 'Theo đơn giá cố định', 'Theo đơn giá điều chỉnh', 'Theo thời gian', 'Loại khác'],
-    buocLCNT: ['Trình thẩm định kế hoạch lựa chọn nhà thầu', 'Phê duyệt kế hoạch lựa chọn nhà thầu', 'Thành lập tổ chuyên gia, tổ thẩm định', 'Phê duyệt hồ sơ mời thầu, hồ sơ yêu cầu', 'Phát hành hồ sơ mời thầu, hồ sơ yêu cầu', 'Phê duyệt danh sách ngắn', 'Đóng thầu, mở thầu', 'Phê duyệt danh sách nhà thầu đáp ứng yêu cầu kỹ thuật', 'Phê duyệt kết quả lựa chọn nhà thầu', 'Đăng tải kết quả lựa chọn nhà thầu', 'Thương thảo, hoàn thiện, ký hợp đồng'],
+    buocLCNT: ['Trình thẩm định kế hoạch lựa chọn nhà thầu', 'Phê duyệt kế hoạch lựa chọn nhà thầu', 'Thành lập tổ chuyên gia, tổ thẩm định', 'Phê duyệt hồ sơ mời thầu, hồ sơ yêu cầu', 'Phát hành hồ sơ mời thầu, hồ sơ yêu cầu', 'Phê duyệt danh sách ngắn', 'Đóng thầu, mở thầu', 'Phê duyệt danh sách nhà thầu đáp ứng yêu cầu kỹ thuật', 'Phê duyệt kết quả lựa chọn nhà thầu', 'Đăng tải kết quả lựa chọn nhà thầu', 'Quyết định đặt hàng, giao nhiệm vụ', 'Thương thảo, hoàn thiện, ký hợp đồng'],
     nhomMoc: ['Quy hoạch', 'Chuẩn bị đầu tư', 'Chủ trương đầu tư', 'Quyết định đầu tư, phê duyệt dự toán', 'Đánh giá tác động môi trường', 'Đất đai, giải phóng mặt bằng', 'Thủ tục xây dựng', 'Lựa chọn nhà thầu', 'Thi công, triển khai thực hiện', 'Nghiệm thu', 'Bàn giao', 'Quyết toán', 'Khác']
   };
   A.DEFAULT_CFG = {
@@ -36,7 +36,9 @@
   };
   A.cfg = k => { const c = A.Store.cfg; return (c[k] !== undefined && c[k] !== null) ? c[k] : A.DEFAULT_CFG[k]; };
   A.nguong = k => Object.assign({}, A.DEFAULT_CFG.nguong, A.Store.cfg.nguong || {})[k];
-  A.list = k => { const l = (A.Store.cfg.lists || {})[k]; return (l && l.length) ? l : (A.DEFAULT_LISTS[k] || []); };
+  // Mục bắt buộc có trong danh mục (thêm sau khi người dùng đã tự sửa danh mục): đặt hàng, giao nhiệm vụ cung cấp dịch vụ sự nghiệp công
+  const LIST_BO_SUNG = { hinhThucLCNT: ['Đặt hàng', 'Giao nhiệm vụ'], loaiGoiThau: ['Dịch vụ sự nghiệp công'], buocLCNT: ['Quyết định đặt hàng, giao nhiệm vụ'] };
+  A.list = k => { const l = (A.Store.cfg.lists || {})[k]; if (!(l && l.length)) return A.DEFAULT_LISTS[k] || []; const them = (LIST_BO_SUNG[k] || []).filter(x => !l.includes(x)); return them.length ? l.concat(them) : l; };
 
   /* Lựa chọn cố định (có mã) */
   A.OPT = {
@@ -406,9 +408,10 @@
       F('soTBMT', 'Số thông báo mời thầu (E-TBMT)'),
       F('tienTrinh', 'Tiến trình lựa chọn nhà thầu', 'rows', { cols: [F('buoc', 'Bước', 'select', { list: 'buocLCNT', required: true }), F('ngay', 'Ngày', 'date'), F('soVB', 'Số văn bản'), F('ghiChu', 'Ghi chú')] }),
       F('trangThai', 'Tình trạng', 'select', { opt: 'ttGT', def: 'nhucau', table: true }),
-      F('nhaThau', 'Nhà thầu trúng thầu'),
+      F('nhaThau', 'Nhà thầu trúng thầu', 'text', { help: 'Gói đặt hàng, giao nhiệm vụ: ghi đơn vị nhận đặt hàng, nhận nhiệm vụ' }),
       F('qdKQSo', 'Quyết định phê duyệt kết quả LCNT — số'), F('qdKQNgay', 'Quyết định kết quả — ngày', 'date'),
-      F('giaTrung', 'Giá trúng thầu (đồng)', 'money'),
+      F('giaTrung', 'Giá trúng thầu (đồng)', 'money', { help: 'Gói đặt hàng, giao nhiệm vụ: ghi kinh phí đặt hàng, giao nhiệm vụ' }),
+      F('qdDHSo', 'Quyết định đặt hàng, giao nhiệm vụ — số'), F('qdDHNgay', 'Quyết định đặt hàng, giao nhiệm vụ — ngày', 'date'),
       F('ngayThuongThao', 'Ngày thương thảo, hoàn thiện hợp đồng', 'date'), F('giaThuongThao', 'Giá hợp đồng sau thương thảo (đồng)', 'money'),
       F('canBoId', 'Cán bộ theo dõi', 'ref', { ref: 'canbo', table: true }),
       F('dinhKem', 'Hồ sơ', 'files'),
@@ -423,7 +426,7 @@
       let need = cur;
       if (r.qdKHSo || r.qdKHNgay) need = Math.max(need, 3);
       if (r.soTBMT) need = Math.max(need, 4);
-      if (r.qdKQSo || r.nhaThau && U.num(r.giaTrung) > 0) need = Math.max(need, 5);
+      if (r.qdKQSo || r.qdDHSo || r.nhaThau && U.num(r.giaTrung) > 0) need = Math.max(need, 5);
       if (need > cur) r.trangThai = ord[need];
     },
     warnOnly: true

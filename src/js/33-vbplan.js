@@ -24,6 +24,16 @@
     const ops = [], dk = src.dinhKem ? [src.dinhKem] : [], so = r.so_van_ban || '', ngay = r.ngay_van_ban || '';
     const da = L.vbTimDA(r.ten_du_an_nhiem_vu);
     const ghiNguon = 'Cập nhật từ văn bản ' + (vbTen(r) || src.ten || '');
+    if (r.loai === 'dat_hang_qd') {
+      // QĐ đặt hàng, giao nhiệm vụ cung cấp dịch vụ sự nghiệp công: mỗi dịch vụ là một gói; đơn vị nhận đặt hàng ghi vào ô nhà thầu, kinh phí đặt hàng vào giá trúng thầu
+      const dh = r.dat_hang || {}, ds = (r.goi_thau || []).length ? r.goi_thau : [{ ten: String(r.trich_yeu || '').replace(/^(V\/v|Về việc)\s*/i, ''), gia_goi_thau: dh.gia_tri, nguon_von: dh.nguon_von, thoi_gian_thuc_hien_hd: dh.thoi_gian }];
+      ds.forEach((g, i) => {
+        const cu = L.vbTimGT(g.ten), gia = g.gia_goi_thau || (ds.length === 1 ? dh.gia_tri : '') || '';
+        const f = { ten: (cu && cu.ten) || g.ten || '', duAnId: (cu && cu.duAnId) || (da ? da.id : ''), loai: (cu && cu.loai) || 'Dịch vụ sự nghiệp công', hinhThuc: pickList('hinhThucLCNT', dh.hinh_thuc || 'Đặt hàng'), giaGoiThau: (cu && cu.giaGoiThau) || gia, nguonVon: (cu && cu.nguonVon) || g.nguon_von || dh.nguon_von || '', nhaThau: dh.don_vi_nhan || (cu && cu.nhaThau) || '', giaTrung: gia, qdDHSo: so, qdDHNgay: ngay, tgThucHienHD: (cu && cu.tgThucHienHD) || g.thoi_gian_thuc_hien_hd || dh.thoi_gian || '', trangThai: cu && L.gtBuoc(cu) > 5 ? cu.trangThai : 'cokq' };
+        ops.push({ key: 'dh' + i, title: (cu ? 'Cập nhật' : 'Thêm') + ' gói ' + (dh.hinh_thuc || 'đặt hàng').toLowerCase() + ' ' + (i + 1) + '/' + ds.length, coll: 'goithau', id: cu ? cu.id : '', choices: choicesOf('goithau'), fields: f, keys: ['ten', 'duAnId', 'loai', 'hinhThuc', 'giaGoiThau', 'nguonVon', 'nhaThau', 'giaTrung', 'qdDHSo', 'qdDHNgay', 'tgThucHienHD', 'trangThai', 'canBoId'],
+          push: [{ k: 'tienTrinh', label: 'Ghi bước vào tiến trình', row: { buoc: 'Quyết định đặt hàng, giao nhiệm vụ', ngay, soVB: so, ghiChu: dh.don_vi_nhan ? 'Đơn vị nhận: ' + dh.don_vi_nhan : '' } }], dinhKem: dk, on: true });
+      });
+    }
     if (r.loai === 'khlcnt_qd' || r.loai === 'khlcnt_trinh') {
       const qd = r.loai === 'khlcnt_qd';
       (r.goi_thau || []).forEach((g, i) => {

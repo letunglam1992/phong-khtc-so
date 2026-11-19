@@ -242,3 +242,21 @@ Hôm nay, ngày 25 tháng 12 năm 2026, chúng tôi gồm:
   assert.equal(tl.thanh_ly.gia_tri_hop_dong, 1270000000); assert.equal(tl.thanh_ly.gia_tri_quyet_toan, 1250000000);
   assert.equal(tl.thanh_ly.da_thanh_toan, 0); assert.equal(tl.thanh_ly.con_phai_thanh_toan, 1250000000);
 });
+
+test('QĐ đặt hàng cung cấp dịch vụ sự nghiệp công: không nhận nhầm là QĐ phê duyệt KHLCNT', () => {
+  const t = `UBND TỈNH SƠN LA
+SỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG
+Số: 432/QĐ-SNNMT
+Sơn La, ngày 31 tháng 12 năm 2024
+QUYẾT ĐỊNH
+Về việc đặt hàng cung cấp dịch vụ sự nghiệp công sử dụng kinh phí ngân sách nhà nước thuộc lĩnh vực đất đai
+Căn cứ Quyết định số 1945/QĐ-UBND ngày 18/9/2024 phê duyệt kế hoạch lựa chọn nhà thầu;
+Điều 1. Đặt hàng cho Văn phòng Đăng ký đất đai thực hiện dịch vụ sự nghiệp công lĩnh vực đất đai.
+- Tổng kinh phí đặt hàng: 3.985.040.807 đồng
+- Thời gian thực hiện: Năm 2025`;
+  const r = T.chuanHoa(T.trichQuyTac(t));
+  assert.equal(r.loai, 'dat_hang_qd'); assert.equal(r.so_van_ban, '432/QĐ-SNNMT');
+  assert.equal(r.dat_hang.hinh_thuc, 'Đặt hàng'); assert.equal(r.dat_hang.don_vi_nhan, 'Văn phòng Đăng ký đất đai');
+  assert.equal(r.dat_hang.gia_tri, 3985040807); assert.equal(r.dat_hang.thoi_gian, 'Năm 2025');
+  const g = T.ghep({ loai: 'khlcnt_qd' }, T.trichQuyTac(t)); assert.equal(g.loai, 'dat_hang_qd');
+});

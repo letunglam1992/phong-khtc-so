@@ -15,6 +15,7 @@ var TrichVB = (function () {
     ['khlcnt_trinh', 'Tờ trình, kế hoạch lựa chọn nhà thầu (chưa phê duyệt)'],
     ['lcnt_buoc', 'Văn bản trong quá trình lựa chọn nhà thầu (HSMT, HSYC, danh sách đáp ứng kỹ thuật…)'],
     ['kqlcnt_qd', 'Quyết định phê duyệt kết quả lựa chọn nhà thầu'],
+    ['dat_hang_qd', 'Quyết định đặt hàng, giao nhiệm vụ cung cấp dịch vụ sự nghiệp công'],
     ['thuong_thao', 'Biên bản thương thảo, hoàn thiện hợp đồng'],
     ['hop_dong', 'Hợp đồng'],
     ['phu_luc_hd', 'Phụ lục hợp đồng'],
@@ -99,6 +100,7 @@ var TrichVB = (function () {
     var tdl = loaiTheoTieuDe(text); if (tdl) return tdl;
     var d = boDau(text).replace(/\s+/g, ' '), td = boDau(tieuDe(text)).replace(/\s+/g, ' ');
     // Ưu tiên phân loại theo tiêu đề
+    if (/quyet dinh/.test(td) && /(ve viec |^|\s)(dat hang|giao nhiem vu)\b/.test(td) && !/ke hoach lua chon nha thau|ket qua lua chon/.test(td)) return 'dat_hang_qd';
     if (/quyet dinh/.test(td) || /to trinh/.test(td)) {
       if (/phe duyet (dieu chinh )?(noi dung )?ket qua (lua chon nha thau|dau thau|chi dinh thau|chao hang)/.test(td)) return 'kqlcnt_qd';
       if (BUOC_LCNT.some(function (b) { return b[0].test(td); })) return 'lcnt_buoc';
@@ -111,6 +113,7 @@ var TrichVB = (function () {
     if (/bien ban nghiem thu/.test(dau)) return 'nghiem_thu';
     if (BUOC_LCNT.some(function (b) { return b[0].test(dau.slice(0, 1500)); })) return 'lcnt_buoc';
     if (/phe duyet ket qua lua chon nha thau|phe duyet ket qua (dau thau|chi dinh thau|chao hang)/.test(dau)) return 'kqlcnt_qd';
+    if (/quyet dinh/.test(dau.slice(0, 1500)) && /(dat hang|giao nhiem vu) (cung cap|thuc hien|cho)/.test(dau.slice(0, 1500)) && !/phe duyet ke hoach lua chon nha thau/.test(dau.slice(0, 1500))) return 'dat_hang_qd';
     if (/quyet dinh/.test(dau) && /phe duyet ke hoach lua chon nha thau/.test(dau)) return 'khlcnt_qd';
     if (/ke hoach lua chon nha thau/.test(dau) && /to trinh|de nghi (tham dinh|phe duyet)/.test(dau)) return 'khlcnt_trinh';
     if (/quyet dinh/.test(dau) && /(giao|bo sung|dieu chinh|thu hoi|phan bo)[^.]{0,40}du toan/.test(dau)) return 'du_toan_qd';
@@ -304,6 +307,12 @@ var TrichVB = (function () {
     var t = gon(text), loai = phanLoai(t), nv = ngayVBct(t), r = { loai: loai, so_van_ban: soVB(t) || null, ngay_van_ban: nv.ngay || null, ngay_dau: nv.dau, so_trong: /\bS[ốô]\s*[:：]?\s*\/\s*[A-ZĐ]/.test(t.slice(0, 1500)) || undefined, co_quan_ban_hanh: coQuan(t) || null, trich_yeu: trichYeu(t) || null, nguon_trich: 'quy_tac' };
     var tenDA = sau(t, 'Tên dự án|Tên nhiệm vụ|Tên dự toán|Dự án|Nhiệm vụ', 250); if (tenDA) r.ten_du_an_nhiem_vu = tenDA;
     var goi = { ten: sau(t, 'Tên gói thầu', 300) || null, gia_goi_thau: tien(t, 'Giá gói thầu'), nguon_von: sau(t, 'Nguồn vốn', 200) || null, hinh_thuc_lcnt: sau(t, 'Hình thức lựa chọn nhà thầu', 150) || null, phuong_thuc: sau(t, 'Phương thức lựa chọn nhà thầu', 150) || null, thoi_gian_bat_dau_lcnt: sau(t, 'Thời gian (?:bắt đầu )?tổ chức lựa chọn nhà thầu', 150) || null, loai_hop_dong: sau(t, 'Loại hợp đồng', 100) || null, thoi_gian_thuc_hien_hd: sau(t, 'Thời gian thực hiện (?:gói thầu|hợp đồng)', 150) || null };
+    if (loai === 'dat_hang_qd') {
+      var d3 = boDau(tieuDe(t) + ' ' + (r.trich_yeu || '')), gnv = /giao nhiem vu/.test(d3) && !/dat hang/.test(d3);
+      var nhan = sau(t, 'Đơn vị (?:được |nhận )?(?:đặt hàng|giao nhiệm vụ)|Tên đơn vị (?:được |nhận )?(?:đặt hàng|giao nhiệm vụ)|Đơn vị (?:thực hiện|cung cấp)(?: dịch vụ)?|Bên nhận đặt hàng', 250) || ((t.match(/(?:đặt hàng|giao nhiệm vụ)\s+cho\s+((?:Trung tâm|Văn phòng|Chi cục|Ban|Công ty|Viện|Trường|Đơn vị)[^,.;:\n]{3,150})/i) || [])[1]) || null;
+      r.dat_hang = { hinh_thuc: gnv ? 'Giao nhiệm vụ' : 'Đặt hàng', don_vi_nhan: nhan ? gon(nhan).replace(/\s+(thực hiện|cung cấp|để|với (?:tổng )?(?:kinh phí|giá trị)).*$/i, '') : null, gia_tri: tien(t, '(?:Tổng )?(?:giá trị|kinh phí|dự toán) (?:đặt hàng|giao nhiệm vụ|thực hiện)|Tổng kinh phí|Giá đặt hàng|Tổng giá trị'), thoi_gian: sau(t, 'Thời gian (?:thực hiện|hoàn thành|cung cấp)', 150) || null, nguon_von: sau(t, 'Nguồn (?:vốn|kinh phí)', 200) || null };
+      var bg2 = bangGoiThau(text); r.goi_thau = bg2.length ? bg2 : [];
+    }
     if (loai === 'khlcnt_qd' || loai === 'khlcnt_trinh') { var bg = bangGoiThau(text); r.goi_thau = bg.length ? bg : (goi.ten || goi.gia_goi_thau ? [goi] : []); }
     var tenTY = tenGoiTuTrichYeu(r.trich_yeu);
     if (loai === 'lcnt_buoc') r.lcnt_buoc = { ten_goi_thau: goi.ten || tenTY, buoc: buocLCNT(t) };
@@ -366,14 +375,16 @@ var TrichVB = (function () {
     '1. Chỉ lấy thông tin có trong văn bản. Không có thì để null. Không suy đoán, không tự tính.',
     '2. Số tiền ghi số nguyên, đơn vị đồng, không dấu chấm, dấu phẩy (ví dụ 1250000000).',
     '3. Ngày ghi dạng dd/mm/yyyy. "ngay_van_ban" là ngày ban hành ở dòng "<địa danh>, ngày … tháng … năm …" dưới số văn bản, KHÔNG lấy ngày nằm trong trích yếu hay nội dung (ví dụ "áp dụng từ ngày …"). Văn bản ký số để trống số hoặc ngày thì để null.',
-    '4. "loai" là một trong: khlcnt_qd (QĐ phê duyệt kế hoạch lựa chọn nhà thầu), khlcnt_trinh (tờ trình/KHLCNT chưa phê duyệt), lcnt_buoc (QĐ, văn bản các bước giữa KHLCNT và kết quả: phê duyệt hồ sơ mời thầu/hồ sơ yêu cầu, danh sách nhà thầu đáp ứng yêu cầu kỹ thuật, danh sách ngắn, thành lập tổ chuyên gia), kqlcnt_qd (QĐ phê duyệt kết quả lựa chọn nhà thầu), thuong_thao (biên bản thương thảo, hoàn thiện hợp đồng — KHÔNG phải hợp đồng), hop_dong, phu_luc_hd, nghiem_thu, thanh_ly_hd, du_toan_qd (QĐ giao/bổ sung/điều chỉnh/thu hồi dự toán), khac.',
+    '4. "loai" là một trong: khlcnt_qd (QĐ phê duyệt kế hoạch lựa chọn nhà thầu), khlcnt_trinh (tờ trình/KHLCNT chưa phê duyệt), lcnt_buoc (QĐ, văn bản các bước giữa KHLCNT và kết quả: phê duyệt hồ sơ mời thầu/hồ sơ yêu cầu, danh sách nhà thầu đáp ứng yêu cầu kỹ thuật, danh sách ngắn, thành lập tổ chuyên gia), kqlcnt_qd (QĐ phê duyệt kết quả lựa chọn nhà thầu), thuong_thao (biên bản thương thảo, hoàn thiện hợp đồng — KHÔNG phải hợp đồng), hop_dong, phu_luc_hd, nghiem_thu, thanh_ly_hd, dat_hang_qd (QĐ đặt hàng, giao nhiệm vụ cung cấp dịch vụ sự nghiệp công), du_toan_qd (QĐ giao/bổ sung/điều chỉnh/thu hồi dự toán), khac.',
     '5. Bảng danh mục gói thầu (thường ở phụ lục): mỗi dòng gói thầu là một phần tử của "goi_thau", giữ nguyên tên gói thầu. QĐ điều chỉnh KHLCNT vẫn là khlcnt_qd. Phần "Căn cứ" chỉ để tham khảo, không lấy số liệu từ đó.',
+    '5c. QĐ đặt hàng hoặc giao nhiệm vụ cung cấp dịch vụ sự nghiệp công (sử dụng NSNN từ nguồn chi thường xuyên) là dat_hang_qd, KHÔNG phải khlcnt_qd; mỗi dịch vụ, sản phẩm được đặt hàng là một phần tử "goi_thau" (ten, gia_goi_thau = kinh phí đặt hàng); "dat_hang.don_vi_nhan" là đơn vị nhận đặt hàng, nhận nhiệm vụ.',
     '5b. QĐ phê duyệt kết quả chỉ định thầu là kqlcnt_qd; "giá trúng thầu" là giá trúng/giá chỉ định thầu; nhà thầu có thể nằm trong bảng phụ lục "Thông tin về nhà thầu trúng thầu".',
     '6. "trich_dan": với mỗi số tiền, ghi nguyên văn ngắn (dưới 120 ký tự) câu chứa số tiền đó để người duyệt đối chiếu.',
     'Cấu trúc JSON (chỉ điền phần đúng với loại văn bản, phần khác để null):',
     '{"loai":"","so_van_ban":null,"ngay_van_ban":null,"co_quan_ban_hanh":null,"trich_yeu":null,"ten_du_an_nhiem_vu":null,',
     '"goi_thau":[{"ten":null,"gia_goi_thau":null,"nguon_von":null,"hinh_thuc_lcnt":null,"phuong_thuc":null,"thoi_gian_bat_dau_lcnt":null,"loai_hop_dong":null,"thoi_gian_thuc_hien_hd":null}],',
     '"lcnt_buoc":{"ten_goi_thau":null,"buoc":null},',
+    '"dat_hang":{"hinh_thuc":null,"don_vi_nhan":null,"gia_tri":null,"thoi_gian":null,"nguon_von":null},',
     '"ket_qua":{"ten_goi_thau":null,"gia_goi_thau":null,"so_tbmt":null,"hinh_thuc_lcnt":null,"nha_thau":null,"ma_so_thue":null,"gia_trung_thau":null,"thoi_gian_thuc_hien_hd":null,"loai_hop_dong":null},',
     '"hop_dong":{"so_hop_dong":null,"ngay_ky":null,"ten":null,"ten_goi_thau":null,"ben_a":null,"nha_thau":null,"gia_tri":null,"loai_hop_dong":null,"ngay_bat_dau":null,"ngay_ket_thuc":null,"thoi_gian_thuc_hien":null,"tam_ung":null,"bao_lanh_thuc_hien":null,"bao_lanh_thuc_hien_den":null,"ma_so_thue":null,"nguon_von":null,"phuong_thuc_thanh_toan":null},',
     '"thuong_thao":{"ten_goi_thau":null,"nha_thau":null,"ma_so_thue":null,"gia_du_thau":null,"gia_sau_thuong_thao":null,"thoi_gian_thuc_hien":null,"ngay_ket_thuc":null,"loai_hop_dong":null,"tam_ung_ghi":null,"phuong_thuc_thanh_toan":null},',
@@ -397,7 +408,7 @@ var TrichVB = (function () {
     try { return JSON.parse(j); }
     catch (e) { return JSON.parse(j.replace(/,\s*([}\]])/g, '$1').replace(/[“”]/g, '"')); }
   }
-  var TRUONG_TIEN = { goi_thau: ['gia_goi_thau'], ket_qua: ['gia_trung_thau', 'gia_goi_thau'], hop_dong: ['gia_tri', 'tam_ung', 'bao_lanh_thuc_hien'], thuong_thao: ['gia_du_thau', 'gia_sau_thuong_thao'], phu_luc: ['gia_tri_dieu_chinh'], nghiem_thu: ['gia_tri', 'gia_tri_hop_dong'], thanh_ly: ['gia_tri_quyet_toan', 'da_thanh_toan', 'con_phai_thanh_toan', 'thu_hoi', 'gia_tri_hop_dong'], du_toan: ['tong_so_tien'] };
+  var TRUONG_TIEN = { goi_thau: ['gia_goi_thau'], ket_qua: ['gia_trung_thau', 'gia_goi_thau'], hop_dong: ['gia_tri', 'tam_ung', 'bao_lanh_thuc_hien'], thuong_thao: ['gia_du_thau', 'gia_sau_thuong_thao'], dat_hang: ['gia_tri'], phu_luc: ['gia_tri_dieu_chinh'], nghiem_thu: ['gia_tri', 'gia_tri_hop_dong'], thanh_ly: ['gia_tri_quyet_toan', 'da_thanh_toan', 'con_phai_thanh_toan', 'thu_hoi', 'gia_tri_hop_dong'], du_toan: ['tong_so_tien'] };
   var TRUONG_NGAY = { hop_dong: ['ngay_ky', 'ngay_bat_dau', 'ngay_ket_thuc', 'bao_lanh_thuc_hien_den'], phu_luc: ['gia_han_den'], thuong_thao: ['ngay_ket_thuc'] };
   function rong(v) { return v == null || v === '' || (typeof v === 'string' && /^(null|không có|khong co|n\/a|-)$/i.test(v.trim())); }
   function chuanHoa(o) {
@@ -417,7 +428,7 @@ var TrichVB = (function () {
       return obj;
     };
     if (Array.isArray(r.goi_thau)) r.goi_thau = r.goi_thau.map(function (g) { return lam(g, 'goi_thau'); }).filter(function (g) { return g && (g.ten || g.gia_goi_thau); }); else r.goi_thau = [];
-    ['lcnt_buoc', 'ket_qua', 'thuong_thao', 'hop_dong', 'phu_luc', 'nghiem_thu', 'thanh_ly', 'du_toan'].forEach(function (k) { if (r[k] && typeof r[k] === 'object') r[k] = lam(r[k], k); else r[k] = null; });
+    ['lcnt_buoc', 'ket_qua', 'dat_hang', 'thuong_thao', 'hop_dong', 'phu_luc', 'nghiem_thu', 'thanh_ly', 'du_toan'].forEach(function (k) { if (r[k] && typeof r[k] === 'object') r[k] = lam(r[k], k); else r[k] = null; });
     if (r.du_toan && Array.isArray(r.du_toan.dong)) r.du_toan.dong = r.du_toan.dong.map(function (d) { return { don_vi: rong(d && d.don_vi) ? null : gon(d.don_vi), noi_dung: rong(d && d.noi_dung) ? null : gon(d.noi_dung), so_tien: soTien(d && d.so_tien) }; }).filter(function (d) { return d.noi_dung || d.so_tien; });
     if (r.trich_dan && typeof r.trich_dan !== 'object') r.trich_dan = {};
     return r;
@@ -432,7 +443,8 @@ var TrichVB = (function () {
     if (qt && qt.ngay_dau === 'trong') { a.ngay_van_ban = q.ngay_van_ban || null; a.ngay_trong = true; }
     if (qt && qt.so_trong) a.so_trong = true;
     if (q.loai === 'lcnt_buoc' && a.loai === 'kqlcnt_qd') { a.loai = 'lcnt_buoc'; bu.push('loai'); }
-    ['lcnt_buoc', 'ket_qua', 'thuong_thao', 'hop_dong', 'phu_luc', 'nghiem_thu', 'thanh_ly', 'du_toan'].forEach(function (k) {
+    if (q.loai === 'dat_hang_qd' && /^khlcnt/.test(a.loai)) { a.loai = 'dat_hang_qd'; bu.push('loai'); }
+    ['lcnt_buoc', 'ket_qua', 'dat_hang', 'thuong_thao', 'hop_dong', 'phu_luc', 'nghiem_thu', 'thanh_ly', 'du_toan'].forEach(function (k) {
       if (!q[k]) return; if (!a[k]) { a[k] = q[k]; bu.push(k); return; }
       Object.keys(q[k]).forEach(function (f) { if (a[k][f] == null && q[k][f] != null && f !== 'dong') { a[k][f] = q[k][f]; bu.push(k + '.' + f); } });
     });
