@@ -50,6 +50,25 @@ var NhacViec = (function () {
       if (chuaTL && tuCon > 0.5) xet(h.baoLanhTUHan, 'Bảo lãnh tạm ứng (còn ' + tien(tuCon) + ' chưa thu hồi)');
     });
     out.hd.sort(function (a, b) { return a.con - b.con; }); out.bl.sort(function (a, b) { return a.con - b.con; });
+    // Mục 9: việc đấu thầu, hợp đồng còn tồn (theo hồ sơ đã nhập; không tự suy ra thời hạn pháp định)
+    out.dt = [];
+    var hdTheoGoi = {}; (data.hopdong || []).forEach(function (h) { if (h.goiThauId) hdTheoGoi[h.goiThauId] = 1; });
+    var khongDang = /dat hang|giao nhiem vu|tu thuc hien/;
+    (data.goithau || []).forEach(function (g) {
+      if (cb && g.canBoId !== cb) return;
+      var tt = g.trangThai || 'nhucau', ten = g.ten || '', nguoi = cbTen[g.canBoId] || '', ht = chuQD({ tienDo: g.hinhThuc });
+      if (['nhucau', 'dutoan', 'trinhkh', 'khlcnt', 'danglcnt'].indexOf(tt) >= 0 && iso(g.hanLCNT)) { var c1 = ngay(g.hanLCNT, today); if (c1 <= sapHet) out.dt.push({ ten: ten, viec: c1 < 0 ? 'Quá hạn lựa chọn nhà thầu' : 'Sắp đến hạn lựa chọn nhà thầu', han: g.hanLCNT, con: c1, cb: nguoi }); }
+      if (tt === 'cokq' && !hdTheoGoi[g.id]) { var dKQ = g.qdKQNgay || g.qdDHNgay; out.dt.push({ ten: ten, viec: 'Đã có kết quả' + (dKQ ? ' từ ' + dd(dKQ) : '') + ', chưa nhập hợp đồng', han: dKQ || '', con: iso(dKQ) ? -ngay(today, dKQ) : 0, cb: nguoi, khongHan: true }); }
+      if ((tt === 'cokq' || tt === 'dakyhd') && (g.qdKQSo || g.qdKQNgay) && !khongDang.test(ht) && !(g.tienTrinh || []).some(function (x) { return /dang tai ket qua/.test(chuQD({ tienDo: x.buoc })); })) out.dt.push({ ten: ten, viec: 'Chưa ghi bước "Đăng tải kết quả lựa chọn nhà thầu" (QĐ kết quả ' + (g.qdKQSo || '') + ')', han: g.qdKQNgay || '', con: 0, cb: nguoi, khongHan: true });
+    });
+    (data.hopdong || []).forEach(function (h) {
+      if (cb && h.canBoId !== cb) return;
+      if ((h.trangThai || 'dang') !== 'nghiemthu') return;
+      var nt = (h.nghiemThu || []).map(function (x) { return x.ngay; }).filter(iso).sort().pop();
+      var qua = iso(nt) ? ngay(today, nt) : 0;
+      out.dt.push({ ten: (h.so || '') + (h.ten ? ' — ' + h.ten : ''), viec: 'Đã nghiệm thu' + (nt ? ' ngày ' + dd(nt) + ' (' + qua + ' ngày)' : '') + ', chưa thanh lý' + (num(h.giaTri) && sum(h.thanhToan, function (x) { return x.soTien; }) < num(h.giaTri) - 0.5 ? ', còn ' + tien(num(h.giaTri) - sum(h.thanhToan, function (x) { return x.soTien; })) + ' chưa thanh toán' : ''), han: nt || '', con: -qua, cb: cbTen[h.canBoId] || '', khongHan: true });
+    });
+    out.dt.sort(function (a, b) { return a.con - b.con; });
     // Giải ngân: các dòng chi tiết (không có dòng con) của năm hiện hành
     var nam = out.nam, ns = (data.ngansach || []).filter(function (r) { return +r.nam === nam; }), cha = {};
     ns.forEach(function (r) { if (r.parentId) cha[r.parentId] = 1; });
@@ -74,8 +93,8 @@ var NhacViec = (function () {
   /** Thư HTML (và tiêu đề) từ kết quả tomTat. o: { ten: tên người nhận, coQuan, url } */
   function thu(t, o) {
     o = o || {};
-    var n = t.hd.length + t.bl.length + t.gn.length;
-    var td = 'Nhắc việc tuần ' + dd(o.today || '') + ': ' + t.hd.length + ' hợp đồng, ' + t.bl.length + ' bảo lãnh, ' + t.gn.length + ' nội dung giải ngân chậm';
+    var n = t.hd.length + t.bl.length + t.gn.length + (t.dt || []).length;
+    var td = 'Nhắc việc tuần ' + dd(o.today || '') + ': ' + t.hd.length + ' hợp đồng, ' + t.bl.length + ' bảo lãnh, ' + t.gn.length + ' nội dung giải ngân chậm' + ((t.dt || []).length ? ', ' + t.dt.length + ' việc đấu thầu, hợp đồng' : '');
     var th = 'style="border:1px solid #d9d9d9;padding:6px 8px;background:#f3f5f2;text-align:left;font-size:13px"', tdS = 'style="border:1px solid #d9d9d9;padding:6px 8px;font-size:13px;vertical-align:top"', tdR = 'style="border:1px solid #d9d9d9;padding:6px 8px;font-size:13px;text-align:right;white-space:nowrap"';
     var bang = function (cols, rows) { return '<table style="border-collapse:collapse;width:100%;margin:6px 0 16px">' + '<tr>' + cols.map(function (c) { return '<th ' + th + '>' + c + '</th>'; }).join('') + '</tr>' + rows.join('') + '</table>'; };
     var conTxt = function (c) { return c < 0 ? '<b style="color:#b42318">Quá ' + (-c) + ' ngày</b>' : c === 0 ? '<b style="color:#b42318">Hôm nay</b>' : 'Còn ' + c + ' ngày'; };
@@ -86,6 +105,7 @@ var NhacViec = (function () {
     if (t.bl.length) h += '<h3 style="font-size:15px;margin:12px 0 4px">2. Bảo lãnh sắp hết hiệu lực (' + t.bl.length + ')</h3>' + bang(['Hợp đồng', 'Loại bảo lãnh', 'Hiệu lực đến', 'Tình trạng', 'Cán bộ'], t.bl.map(function (x) { return '<tr><td ' + tdS + '>' + esc(x.ten) + '</td><td ' + tdS + '>' + esc(x.loai) + '</td><td ' + tdS + '>' + dd(x.han) + '</td><td ' + tdS + '>' + conTxt(x.con) + '</td><td ' + tdS + '>' + esc(x.cb) + '</td></tr>'; }));
     if (t.gn.length) h += '<h3 style="font-size:15px;margin:12px 0 4px">3. Nội dung giải ngân chậm năm ' + t.nam + ' (' + t.gn.length + ')</h3><p style="font-size:13px;margin:0">Số liệu đến ngày ' + dd(t.asOf) + '. Đã giải ngân ' + t.tyLe.toFixed(1).replace('.', ',') + '% (' + tien(t.daGN) + '/' + tien(t.tong) + '); mốc so sánh ' + t.chuan.toFixed(1).replace('.', ',') + '% (' + (t.tuDat ? 'mục tiêu tháng' : 'tỷ lệ thời gian') + ').</p>' +
       bang(['Nội dung', 'Đơn vị', 'Được sử dụng', 'Đã giải ngân', 'Còn lại', 'Tỷ lệ', 'Cán bộ'], t.gn.slice(0, 40).map(function (x) { return '<tr><td ' + tdS + '>' + esc(x.ten) + '</td><td ' + tdS + '>' + esc(x.dv) + '</td><td ' + tdR + '>' + tien(x.tong) + '</td><td ' + tdR + '>' + tien(x.gn) + '</td><td ' + tdR + '>' + tien(x.con) + '</td><td ' + tdR + '>' + x.ty.toFixed(1).replace('.', ',') + '%</td><td ' + tdS + '>' + esc(x.cb) + '</td></tr>'; })) + (t.gn.length > 40 ? '<p style="font-size:13px">… và ' + (t.gn.length - 40) + ' nội dung khác.</p>' : '');
+    if ((t.dt || []).length) h += '<h3 style="font-size:15px;margin:12px 0 4px">4. Gói thầu, hợp đồng cần xử lý tiếp (' + t.dt.length + ')</h3>' + bang(['Gói thầu, hợp đồng', 'Việc cần làm', 'Ngày', 'Cán bộ'], t.dt.slice(0, 40).map(function (x) { return '<tr><td ' + tdS + '>' + esc(x.ten) + '</td><td ' + tdS + '>' + (x.khongHan ? esc(x.viec) : esc(x.viec) + ' — ' + conTxt(x.con)) + '</td><td ' + tdS + '>' + dd(x.han) + '</td><td ' + tdS + '>' + esc(x.cb) + '</td></tr>'; }));
     h += (o.url ? '<p><a href="' + esc(o.url) + '">Mở phần mềm để xem chi tiết</a></p>' : '') + '<p style="color:#667;font-size:12px">Thư gửi tự động mỗi sáng thứ Hai từ dữ liệu đã đồng bộ lên máy chủ. Số liệu chỉ đúng tới lần đồng bộ gần nhất.</p></div>';
     return { tieuDe: td, html: h, soViec: n };
   }

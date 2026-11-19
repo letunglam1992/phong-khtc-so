@@ -303,7 +303,22 @@ var TrichVB = (function () {
     var v = sau(t, 'Hợp đồng số|Căn cứ Hợp đồng số', 80); if (v) return v.split(/\s+ng[àa]y\b/i)[0];
     var m = String(t).match(/h[ợo]p\s*đ[ồòóo]ng\s*(?:kinh tế\s*|dịch vụ tư vấn\s*|thi công\s*)?s[ốô]\s*[:：]?\s*(\d[^\s,;]{3,60})/i); return m ? m[1].replace(/[.;,]$/, '') : null;
   }
+  /* Mục 15: sửa lỗi dấu hay gặp khi nhận dạng chữ bản scan (chỉ sửa cụm từ chắc chắn sai trong văn bản hành chính, giữ chữ hoa/thường) */
+  var CHU = 'A-Za-zÀ-ỹĐđ';
+  var SUA_OCR = [['hợp đ[òôóõo]ng', 'hợp đồng'], ['th[ẳâầấ]m định', 'thẩm định'], ['đ[ắâằấ]t đ[aạ]i', 'đất đai'], ['đất đại', 'đất đai'],
+    ['gói thâu', 'gói thầu'], ['nhà thâu', 'nhà thầu'], ['đ[âầấ]u thâu', 'đấu thầu'], ['đ[âầ]u thầu', 'đấu thầu'], ['dự thâu', 'dự thầu'], ['mời thâu', 'mời thầu'], ['trúng thâu', 'trúng thầu'],
+    ['quyêt định', 'quyết định'], ['b[ồô] sung', 'bổ sung'], ['sửa đ[ồôóò]i', 'sửa đổi'], ['thuê giá trị gia tăng', 'thuế giá trị gia tăng'], ['chuy[êề]n khoản', 'chuyển khoản'],
+    ['chuyển đ[ôóò]i s[ôóố]', 'chuyển đổi số'], ['kê từ', 'kể từ'], ['tiên hành', 'tiến hành'], ['tiên độ', 'tiến độ']
+  ].map(function (x) { return [new RegExp('(^|[^' + CHU + '])(' + x[0].replace(/ /g, '\\s+') + ')(?=$|[^' + CHU + '])', 'gi'), x[1]]; });
+  // giữ kiểu chữ: VIẾT HOA HẾT / Viết hoa chữ đầu / viết thường
+  function kieuChu(goc, dung) { return goc === goc.toUpperCase() && goc !== goc.toLowerCase() ? dung.toUpperCase() : goc.charAt(0) !== goc.charAt(0).toLowerCase() ? dung.charAt(0).toUpperCase() + dung.slice(1) : dung; }
+  function suaOCR(text) {
+    var t = String(text == null ? '' : text);
+    SUA_OCR.forEach(function (x) { t = t.replace(x[0], function (m, dau, goc) { return dau + kieuChu(goc, x[1]); }); });
+    return t.replace(new RegExp('(^|[^' + CHU + '])([Ss])ô(\\s+\\d)', 'g'), '$1$2ố$3');
+  }
   function trichQuyTac(text) {
+    text = suaOCR(text);
     var t = gon(text), loai = phanLoai(t), nv = ngayVBct(t), r = { loai: loai, so_van_ban: soVB(t) || null, ngay_van_ban: nv.ngay || null, ngay_dau: nv.dau, so_trong: /\bS[ốô]\s*[:：]?\s*\/\s*[A-ZĐ]/.test(t.slice(0, 1500)) || undefined, co_quan_ban_hanh: coQuan(t) || null, trich_yeu: trichYeu(t) || null, nguon_trich: 'quy_tac' };
     var tenDA = sau(t, 'Tên dự án|Tên nhiệm vụ|Tên dự toán|Dự án|Nhiệm vụ', 250); if (tenDA) r.ten_du_an_nhiem_vu = tenDA;
     var goi = { ten: sau(t, 'Tên gói thầu', 300) || null, gia_goi_thau: tien(t, 'Giá gói thầu'), nguon_von: sau(t, 'Nguồn vốn', 200) || null, hinh_thuc_lcnt: sau(t, 'Hình thức lựa chọn nhà thầu', 150) || null, phuong_thuc: sau(t, 'Phương thức lựa chọn nhà thầu', 150) || null, thoi_gian_bat_dau_lcnt: sau(t, 'Thời gian (?:bắt đầu )?tổ chức lựa chọn nhà thầu', 150) || null, loai_hop_dong: sau(t, 'Loại hợp đồng', 100) || null, thoi_gian_thuc_hien_hd: sau(t, 'Thời gian thực hiện (?:gói thầu|hợp đồng)', 150) || null };
@@ -459,6 +474,6 @@ var TrichVB = (function () {
     var sb = {}; tb.forEach(function (x) { sb[x] = 1; }); var chung = ta.filter(function (x) { return sb[x]; }).length;
     return 2 * chung / (ta.length + tb.length);
   }
-  return { LOAI: LOAI, veBang: veBang, docxText: docxText, tieuDe: tieuDe, bangGoiThau: bangGoiThau, bangTrungThau: bangTrungThau, buocLCNT: buocLCNT, tenGoiTuTrichYeu: tenGoiTuTrichYeu, ngayVBct: ngayVBct, boDau: boDau, ngayISO: ngayISO, soTien: soTien, phanLoai: phanLoai, trichQuyTac: trichQuyTac, LOI_NHAC_HE_THONG: LOI_NHAC_HE_THONG, loiNhacNguoiDung: loiNhacNguoiDung, docJson: docJson, chuanHoa: chuanHoa, ghep: ghep, giongTen: giongTen, TOI_DA_KY_TU: TOI_DA_KY_TU };
+  return { LOAI: LOAI, veBang: veBang, docxText: docxText, tieuDe: tieuDe, bangGoiThau: bangGoiThau, bangTrungThau: bangTrungThau, buocLCNT: buocLCNT, tenGoiTuTrichYeu: tenGoiTuTrichYeu, ngayVBct: ngayVBct, boDau: boDau, ngayISO: ngayISO, soTien: soTien, phanLoai: phanLoai, trichQuyTac: trichQuyTac, LOI_NHAC_HE_THONG: LOI_NHAC_HE_THONG, loiNhacNguoiDung: loiNhacNguoiDung, suaOCR: suaOCR, docJson: docJson, chuanHoa: chuanHoa, ghep: ghep, giongTen: giongTen, TOI_DA_KY_TU: TOI_DA_KY_TU };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = TrichVB;

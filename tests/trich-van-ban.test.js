@@ -260,3 +260,8 @@ Căn cứ Quyết định số 1945/QĐ-UBND ngày 18/9/2024 phê duyệt kế h
   assert.equal(r.dat_hang.gia_tri, 3985040807); assert.equal(r.dat_hang.thoi_gian, 'Năm 2025');
   const g = T.ghep({ loai: 'khlcnt_qd' }, T.trichQuyTac(t)); assert.equal(g.loai, 'dat_hang_qd');
 });
+
+test('sửa lỗi nhận dạng chữ: cụm từ sai dấu hay gặp, giữ kiểu chữ, không đụng chữ đúng', () => {
+  assert.equal(T.suaOCR('HỢP ĐÒNG DỊCH VỤ; Hợp đông; CÔNG TY TNHH THẲM ĐỊNH GIÁ; nhà thâu; sô 580/QĐ; Quyêt định; CHUYỂN ĐÓI SÓ; kê từ ngày; kê khai; số 5; Đất đai'),
+    'HỢP ĐỒNG DỊCH VỤ; Hợp đồng; CÔNG TY TNHH THẨM ĐỊNH GIÁ; nhà thầu; số 580/QĐ; Quyết định; CHUYỂN ĐỔI SỐ; kể từ ngày; kê khai; số 5; Đất đai');
+});

@@ -138,7 +138,7 @@
   };
   // Bóc tách: quy tắc + AI (nếu có), AI lỗi vẫn có kết quả theo quy tắc
   VB.extract = async (text, ten) => {
-    text = String(text || '').replace(/\r/g, '');
+    text = TV.suaOCR(String(text || '').replace(/\r/g, ''));
     const qt = TV.trichQuyTac(text); let kq, aiLoi = '', mh = '';
     if (A.AI && A.AI.coSan()) {
       try { const r = await A.AI.goi([{ role: 'system', content: TV.LOI_NHAC_HE_THONG }, { role: 'user', content: TV.loiNhacNguoiDung(text, ten) }], { max_tokens: 3000, timeout: 90000 }); kq = TV.ghep(TV.docJson(r.text), qt); mh = r.tenMoHinh; }

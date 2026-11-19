@@ -182,4 +182,42 @@
     if (them.length) await S.save('qddt', { id: q.id, dong: (q.dong || []).concat(them) }, { note: 'Ghi ' + them.length + ' khoản vào ' + q.so });
     return them.length;
   };
+  /* Mục 10: báo cáo theo mẫu Phụ lục I (tổng hợp theo nguồn, theo đơn vị) và Phụ lục II (chi tiết từng đơn vị) như biểu của Sở.
+     Cột: chuyển nguồn, dự toán đầu năm, bổ sung, điều chỉnh tăng/giảm, thu hồi, [tiết kiệm nếu có], tổng được sử dụng, đã giải ngân, còn lại, tỷ lệ. */
+  A.nsXuatMauPL = y => {
+    const dvs = L.nsByDonVi(y).filter(x => x.count); if (!dvs.length) { UI.toast('Chưa có dữ liệu năm ' + y + '.', 'bad'); return; }
+    const all = L.gnLeaves(y, {}), ky = S.all('ngansach').filter(r => +r.nam === y).map(r => r.ngayGN || r.bieuNgay).concat(all.map(n => ((n.r.gnHist || []).slice(-1)[0] || {}).ngay)).filter(U.isISO).sort().pop() || U.today();
+    const coTK = all.some(n => U.num(n.sum.tietKiem));
+    const F = ['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi'].concat(coTK ? ['tietKiem'] : []);
+    const cong = ns => { const o = {}; F.concat(['giaiNgan']).forEach(k => { o[k] = U.sum(ns, n => n.sum[k]); }); o.tong = U.sum(ns, n => n.sum.tong); o.con = o.tong - o.giaiNgan; o.ty = o.tong ? o.giaiNgan / o.tong : ''; return o; };
+    const dong = (stt, ten, o) => [stt, ten].concat(F.map(k => o[k] || 0)).concat([o.tong || 0, o.giaiNgan || 0, o.con || 0, o.ty === '' ? '' : Math.round(o.ty * 10000) / 100]);
+    // Nhóm nguồn: tách riêng từng chương trình MTQG
+    const nhom = n => { const k = L.nsMa(n.r).nguon || 'khac'; if (k !== 'ctmtqg') return k; const t = U.norm([n.r.noiDung, (S.get('ngansach', n.r.parentId) || {}).noiDung].join(' ')); return /dan toc|1719/.test(t) ? 'mtqg_dtts' : /giam ngheo/.test(t) ? 'mtqg_gn' : /nong thon moi/.test(t) ? 'mtqg_ntm' : 'ctmtqg'; };
+    const TEN = { mtqg_dtts: 'Chương trình MTQG phát triển KT-XH vùng đồng bào DTTS và miền núi', mtqg_ntm: 'Chương trình MTQG xây dựng nông thôn mới', mtqg_gn: 'Chương trình MTQG giảm nghèo bền vững' };
+    const tenNhom = k => TEN[k] || L.nsNguonTen(k === 'khac' ? '' : k) || 'Nguồn khác';
+    const THU = ['tuchu', 'cctl', 'thuong', 'khongtuchu', 'nstw', 'khcn', 'sdd', 'mtqg_dtts', 'mtqg_ntm', 'mtqg_gn', 'ctmtqg', 'khac'];
+    const theoNhom = ns => { const m = new Map(); ns.forEach(n => { const k = nhom(n); (m.get(k) || m.set(k, []).get(k)).push(n); }); return Array.from(m.entries()).sort((a, b) => (THU.indexOf(a[0]) + 99) % 99 - (THU.indexOf(b[0]) + 99) % 99); };
+    const ngay = U.fmtDate(ky), coQuan = (A.cfg('coQuan') || 'Sở Nông nghiệp và Môi trường').toUpperCase();
+    const head = ten => { const h1 = ['STT', ten, 'Kinh phí chuyển nguồn năm ' + (y - 1) + ' sang năm ' + y, 'Dự toán giao đầu năm ' + y, 'KP bổ sung trong năm', 'Điều chỉnh', '', 'KP thu hồi trong năm'].concat(coTK ? ['Tiết kiệm chi'] : []).concat(['Tổng KP được sử dụng trong năm ' + y, 'Kinh phí đã giải ngân đến ' + ngay, 'Kinh phí còn lại', 'Tỷ lệ giải ngân %']);
+      const h2 = ['', '', '', '', '', 'Tăng', 'Giảm', ''].concat(coTK ? [''] : []).concat(['', '', '', '']), h3 = h1.map((_, i) => i + 1); return [h1, h2, h3]; };
+    const nc = 2 + F.length + 4, mg = (r, c1, r2, c2) => ({ s: { r, c: c1 }, e: { r: r2, c: c2 } });
+    const mergeHead = r0 => { const m = [mg(r0, 5, r0, 6)]; for (let c = 0; c < nc; c++) if (c !== 5 && c !== 6) m.push(mg(r0, c, r0 + 1, c)); return m; };
+    // Phụ lục I
+    const p1 = [['Phụ lục I'], ['TỔNG HỢP TÌNH HÌNH THỰC HIỆN DỰ TOÁN CỦA ' + coQuan + ' NĂM ' + y], ['Từ ngày 01/01/' + y + ' đến ngày ' + ngay], ['ĐVT: Đồng']].concat(head('Đơn vị'));
+    p1.push(dong('A', coQuan, cong(all)));
+    theoNhom(all).forEach(([k, ns], i) => p1.push(dong(i + 1, tenNhom(k), cong(ns))));
+    p1.push(dong('B', 'CHI TIẾT THEO ĐƠN VỊ DỰ TOÁN', cong(all)));
+    dvs.forEach((x, i) => { const ns = L.gnLeaves(y, { dv: x.dv.id }); p1.push(dong(i + 1, x.dv.ten, cong(ns))); theoNhom(ns).forEach(([k, g]) => p1.push(dong('-', tenNhom(k), cong(g)))); });
+    // Phụ lục II
+    const LM = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX'];
+    const p2 = [['Phụ lục II'], ['BÁO CÁO TÌNH HÌNH THỰC HIỆN GIẢI NGÂN THANH TOÁN NGUỒN CHI THƯỜNG XUYÊN NĂM ' + y], ['ĐƠN VỊ: ' + coQuan], ['ĐVT: Đồng']].concat(head('Nội dung'));
+    p2.push(dong('', 'TỔNG CỘNG (' + LM[0] + (dvs.length > 1 ? '+…+' + (LM[dvs.length - 1] || dvs.length) : '') + ')', cong(all)));
+    dvs.forEach((x, i) => {
+      const t = L.nsTree(y, x.dv.id); p2.push(dong(LM[i] || String(i + 1), x.dv.ten.toUpperCase(), cong(t.flat.filter(n => !n.children.length))));
+      t.flat.forEach(n => { const o = Object.assign({}, n.sum, { con: n.sum.tong - n.sum.giaiNgan, ty: n.sum.tong ? n.sum.giaiNgan / n.sum.tong : '' }); p2.push(dong(n.r.stt || '', '  '.repeat(n.level) + n.r.noiDung, o)); });
+    });
+    const w = [6, 62].concat(F.map(() => 17)).concat([18, 18, 17, 9]);
+    UI.xlsx('PL-giai-ngan-' + y + '-den-' + ky + '.xlsx', [{ name: 'Tổng hợp', aoa: p1, widths: w, merges: mergeHead(4) }, { name: 'Chi tiết', aoa: p2, widths: w, merges: mergeHead(4) }]);
+    UI.toast('Đã xuất báo cáo theo mẫu Phụ lục I, II (số liệu đến ' + ngay + ').', 'ok');
+  };
 })(App);

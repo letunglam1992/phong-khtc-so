@@ -406,6 +406,50 @@
     const k = s => U.norm(s).replace(/[^a-z0-9]+/g, ' ').trim(), h = ' ' + k(txt) + ' ';
     return (dvs.map(d => ({ d, t: [d.ten, d.tenTat].filter(Boolean).map(k).filter(t => t.length > 3 && h.includes(' ' + t + ' ')).sort((a, b) => b.length - a.length)[0] || '' })).filter(x => x.t).sort((a, b) => b.t.length - a.t.length)[0] || {}).d || null;
   };
+  /* Mục 4: phần Chương trình MTQG theo đơn vị lấy từ trang "Tổng hợp" (mục "CHI TIẾT THEO ĐƠN VỊ DỰ TOÁN"),
+     dùng khi trang chi tiết không có các dòng này (trang NTM, Giảm nghèo, 1719 không có cột giải ngân). → { dvId: [dòng] } hoặc null */
+  L.RE_MTQG = /muc tieu quoc gia|ctmtqg|\bmtqg\b|nong thon moi|giam ngheo|dong bao dan toc/;
+  L.nsMTQGTongHop = (wb, dvs) => {
+    if (typeof XLSX === 'undefined') return null;
+    const sua = rs => rs.map(r => (r || []).map(c => typeof c === 'string' && U.norm(c) === 'don vi' ? 'Nội dung' : c));
+    for (const n of wb.SheetNames) {
+      const ws = wb.Sheets[n], raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+      if (!raw.slice(0, 40).some(r => (r || []).some(c => typeof c === 'string' && U.norm(c) === 'don vi'))) continue;
+      const p = L.parseBudget(sua(raw), sua(XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null }))), it = p.items;
+      const bd = it.findIndex(x => U.norm(x.noiDung).startsWith('chi tiet theo don vi')); if (bd < 0) continue;
+      const out = {}; let dv = null;
+      for (let i = bd + 1; i < it.length; i++) {
+        const x = it[i], stt = String(x.stt || '').trim();
+        if (/^\d+$/.test(stt)) {
+          // tên trên trang Tổng hợp có thể viết khác ("Trung tâm nước Quan trắc môi trường"): khớp theo tỷ lệ từ chung nếu không khớp đúng tên
+          const tu = t => new Set(U.norm(t).split(/[^a-z0-9]+/).filter(w => w.length > 1 && w !== 'va')), a = tu(x.noiDung);
+          const d = L.nsDoanDonVi(x.noiDung, dvs) || dvs.map(v => { const b = tu(v.ten); let c = 0; a.forEach(w => { if (b.has(w)) c++; }); return { v, k: 2 * c / (a.size + b.size || 1) }; }).filter(o => o.k >= 0.75).sort((p, q) => q.k - p.k).map(o => o.v)[0];
+          dv = d ? d.id : null; continue;
+        }
+        if (dv && L.RE_MTQG.test(U.norm(x.noiDung)) && (L.nsTong(x) || x.chuyenNguon || x.thuHoi || x.giaiNgan)) (out[dv] || (out[dv] = [])).push(Object.assign({}, x, { sheet: n }));
+      }
+      return Object.keys(out).length ? out : null;
+    }
+    return null;
+  };
+  // Gắn các dòng MTQG (trang Tổng hợp) vào phần đơn vị đã tách nếu phần đó chưa có dòng MTQG; cộng vào dòng mục La Mã
+  L.nsGanMTQG = (part, dong) => {
+    const it = part.parsed.items, K0 = ['chuyenNguon', 'boSung', 'thuHoi', 'giaiNgan'];
+    // bỏ dòng đã có trên trang chi tiết (cùng số chuyển nguồn, bổ sung, thu hồi, giải ngân)
+    dong = (dong || []).filter(x => !it.some(y => L.RE_MTQG.test(U.norm(y.noiDung)) && K0.every(k => Math.abs(U.num(y[k]) - U.num(x[k])) < 1)));
+    if (!dong.length) return 0;
+    const K = ['chuyenNguon', 'duToan', 'boSung', 'dcTang', 'dcGiam', 'thuHoi', 'tietKiem', 'giaiNgan'], dau = it[0], lv = Math.min(...it.slice(1).map(x => x.level).concat([1]));
+    let so = it.filter(x => x.level === lv && x.parent === 0 && /^\d+$/.test(String(x.stt))).length;
+    dong.forEach(x => {
+      const n = Object.assign({}, x, { stt: String(++so), noiDung: x.noiDung.replace(/^\s*-\s*/, '').replace(/^KP\s+/i, 'Kinh phí ').replace(/^CTMTQG/i, 'Chương trình MTQG') + ' (theo trang ' + x.sheet + ')', level: lv, parent: 0, isGroup: false });
+      delete n.sheet; it.push(n);
+      K.forEach(k => { dau[k] = U.num(dau[k]) + U.num(x[k]); });
+      if (dau.tongGoc !== undefined && dau.tongGoc !== null) dau.tongGoc = U.num(dau.tongGoc) + L.nsTong(x);
+    });
+    const leaf = it.filter(x => !x.isGroup); part.tong = U.sum(leaf, L.nsTong); part.gn = U.sum(leaf, x => x.giaiNgan); part.rong = false;
+    part.parsed.warnings = part.parsed.warnings.concat(['Đã bổ sung ' + dong.length + ' dòng Chương trình MTQG lấy từ trang "' + dong[0].sheet + '" (trang chi tiết không có): ' + dong.map(x => x.noiDung.replace(/^\s*-\s*/, '') + ' — giải ngân ' + U.fmtMoney(x.giaiNgan)).join('; ')]);
+    return dong.length;
+  };
   L.nsTachDonVi = (p, dvs) => {
     const it = p.items || [], doan = ten => L.nsDoanDonVi(ten, dvs);
     const goc = it.map((x, i) => i).filter(i => it[i].level === 0 && /^[IVXLC]+$/.test(String(it[i].stt).replace(/\s/g, '')));

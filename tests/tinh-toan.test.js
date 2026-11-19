@@ -198,3 +198,11 @@ test('sổ quyết định: khớp, chưa có căn cứ, giảm trùng làm dòn
   assert.equal(dc.am.length, 1); assert.equal(dc.am[0].r.id, 'd');   // 1.450 − 1.995,4865 < 0
   assert.equal(dc.mat.length, 1);
 });
+
+test('nhắc việc: gói có kết quả chưa có HĐ, chưa ghi đăng tải kết quả, sắp hạn LCNT, HĐ nghiệm thu chưa thanh lý', () => {
+  const t = NhacViec.tomTat({ hopdong: [{ id: 'h', so: 'HD1', trangThai: 'nghiemthu', giaTri: 100, nghiemThu: [{ ngay: '2026-10-01', giaTri: 100 }], thanhToan: [] }],
+    goithau: [{ id: 'g1', ten: 'A', trangThai: 'cokq', qdKQSo: '9/QĐ', qdKQNgay: '2026-09-01' }, { id: 'g2', ten: 'B', trangThai: 'danglcnt', hanLCNT: '2026-11-25' }, { id: 'g3', ten: 'C', hinhThuc: 'Đặt hàng', trangThai: 'dakyhd', qdKQSo: '1/QĐ' }],
+    ngansach: [], canbo: [], donvi: [] }, { today: '2026-11-19' });
+  assert.deepEqual(t.dt.map(x => x.ten + ':' + x.viec.slice(0, 20)), ['A:Đã có kết quả từ 01/', 'HD1:Đã nghiệm thu ngày 0', 'A:Chưa ghi bước "Đăng ', 'B:Sắp đến hạn lựa chọn']);
+  assert.match(NhacViec.thu(t, { today: '2026-11-19' }).html, /4\. Gói thầu, hợp đồng cần xử lý tiếp \(4\)/);
+});

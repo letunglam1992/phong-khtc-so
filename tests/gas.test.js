@@ -10,6 +10,16 @@ test('xác thực: sai mã, sai ứng dụng', () => {
   assert.match(JSON.parse(e.g.doPost({ postData: { contents: JSON.stringify({ app: 'khac', key: 'KHOA' }) } }).s).error, /Sai ứng dụng/);
   assert.equal(e.post({ action: 'info' }).version, 3);
 });
+test('mã bí mật: dán đè Code.gs (dòng MA_BI_MAT chưa sửa) vẫn dùng mã đã lưu trong Thuộc tính tập lệnh; chưa có mã thì báo', () => {
+  const e = env({ giuMa: true, props: { MA_BI_MAT: 'KHOA' } });
+  assert.equal(e.post({ action: 'info' }).version, 3);
+  assert.match(e.post({ key: 'SAI', action: 'info' }).error, /Sai mã bí mật/);
+  const e2 = env({ giuMa: true });
+  assert.match(e2.post({ action: 'info' }).error, /Chưa đặt mã bí mật/);
+  const e3 = env();   // dòng MA_BI_MAT đã sửa → lưu vào Thuộc tính tập lệnh
+  e3.post({ action: 'info' }); assert.equal(e3.g.PropertiesService.getScriptProperties().getProperty('MA_BI_MAT'), 'KHOA');
+});
+
 test('đồng bộ: đẩy, tải, chống ghi đè', () => {
   const e = env(), pl = { app: 'khtc-so-son-la', data: { nhiemvu: [] }, exportedBy: 'A' };
   assert.equal(e.post({ action: 'push', baseRev: 0, payload: pl }).rev, 1);

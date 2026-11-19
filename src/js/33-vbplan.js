@@ -19,8 +19,15 @@
   const choicesOf = (coll, label) => [['', 'Tạo mới']].concat(S.all(coll).map(r => [r.id, U.trunc(label ? label(r) : Sc.C[coll].title(r), 90)]));
   const vbTen = r => [r.so_van_ban, r.ngay_van_ban ? U.fmtDate(r.ngay_van_ban) : ''].filter(Boolean).join(' ngày ');
 
+  // Mục 15: tên đọc từ bản scan sai dấu ("THẲM ĐỊNH") → cách viết đã có trong phần mềm nếu trùng khi bỏ dấu
+  L.vbChuanTen = v => {
+    if (!v) return v; const k = U.norm(v).replace(/[^a-z0-9]+/g, ' ').trim(); if (!k) return v;
+    const ds = S.all('hopdong').map(h => h.nhaThau).concat(S.all('goithau').map(g => g.nhaThau), S.all('donvi').map(d => d.ten)).filter(Boolean);
+    return ds.find(x => U.norm(x).replace(/[^a-z0-9]+/g, ' ').trim() === k) || v;
+  };
   L.vbPlan = (r, src) => {
     r = r || {}; src = src || {};
+    [['hop_dong', 'nha_thau'], ['thuong_thao', 'nha_thau'], ['ket_qua', 'nha_thau'], ['nghiem_thu', 'nha_thau'], ['thanh_ly', 'nha_thau'], ['dat_hang', 'don_vi_nhan']].forEach(([a, b]) => { if (r[a] && r[a][b]) r[a][b] = L.vbChuanTen(r[a][b]); });
     const ops = [], dk = src.dinhKem ? [src.dinhKem] : [], so = r.so_van_ban || '', ngay = r.ngay_van_ban || '';
     const da = L.vbTimDA(r.ten_du_an_nhiem_vu);
     const ghiNguon = 'Cập nhật từ văn bản ' + (vbTen(r) || src.ten || '');

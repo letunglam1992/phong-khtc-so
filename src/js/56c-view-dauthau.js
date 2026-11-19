@@ -211,6 +211,24 @@
       tongQuan($('[data-tq]', root), T); return;
     }
     base(root, p);
+    // Mục 5: gói còn ghi hình thức cũ "Đặt hàng, giao nhiệm vụ" → chuyển hàng loạt sang "Đặt hàng" hoặc "Giao nhiệm vụ"
+    const CU = 'Đặt hàng, giao nhiệm vụ', cu = S.all('goithau').filter(g => g.hinhThuc === CU);
+    if (cu.length) {
+      const nt = document.createElement('div'); nt.className = 'note warn mb';
+      nt.innerHTML = cu.length + ' gói thầu còn ghi hình thức cũ "' + e(CU) + '". Hình thức này nay tách thành "Đặt hàng" và "Giao nhiệm vụ". <button class="btn sm" data-chuyenht>Chuyển hình thức</button>';
+      const tb0 = $('.tabs', root); root.insertBefore(nt, tb0);
+      $('[data-chuyenht]', nt).onclick = () => {
+        const doan = g => /giao nhiem vu/.test(U.norm([g.ten, g.ghiChu, g.qdDHSo, (g.tienTrinh || []).map(x => x.ghiChu + ' ' + x.buoc).join(' ')].join(' '))) ? 'Giao nhiệm vụ' : 'Đặt hàng';
+        const m = UI.modal({ title: 'Chuyển hình thức cho ' + cu.length + ' gói', size: 'lg',
+          body: '<p class="small soft">Phần mềm đoán theo tên, ghi chú và tiến trình của gói (có chữ "giao nhiệm vụ" thì chọn Giao nhiệm vụ, còn lại Đặt hàng). Kiểm tra từng gói trước khi lưu.</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Gói thầu</th><th class="num">Giá gói thầu</th><th style="width:190px">Hình thức mới</th></tr></thead><tbody>' +
+            cu.map(g => '<tr><td class="wrap">' + e(g.ten) + '<div class="t2">' + e(UI.refSub('goithau', g.id)) + '</div></td><td class="num">' + U.fmtMoney(g.giaGoiThau) + '</td><td><select class="sel" data-ht="' + e(g.id) + '" aria-label="Hình thức mới"><option>Đặt hàng</option><option' + (doan(g) === 'Giao nhiệm vụ' ? ' selected' : '') + '>Giao nhiệm vụ</option><option value="">(giữ nguyên)</option></select></td></tr>').join('') + '</tbody></table></div>',
+          buttons: [{ label: 'Hủy', on: a => a.close() }, { label: 'Lưu', cls: 'primary', icon: 'check', on: async a => {
+            const ds = $$('[data-ht]', m.body).filter(x => x.value).map(x => ({ c: 'goithau', rec: { id: x.dataset.ht, hinhThuc: x.value, loai: (S.get('goithau', x.dataset.ht) || {}).loai || 'Dịch vụ sự nghiệp công' } }));
+            if (!ds.length) { a.close(); return; }
+            try { await S.saveMany(ds, { note: 'Chuyển hình thức "' + CU + '" của ' + ds.length + ' gói' }); a.close(); UI.toast('Đã chuyển ' + ds.length + ' gói.', 'ok'); A.render(); } catch (er) { UI.fail(er); }
+          } }] });
+      };
+    }
     const tabs = $('.tabs', root);
     if (tabs) { const b = document.createElement('button'); b.setAttribute('role', 'tab'); b.dataset.t = 'tq'; b.textContent = 'Tổng quan'; b.onclick = () => { T.t = 'tq'; A.render(); }; tabs.prepend(b); }
   };

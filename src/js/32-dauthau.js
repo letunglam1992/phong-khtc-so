@@ -87,7 +87,8 @@
     o.chuaBoTri = o.tong - Math.max(o.giaHD, U.sum(gts.filter(g => !['dakyhd', 'huy'].includes(g.trangThai)), g => U.num(g.giaTrung) || U.num(g.giaGoiThau)) + o.giaHD);
     if (o.giaHD > o.tong + 0.5) o.canhBao.push({ sev: 3, t: 'Tổng giá trị hợp đồng (' + U.fmtShort(o.giaHD) + ') vượt kinh phí được sử dụng của dòng dự toán (' + U.fmtShort(o.tong) + ')' });
     else if (o.giaGT > o.tong + 0.5) o.canhBao.push({ sev: 2, t: 'Tổng giá gói thầu (' + U.fmtShort(o.giaGT) + ') vượt kinh phí được sử dụng (' + U.fmtShort(o.tong) + ')' });
-    if (o.daTT > o.gn + 0.5) o.canhBao.push({ sev: 1, t: 'Đã thanh toán hợp đồng ' + U.fmtShort(o.daTT) + ' nhưng số giải ngân của dòng dự toán mới ' + U.fmtShort(o.gn) + ' — cần cập nhật số giải ngân' });
+    if (o.daTT > o.tong + 0.5) o.canhBao.push({ sev: 3, t: 'Đã thanh toán các hợp đồng dùng nguồn này (' + U.fmtShort(o.daTT) + ') vượt kinh phí được sử dụng của dòng dự toán (' + U.fmtShort(o.tong) + ')' });
+    else if (o.daTT > o.gn + 0.5) o.canhBao.push({ sev: 1, t: 'Đã thanh toán hợp đồng ' + U.fmtShort(o.daTT) + ' nhưng số giải ngân của dòng dự toán mới ' + U.fmtShort(o.gn) + ' — cần cập nhật số giải ngân' });
     return o;
   };
   // Đưa cảnh báo nguồn kinh phí vào danh sách việc cần xử lý đấu thầu

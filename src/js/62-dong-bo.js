@@ -170,7 +170,7 @@
     } catch (er) { box.innerHTML = '<div class="note bad">' + e(er.message) + '</div>'; }
   }
   // Mục 8: email nhắc việc — cấu hình lưu trên máy chủ (Script Properties), máy chủ tự gửi lúc 7–8 giờ sáng thứ Hai
-  const nvDuLieu = () => ({ hopdong: S.all('hopdong'), ngansach: S.all('ngansach'), canbo: S.all('canbo'), donvi: S.all('donvi') });
+  const nvDuLieu = () => ({ hopdong: S.all('hopdong'), goithau: S.all('goithau'), ngansach: S.all('ngansach'), canbo: S.all('canbo'), donvi: S.all('donvi') });
   async function veNhacViec(root) {
     const box = $('[data-nv-b]', root); if (!box) return;
     try {

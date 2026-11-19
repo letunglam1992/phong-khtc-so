@@ -36,7 +36,8 @@ function env(opt) {
     UrlFetchApp: { fetch: (url, o) => { const body = JSON.parse(o.payload); fetches.push({ url, body }); const r = opt.ai ? opt.ai(body, url) : { code: 200, json: { text: '{"loai":"khac"}' } }; return { getResponseCode: () => r.code, getContentText: () => JSON.stringify(r.json) }; } },
     Drive: opt.noDrive ? undefined : { Files: { create: (meta, blob) => { const id = 'OCR' + (++seq); docs[id] = opt.ocrText || ''; return { id }; }, remove: id => { delete docs[id]; } } }
   };
-  vm.createContext(g); vm.runInContext(SRC(), g);
+  if (opt.props) Object.assign(props, opt.props);
+  vm.createContext(g); vm.runInContext(opt.giuMa ? fs.readFileSync(path.join(__dirname, '../gas/Code.gs'), 'utf8') : SRC(), g);
   const post = b => JSON.parse(g.doPost({ postData: { contents: JSON.stringify(Object.assign({ app: 'khtc-so-son-la', key: 'KHOA' }, b)) } }).s);
   return { g, post, files, folders, props, triggers, fetches, mk, root, mails };
 }
