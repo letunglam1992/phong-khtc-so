@@ -344,10 +344,50 @@
       };
       S.snapshots().then(list => {
         const box = $('[data-snaps]', root); if (!box) return;
-        box.innerHTML = list.length ? list.map((s, i) => '<div class="gap" style="padding:4px 0"><span class="grow">' + U.fmtDateTime(s.exportedAt) + ' — ' + e(s.reason || '') + '</span><button class="btn sm" data-snap="' + i + '">Khôi phục bản này</button></div>').join('') : 'Chưa có bản chụp nào. Phần mềm tự chụp trước khi khôi phục, nhập lại biểu dự toán, tải dữ liệu đồng bộ hoặc xóa toàn bộ.';
+        box.innerHTML = list.length ? list.map((s, i) => '<div class="gap" style="padding:4px 0"><span class="grow">' + U.fmtDateTime(s.exportedAt) + ' — ' + e(s.reason || '') + '</span><button class="btn sm" data-snapx="' + i + '">Xem khác biệt, khôi phục từng phần</button><button class="btn sm ghost" data-snap="' + i + '">Khôi phục toàn bộ</button></div>').join('') : 'Chưa có bản chụp nào. Phần mềm tự chụp trước khi khôi phục, nhập lại biểu dự toán, tải dữ liệu đồng bộ hoặc xóa toàn bộ.';
+        $$('[data-snapx]', box).forEach(b => b.onclick = () => A.khoiPhucChon(list[+b.dataset.snapx], 'bản chụp lúc ' + U.fmtDateTime(list[+b.dataset.snapx].exportedAt) + ' (' + (list[+b.dataset.snapx].reason || '') + ')'));
         $$('[data-snap]', box).forEach(b => b.onclick = async () => { const s = list[+b.dataset.snap]; if (!await UI.confirm({ title: 'Khôi phục bản chụp?', msg: 'Thay toàn bộ dữ liệu hiện có bằng bản chụp lúc ' + U.fmtDateTime(s.exportedAt) + ' (' + (s.reason || '') + '). Tệp đính kèm thêm sau thời điểm đó được giữ lại trong kho nhưng có thể mất liên kết.', ok: 'Khôi phục', danger: true })) return; try { await S.importAll(s, 'replace'); UI.toast('Đã khôi phục bản chụp.', 'ok'); A.render(); } catch (er) { UI.fail(er); } });
       });
       if (navigator.storage && navigator.storage.estimate) navigator.storage.estimate().then(q => { const el = $('[data-quota]', root); if (el) el.textContent = 'Dung lượng lưu trữ: đang dùng ' + U.fileSize(q.usage || 0) + ' trên hạn mức khoảng ' + U.fileSize(q.quota || 0) + ' của trình duyệt.'; }).catch(() => { });
     }
+  };
+  /* Mục 4: so sánh bản chụp / bản sao lưu với dữ liệu hiện tại; khôi phục từng nhóm dữ liệu (dự toán theo năm, gói thầu, hợp đồng…).
+     Ghi qua S.saveMany / S.removeMany nên có trong nhật ký và được đồng bộ lên máy chủ như thao tác thường. */
+  const BO_QUA = ['lichsu'];
+  const giongNhau = (a, b) => { const k = Object.keys(Object.assign({}, a, b)).filter(x => !['updatedAt', 'updatedBy', 'createdAt'].includes(x)); return k.every(x => JSON.stringify(a[x] === undefined ? '' : a[x]) === JSON.stringify(b[x] === undefined ? '' : b[x])); };
+  A.khoiPhucChon = (obj, ten) => {
+    const data = (obj && obj.data) || {}, nhom = [];
+    const soSanh = (key, label, cur, bak) => {
+      const mc = new Map(cur.map(r => [r.id, r])), mb = new Map(bak.map(r => [r.id, r]));
+      const them = bak.filter(r => !mc.has(r.id)), xoa = cur.filter(r => !mb.has(r.id)), khac = bak.filter(r => mc.has(r.id) && !giongNhau(mc.get(r.id), r));
+      if (them.length || xoa.length || khac.length) nhom.push({ key, label, them, xoa, khac, cur, bak });
+    };
+    Object.keys(Object.assign({}, data, S.data)).filter(c => !BO_QUA.includes(c) && Sc.C[c] || c === 'vbden' || c === 'qddt' || c === 'kbdc').forEach(c => {
+      const cur = S.all(c), bak = data[c] || [];
+      if (c === 'ngansach') { const nams = Array.from(new Set(cur.concat(bak).map(r => +r.nam || 0))).sort(); nams.forEach(y => soSanh('ngansach:' + y, 'Dự toán, giải ngân năm ' + (y || '(chưa ghi năm)'), cur.filter(r => (+r.nam || 0) === y), bak.filter(r => (+r.nam || 0) === y))); }
+      else soSanh(c, (Sc.C[c] && Sc.C[c].label) || c, cur, bak);
+    });
+    if (!nhom.length) { UI.toast('Dữ liệu hiện tại giống ' + ten + ' — không có gì để khôi phục.', 'ok'); return; }
+    const tongNS = rs => { const cha = new Set(rs.map(r => r.parentId).filter(Boolean)), la = rs.filter(r => !cha.has(r.id)); return { tong: U.sum(la, L.nsTong), gn: U.sum(la, r => r.giaiNgan) }; };
+    const m = UI.modal({ title: 'So sánh với ' + ten, size: 'lg',
+      body: '<p class="small soft">Chọn nhóm dữ liệu cần đưa về như ' + e(ten) + '. Nhóm không chọn giữ nguyên. Phần mềm chụp dữ liệu hiện tại trước khi khôi phục.</p><div class="tbl-wrap"><table class="tbl"><thead><tr><th></th><th>Nhóm dữ liệu</th><th class="num">Hiện tại</th><th class="num">Trong bản</th><th class="num">Sẽ thêm lại</th><th class="num">Sẽ xóa</th><th class="num">Sẽ đổi về</th><th>Số liệu</th></tr></thead><tbody>' +
+        nhom.map((g, i) => { const ns = g.key.startsWith('ngansach') ? [tongNS(g.cur), tongNS(g.bak)] : null; return '<tr><td><input type="checkbox" data-kp="' + i + '" aria-label="Khôi phục ' + e(g.label) + '"></td><td>' + e(g.label) + '</td><td class="num">' + g.cur.length + '</td><td class="num">' + g.bak.length + '</td><td class="num">' + g.them.length + '</td><td class="num">' + (g.xoa.length ? '<b style="color:var(--bad-fg)">' + g.xoa.length + '</b>' : 0) + '</td><td class="num">' + g.khac.length + '</td><td class="small">' + (ns ? 'Được sử dụng ' + U.fmtShort(ns[0].tong) + ' → ' + U.fmtShort(ns[1].tong) + '<br>Đã giải ngân ' + U.fmtShort(ns[0].gn) + ' → ' + U.fmtShort(ns[1].gn) : '') + '</td></tr>'; }).join('') + '</tbody></table></div>',
+      buttons: [{ label: 'Đóng', on: a => a.close() }, { label: 'Khôi phục nhóm đã chọn', cls: 'primary', icon: 'check', on: async a => {
+        const chon = $$('[data-kp]', m.body).filter(x => x.checked).map(x => nhom[+x.dataset.kp]); if (!chon.length) { UI.toast('Chưa chọn nhóm nào.', 'bad'); return; }
+        const n = U.sum(chon, g => g.them.length + g.xoa.length + g.khac.length);
+        if (!await UI.confirm({ title: 'Khôi phục ' + chon.length + ' nhóm?', msg: chon.map(g => '• ' + g.label + ': thêm lại ' + g.them.length + ', xóa ' + g.xoa.length + ', đổi về ' + g.khac.length).join('\n'), ok: 'Khôi phục', danger: true })) return;
+        try {
+          await S.snapshot('Trước khi khôi phục từng phần từ ' + ten);
+          const coll = g => g.key.split(':')[0], ds = [], bo = [];
+          chon.forEach(g => {
+            g.them.forEach(r => ds.push({ c: coll(g), rec: Object.assign({}, r) }));
+            g.khac.forEach(r => { const cu = S.get(coll(g), r.id) || {}, rec = {}; Object.keys(cu).forEach(k => { rec[k] = ''; }); ds.push({ c: coll(g), rec: Object.assign(rec, r) }); });
+            g.xoa.forEach(r => bo.push([coll(g), r.id]));
+          });
+          if (ds.length) await S.saveMany(ds, { note: 'Khôi phục từng phần từ ' + ten + ': ' + chon.map(g => g.label).join(', ') });
+          if (bo.length) await S.removeMany(bo, 'Khôi phục từng phần từ ' + ten + ': xóa ' + bo.length + ' bản ghi không có trong bản');
+          a.close(); UI.toast('Đã khôi phục ' + n + ' bản ghi.', 'ok'); A.render();
+        } catch (er) { UI.fail(er); }
+      } }] });
   };
 })(App);

@@ -102,6 +102,7 @@
   function lyDoGiu(r) {
     const ly = [];
     if (!r.goc && !(r.gnHist || []).some(h => h.nguon === 'excel')) ly.push('dòng tự thêm');
+    if (r.tuNamTruocId) ly.push('lập từ đề nghị chuyển nguồn năm trước');
     if (r.chuyenTu) ly.push('chuyển từ ' + (Sc.refName('donvi', r.chuyenTu) || 'đơn vị khác'));
     const qd = S.all('qddt').filter(q => (q.dong || []).some(d => d.nsId === r.id)); if (qd.length) ly.push('gắn QĐ ' + qd.map(q => q.so).join(', '));
     const hd = S.all('hopdong').filter(h => h.nsId === r.id); if (hd.length) ly.push('gắn hợp đồng ' + hd.map(h => h.so).join(', '));
@@ -333,7 +334,7 @@
       $$('[data-chuyendv]', root).forEach(b => b.onclick = ev => { ev.stopPropagation(); chuyenDonVi(b.dataset.chuyendv, y); });
       if ($('[data-sk-dv]', root)) $('[data-sk-dv]', root).onchange = ev => { Sel.skDv = ev.target.value; A.render(); };
       if ($('[data-tn-xls]', root)) $('[data-tn-xls]', root).onclick = () => A.nsXuatToanNganh(y);
-      if ($('[data-tn-pl]', root)) $('[data-tn-pl]', root).onclick = () => A.nsXuatMauPL(y);
+      if ($('[data-tn-pl]', root)) $('[data-tn-pl]', root).onclick = () => A.nsXuatMauPLHoi(y);
       if ($('[data-gn]', root)) { A.gnPane(Sel.tab, $('[data-gn]', root), y, Sel, { importBudget }); return; }
       if (Sel.tab !== 'ct') return;
       const box = $('[data-tree]', root);

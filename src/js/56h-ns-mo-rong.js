@@ -13,10 +13,17 @@
   const F = (k, label, type, o) => Object.assign({ k, label, type: type || 'text' }, o || {});
   const fs = U.fmtShort;
 
+  /* ---------- Mục 3: thứ tự đơn vị trên báo cáo, danh sách ---------- */
+  // Có "Thứ tự trên báo cáo" thì theo số đó; không có thì theo nhóm: Văn phòng Sở → chi cục → trung tâm → Văn phòng Đăng ký đất đai → khác
+  const hangDV = d => { const t = U.norm(d && d.ten); return /^van phong so\b/.test(t) ? 1 : /^chi cuc/.test(t) ? 2 : /^trung tam/.test(t) ? 3 : /^van phong dang ky/.test(t) ? 4 : /^phong\b/.test(t) ? 6 : 5; };
+  L.dvCmp = (a, b) => { const ta = U.num(a && a.thuTu) || 0, tb = U.num(b && b.thuTu) || 0; if (ta || tb) return (ta || 999) - (tb || 999) || U.cmp(a.ten, b.ten); return hangDV(a) - hangDV(b) || 0; };
+  const goc1 = L.nsByDonVi; L.nsByDonVi = nam => goc1(nam).sort((x, y) => L.dvCmp(x.dv, y.dv));
+  const goc2 = L.dvDuToan; L.dvDuToan = () => goc2().slice().sort(L.dvCmp);
+
   /* ---------- Trường dữ liệu mới ---------- */
   const fLoai = Sc.field('donvi', 'loai');
   if (fLoai) { fLoai.type = 'select'; fLoai.options = [['dutoan', 'Đơn vị dự toán'], ['phong', 'Phòng, bộ phận (không phải đơn vị dự toán)']]; fLoai.help = 'Phòng thuộc Văn phòng Sở (KHTC, QLMT…) chọn "Phòng, bộ phận": không hiện khi chọn đơn vị nhập biểu, chỉ dùng làm nơi thực hiện.'; }
-  Sc.C.donvi.fields.splice(3, 0, F('maQHNS', 'Mã đơn vị quan hệ ngân sách', 'text', { table: true }), F('thuocId', 'Thuộc đơn vị dự toán', 'ref', { ref: 'donvi', help: 'Với phòng, bộ phận: đơn vị dự toán quản lý (thường là Văn phòng Sở)' }));
+  Sc.C.donvi.fields.splice(3, 0, F('thuTu', 'Thứ tự trên báo cáo', 'number', { help: 'Số nhỏ đứng trước (ví dụ Văn phòng Sở = 1). Bỏ trống: Văn phòng Sở, chi cục, trung tâm, Văn phòng Đăng ký đất đai theo thứ tự đó.' }), F('maQHNS', 'Mã đơn vị quan hệ ngân sách', 'text', { table: true }), F('thuocId', 'Thuộc đơn vị dự toán', 'ref', { ref: 'donvi', help: 'Với phòng, bộ phận: đơn vị dự toán quản lý (thường là Văn phòng Sở)' }));
   const nsF = Sc.C.ngansach.fields, sau = (k, ...fs_) => { const i = nsF.findIndex(f => f.k === k); nsF.splice(i + 1, 0, ...fs_); };
   sau('donViId', F('phongId', 'Phòng, bộ phận thực hiện', 'ref', { ref: 'donvi', help: 'Nơi thực hiện nội dung (ví dụ Phòng KH-TC thuộc Văn phòng Sở); đơn vị dự toán vẫn là đơn vị được giao.' }));
   sau('chuongKhoan', F('chuong', 'Chương'), F('loaiNS', 'Loại'), F('khoan', 'Khoản'), F('maNguon', 'Mã nguồn kinh phí', 'select', { options: L.NS_NGUON, help: 'Bỏ trống: phần mềm tự xác định theo nội dung dòng và dòng cha' }));
@@ -109,7 +116,7 @@
   A.nsCuoiNam = (box, y, Sel) => {
     const la = L.gnLeaves(y, { dv: Sel.dv }), con = la.filter(n => n.sum.conLai > 0.5).sort((a, b) => b.sum.conLai - a.sum.conLai);
     const cong = k => U.sum(con.filter(n => (n.r.cuoiNamXL || '') === k), n => n.r.cuoiNamXL ? U.num(n.r.cuoiNamTien || n.sum.conLai) : n.sum.conLai);
-    let h = '<div class="toolbar">' + dvSel(Sel, 'data-cdv') + '<span class="sp"></span><button class="btn" data-qt>' + ic('check', 16) + 'Ghi số quyết toán bằng số giải ngân</button><button class="btn" data-cxls>' + ic('download', 16) + 'Xuất danh sách đề nghị</button></div>';
+    let h = '<div class="toolbar">' + dvSel(Sel, 'data-cdv') + '<span class="sp"></span><button class="btn" data-qt>' + ic('check', 16) + 'Ghi số quyết toán bằng số giải ngân</button><button class="btn" data-cxls>' + ic('download', 16) + 'Xuất danh sách đề nghị</button><button class="btn" data-cvb>' + ic('doc', 16) + 'Soạn văn bản đề nghị</button><button class="btn" data-cnam>' + ic('plus', 16) + 'Lập dòng chuyển nguồn năm ' + (y + 1) + '</button><button class="btn" data-ssnam>' + ic('table', 16) + 'So sánh ' + y + ' – ' + (y + 1) + '</button></div>';
     h += '<div class="note mb small">Rà soát các nội dung còn kinh phí để đề xuất xử lý trước khi khóa sổ: tiếp tục giải ngân trước 31/12, đề nghị chuyển nguồn, hủy dự toán hoặc thu hồi. Đề xuất được lưu trên từng dòng; danh sách xuất Excel theo đơn vị để lập văn bản trình. Phần mềm không tự xác định nội dung đủ điều kiện chuyển nguồn: căn cứ quy định hiện hành và hướng dẫn của Sở Tài chính.</div>';
     h += '<div class="kpis mb">' + [['', 'Chưa đề xuất', 'warn'], ['tiep', 'Tiếp tục giải ngân', 'ok'], ['chuyennguon', 'Chuyển nguồn', 'teal'], ['huy', 'Hủy dự toán', 'bad'], ['thuhoi', 'Thu hồi', 'violet']].map(x => '<div class="kpi ' + x[2] + ' static"><span class="k-l">' + x[1] + '</span><span class="k-v"><small>' + fs(cong(x[0])) + '</small></span><span class="k-s">' + con.filter(n => (n.r.cuoiNamXL || '') === x[0]).length + ' nội dung</span></div>').join('') + '</div>';
     h += con.length ? '<div class="tbl-wrap" style="max-height:66vh;overflow:auto"><table class="tbl"><thead><tr><th>Nội dung</th><th class="num">Được sử dụng</th><th class="num">Còn lại</th><th class="num">Tạm ứng</th><th style="min-width:170px">Đề xuất xử lý</th><th class="num" style="min-width:140px">Số tiền</th><th style="min-width:200px">Lý do, căn cứ</th></tr></thead><tbody>' +
@@ -125,6 +132,9 @@
       $('[data-tien]', tr).onchange = x => { const v = x.target.value.trim(); luu({ cuoiNamTien: v ? U.num(v.replace(/[.\s]/g, '').replace(',', '.')) : '' }); };
       $('[data-lydo]', tr).onchange = x => luu({ cuoiNamLyDo: x.target.value.trim() });
     });
+    $('[data-cvb]', box).onclick = () => A.vbCuoiNam(y, Sel.dv);
+    $('[data-cnam]', box).onclick = () => A.nsLapChuyenNguon(y, Sel.dv);
+    $('[data-ssnam]', box).onclick = () => A.nsSoSanhNam(y);
     $('[data-cxls]', box).onclick = () => {
       const ds = con.filter(n => n.r.cuoiNamXL && n.r.cuoiNamXL !== 'tiep'); if (!ds.length) { UI.toast('Chưa có nội dung nào được đề xuất chuyển nguồn, hủy dự toán hoặc thu hồi.', 'bad'); return; }
       const hd = ['TT', 'Đơn vị dự toán', 'Nội dung', 'Chương', 'Loại', 'Khoản', 'Nguồn', 'Được sử dụng', 'Đã giải ngân', 'Còn lại', 'Đề xuất', 'Số tiền', 'Lý do, căn cứ'];
@@ -184,6 +194,47 @@
   };
   /* Mục 10: báo cáo theo mẫu Phụ lục I (tổng hợp theo nguồn, theo đơn vị) và Phụ lục II (chi tiết từng đơn vị) như biểu của Sở.
      Cột: chuyển nguồn, dự toán đầu năm, bổ sung, điều chỉnh tăng/giảm, thu hồi, [tiết kiệm nếu có], tổng được sử dụng, đã giải ngân, còn lại, tỷ lệ. */
+  /* ---------- Mục 8: dự toán năm sau ---------- */
+  // Lập (hoặc cập nhật) các dòng năm y+1 từ nội dung đề nghị chuyển nguồn năm y: mỗi đơn vị một dòng nhóm "Kinh phí chuyển nguồn từ năm y",
+  // dòng con giữ nội dung, mã Chương-Loại-Khoản, nguồn; số = số đề nghị chuyển nguồn (ghi vào cột "chuyển nguồn"). Liên kết dòng gốc qua tuNamTruocId.
+  A.nsLapChuyenNguon = async (y, dvId) => {
+    const ds = L.gnLeaves(y, { dv: dvId || '' }).filter(n => n.r.cuoiNamXL === 'chuyennguon'), y2 = y + 1;
+    if (!ds.length) { UI.toast('Chưa có nội dung nào được đề xuất chuyển nguồn năm ' + y + '.', 'bad'); return; }
+    const cu = S.all('ngansach').filter(r => +r.nam === y2 && r.tuNamTruocId), soMoi = ds.filter(n => !cu.some(r => r.tuNamTruocId === n.r.id)).length;
+    if (!await UI.confirm({ title: 'Lập dòng chuyển nguồn năm ' + y2 + '?', msg: ds.length + ' nội dung đề nghị chuyển nguồn, cộng ' + U.fmtMoney(U.sum(ds, n => U.num(n.r.cuoiNamTien || n.sum.conLai))) + ' đồng.\n\n• ' + soMoi + ' dòng mới được tạo trong dự toán năm ' + y2 + ' (cột "KP chuyển nguồn năm trước sang").\n• ' + (ds.length - soMoi) + ' dòng đã lập trước đây được cập nhật số tiền.\n\nSố chuyển nguồn chính thức theo quyết định của cấp có thẩm quyền: khi có quyết định, sửa lại số hoặc nhập biểu năm ' + y2 + '.', ok: 'Lập dòng' })) return;
+    const ops = [], nhom = {};
+    ds.forEach(n => {
+      const dv = n.r.donViId;
+      if (!nhom[dv]) { const g = S.all('ngansach').find(r => +r.nam === y2 && r.donViId === dv && r.nhomChuyenNguon === y); nhom[dv] = g ? g.id : U.uid('ns'); if (!g) ops.push({ c: 'ngansach', rec: { id: nhom[dv], nam: y2, donViId: dv, parentId: '', stt: 'CN', noiDung: 'Kinh phí chuyển nguồn từ năm ' + y + ' sang năm ' + y2, nhomChuyenNguon: y, thuTu: -1 } }); }
+      const ma = L.nsMa(n.r), old = cu.find(r => r.tuNamTruocId === n.r.id), so = U.num(n.r.cuoiNamTien || n.sum.conLai);
+      ops.push({ c: 'ngansach', rec: Object.assign(old ? { id: old.id } : { id: U.uid('ns'), nam: y2, donViId: dv, parentId: nhom[dv], stt: n.r.stt || '', noiDung: n.r.noiDung, tuNamTruocId: n.r.id, canBoId: n.r.canBoId || '', phongId: n.r.phongId || '', chuong: ma.chuong, loaiNS: ma.loai, khoan: ma.khoan, maNguon: ma.nguon || '' }, { chuyenNguon: so, ghiChu: 'Lập từ đề nghị chuyển nguồn năm ' + y + (n.r.cuoiNamLyDo ? ': ' + n.r.cuoiNamLyDo : '') }) });
+    });
+    try { await S.saveMany(ops, { note: 'Lập ' + ds.length + ' dòng chuyển nguồn năm ' + y2 + ' từ đề nghị cuối năm ' + y }); UI.toast('Đã lập ' + ds.length + ' dòng chuyển nguồn trong dự toán năm ' + y2 + '. Chọn năm ' + y2 + ' để xem.', 'ok'); } catch (er) { UI.fail(er); }
+  };
+  // So sánh dự toán năm y với năm y+1 theo đơn vị
+  A.nsSoSanhNam = y => {
+    const y2 = y + 1, dvs = L.dvDuToan().filter(d => S.all('ngansach').some(r => r.donViId === d.id && (+r.nam === y || +r.nam === y2)));
+    const t = (nam, id) => L.nsTree(nam, id).total, rows = dvs.map(d => ({ d, a: t(y, d.id), b: t(y2, d.id) }));
+    if (!rows.length) { UI.toast('Chưa có dữ liệu năm ' + y + ' hoặc ' + y2 + '.', 'bad'); return; }
+    const sum = (k, f) => U.sum(rows, x => x[k][f] || 0), cl = (a, b) => b - a, mm = v => U.fmtMoney(v || 0);
+    const hd = ['Đơn vị', 'DT đầu năm ' + y, 'Được sử dụng ' + y, 'Đã giải ngân ' + y, 'DT đầu năm ' + y2, 'Chuyển nguồn sang ' + y2, 'Được sử dụng ' + y2, 'Chênh DT đầu năm'];
+    const dong = (ten, a, b) => [ten, a.duToan || 0, a.tong || 0, a.giaiNgan || 0, b.duToan || 0, b.chuyenNguon || 0, b.tong || 0, cl(a.duToan || 0, b.duToan || 0)];
+    const T = { a: {}, b: {} }; ['duToan', 'tong', 'giaiNgan', 'chuyenNguon'].forEach(f => { T.a[f] = sum('a', f); T.b[f] = sum('b', f); });
+    const all = rows.map(x => dong(x.d.ten, x.a, x.b)).concat([dong('Cộng', T.a, T.b)]);
+    const m = UI.modal({ title: 'So sánh dự toán năm ' + y + ' và ' + y2, size: 'xl',
+      body: '<p class="small soft">Năm ' + y2 + ' gồm số đã nhập (biểu dự toán năm ' + y2 + ', dòng lập từ đề nghị chuyển nguồn). Cột "Chênh" = dự toán đầu năm ' + y2 + ' trừ dự toán đầu năm ' + y + '.</p><div class="tbl-wrap"><table class="tbl"><thead><tr>' + hd.map((h, i) => '<th' + (i ? ' class="num"' : '') + '>' + e(h) + '</th>').join('') + '</tr></thead><tbody>' +
+        all.map((r, i) => '<tr' + (i === all.length - 1 ? ' style="font-weight:600"' : '') + '><td>' + e(r[0]) + '</td>' + r.slice(1).map((v, j) => '<td class="num"' + (j === 6 && v < 0 ? ' style="color:var(--bad-fg)"' : '') + '>' + mm(v) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>',
+      buttons: [{ label: 'Đóng', on: a => a.close() }, { label: 'Xuất Excel', icon: 'download', on: () => UI.xlsx('so-sanh-du-toan-' + y + '-' + y2 + '.xlsx', [{ name: 'So sanh ' + y + '-' + y2, aoa: [['SO SÁNH DỰ TOÁN NĂM ' + y + ' VÀ NĂM ' + y2], [], hd].concat(all), widths: [44].concat(hd.slice(1).map(() => 18)) }]) }] });
+    return m;
+  };
+
+  // Hỏi cách nhóm nguồn rồi xuất (nhớ lựa chọn)
+  A.nsXuatMauPLHoi = y => {
+    const cur = S.cfg.plNhom || 'mauso';
+    const m = UI.modal({ title: 'Xuất theo mẫu Phụ lục I, II', size: 'sm',
+      body: '<div class="fld"><label>Cách nhóm nguồn ở Phụ lục I</label><label class="check"><input type="radio" name="pl_n" value="mauso"' + (cur === 'mauso' ? ' checked' : '') + '> Theo mẫu của Sở: tự chủ (gồm tiền thưởng NĐ 73) · tiết kiệm CCTL · không tự chủ (gồm KH-CN, chuyển đổi số, NSTW) · từng chương trình MTQG · viện trợ</label><label class="check mt"><input type="radio" name="pl_n" value="chitiet"' + (cur === 'chitiet' ? ' checked' : '') + '> Chi tiết: tách riêng tiền thưởng, KH-CN và chuyển đổi số, NSTW bổ sung có mục tiêu</label></div><p class="small soft mt">Thứ tự đơn vị theo trường "Thứ tự trên báo cáo" ở danh mục đơn vị (bỏ trống: Văn phòng Sở, chi cục, trung tâm, Văn phòng Đăng ký đất đai).</p>',
+      buttons: [{ label: 'Hủy', on: a => a.close() }, { label: 'Xuất Excel', cls: 'primary', icon: 'download', on: async a => { const v = (m.body.querySelector('[name=pl_n]:checked') || {}).value || 'mauso'; if (v !== cur) await S.setCfg({ plNhom: v }); a.close(); A.nsXuatMauPL(y); } }] });
+  };
   A.nsXuatMauPL = y => {
     const dvs = L.nsByDonVi(y).filter(x => x.count); if (!dvs.length) { UI.toast('Chưa có dữ liệu năm ' + y + '.', 'bad'); return; }
     const all = L.gnLeaves(y, {}), ky = S.all('ngansach').filter(r => +r.nam === y).map(r => r.ngayGN || r.bieuNgay).concat(all.map(n => ((n.r.gnHist || []).slice(-1)[0] || {}).ngay)).filter(U.isISO).sort().pop() || U.today();
@@ -192,10 +243,11 @@
     const cong = ns => { const o = {}; F.concat(['giaiNgan']).forEach(k => { o[k] = U.sum(ns, n => n.sum[k]); }); o.tong = U.sum(ns, n => n.sum.tong); o.con = o.tong - o.giaiNgan; o.ty = o.tong ? o.giaiNgan / o.tong : ''; return o; };
     const dong = (stt, ten, o) => [stt, ten].concat(F.map(k => o[k] || 0)).concat([o.tong || 0, o.giaiNgan || 0, o.con || 0, o.ty === '' ? '' : Math.round(o.ty * 10000) / 100]);
     // Nhóm nguồn: tách riêng từng chương trình MTQG
-    const nhom = n => { const k = L.nsMa(n.r).nguon || 'khac'; if (k !== 'ctmtqg') return k; const t = U.norm([n.r.noiDung, (S.get('ngansach', n.r.parentId) || {}).noiDung].join(' ')); return /dan toc|1719/.test(t) ? 'mtqg_dtts' : /giam ngheo/.test(t) ? 'mtqg_gn' : /nong thon moi/.test(t) ? 'mtqg_ntm' : 'ctmtqg'; };
-    const TEN = { mtqg_dtts: 'Chương trình MTQG phát triển KT-XH vùng đồng bào DTTS và miền núi', mtqg_ntm: 'Chương trình MTQG xây dựng nông thôn mới', mtqg_gn: 'Chương trình MTQG giảm nghèo bền vững' };
+    const MAU_SO = (S.cfg.plNhom || 'mauso') === 'mauso', vienTro = n => { let x = n.r, c = 0; while (x && c++ < 12) { if (/vien tro/.test(U.norm(x.noiDung))) return true; x = S.get('ngansach', x.parentId); } return false; };
+    const nhom = n => { if (vienTro(n)) return 'vientro'; const k0 = L.nsMa(n.r).nguon || 'khac', k = MAU_SO ? ({ thuong: 'tuchu', nstw: 'khongtuchu', khcn: 'khongtuchu', sdd: 'khongtuchu', khac: 'khongtuchu' }[k0] || k0) : k0; if (k !== 'ctmtqg') return k; const t = U.norm([n.r.noiDung, (S.get('ngansach', n.r.parentId) || {}).noiDung].join(' ')); return /dan toc|1719/.test(t) ? 'mtqg_dtts' : /giam ngheo/.test(t) ? 'mtqg_gn' : /nong thon moi/.test(t) ? 'mtqg_ntm' : 'ctmtqg'; };
+    const TEN = MAU_SO ? { tuchu: 'Kinh phí tự chủ, thường xuyên', cctl: 'Kinh phí tiết kiệm 10% CCTL', khongtuchu: 'Kinh phí không tự chủ, không thường xuyên', vientro: 'Nguồn viện trợ không hoàn lại', mtqg_dtts: 'Chương trình MTQG phát triển KT-XH vùng đồng bào DTTS và miền núi', mtqg_ntm: 'Chương trình MTQG xây dựng nông thôn mới', mtqg_gn: 'Chương trình MTQG giảm nghèo bền vững' } : { vientro: 'Nguồn viện trợ không hoàn lại', mtqg_dtts: 'Chương trình MTQG phát triển KT-XH vùng đồng bào DTTS và miền núi', mtqg_ntm: 'Chương trình MTQG xây dựng nông thôn mới', mtqg_gn: 'Chương trình MTQG giảm nghèo bền vững' };
     const tenNhom = k => TEN[k] || L.nsNguonTen(k === 'khac' ? '' : k) || 'Nguồn khác';
-    const THU = ['tuchu', 'cctl', 'thuong', 'khongtuchu', 'nstw', 'khcn', 'sdd', 'mtqg_dtts', 'mtqg_ntm', 'mtqg_gn', 'ctmtqg', 'khac'];
+    const THU = ['tuchu', 'cctl', 'thuong', 'khongtuchu', 'nstw', 'khcn', 'sdd', 'mtqg_dtts', 'mtqg_ntm', 'mtqg_gn', 'ctmtqg', 'khac', 'vientro'];
     const theoNhom = ns => { const m = new Map(); ns.forEach(n => { const k = nhom(n); (m.get(k) || m.set(k, []).get(k)).push(n); }); return Array.from(m.entries()).sort((a, b) => (THU.indexOf(a[0]) + 99) % 99 - (THU.indexOf(b[0]) + 99) % 99); };
     const ngay = U.fmtDate(ky), coQuan = (A.cfg('coQuan') || 'Sở Nông nghiệp và Môi trường').toUpperCase();
     const head = ten => { const h1 = ['STT', ten, 'Kinh phí chuyển nguồn năm ' + (y - 1) + ' sang năm ' + y, 'Dự toán giao đầu năm ' + y, 'KP bổ sung trong năm', 'Điều chỉnh', '', 'KP thu hồi trong năm'].concat(coTK ? ['Tiết kiệm chi'] : []).concat(['Tổng KP được sử dụng trong năm ' + y, 'Kinh phí đã giải ngân đến ' + ngay, 'Kinh phí còn lại', 'Tỷ lệ giải ngân %']);

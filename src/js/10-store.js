@@ -244,11 +244,11 @@
       S.emit({ bulk: true, cfg: true });
       return stat;
     },
-    /* Bản chụp an toàn trước thao tác lớn (giữ 3 bản gần nhất, không kèm tệp) */
+    /* Bản chụp an toàn trước thao tác lớn (giữ 6 bản gần nhất, không kèm tệp) */
     async snapshot(reason) {
       const snap = await S.exportAll(false); snap.reason = reason;
       const list = (await S.adapter.getMeta('snapshots')) || [];
-      list.unshift(snap); while (list.length > 3) list.pop();
+      list.unshift(snap); while (list.length > 6) list.pop();
       try { await S.adapter.setMeta('snapshots', list); } catch (e) { console.warn('Không lưu được bản chụp', e); }
     },
     async snapshots() { return (await S.adapter.getMeta('snapshots')) || []; },

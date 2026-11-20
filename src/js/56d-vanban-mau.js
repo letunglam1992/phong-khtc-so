@@ -172,6 +172,47 @@
     });
   }
 
+  /* ---------- Mục 7: hồ sơ xử lý kinh phí cuối năm (chuyển nguồn, hủy dự toán, thu hồi) ---------- */
+  // Căn cứ để trống trong ngoặc vuông: người soạn ghi đúng văn bản hiện hành và hướng dẫn khóa sổ năm của Bộ Tài chính, Sở Tài chính
+  const XL_TEN = { chuyennguon: 'Đề nghị chuyển nguồn sang năm sau', huy: 'Hủy dự toán', thuhoi: 'Thu hồi về ngân sách' };
+  function bangCuoiNam(ds, y) {
+    const nhomTT = ['chuyennguon', 'huy', 'thuhoi'];
+    let h = '', stt = 0;
+    nhomTT.forEach(k => {
+      const l = ds.filter(n => n.r.cuoiNamXL === k); if (!l.length) return;
+      const so = n => U.num(n.r.cuoiNamTien || n.sum.conLai);
+      h += '<tr><td class="vb-c"><b>' + ['I', 'II', 'III'][stt++] + '</b></td><td colspan="5"><b>' + e(XL_TEN[k].toUpperCase() + (k === 'chuyennguon' ? ' ' + (y + 1) : '')) + '</b></td><td class="num"><b>' + fm(U.sum(l, so)) + '</b></td><td></td></tr>' +
+        l.map((n, i) => { const ma = L.nsMa(n.r); return '<tr><td class="vb-c">' + (i + 1) + '</td><td>' + e((n.r.stt ? n.r.stt + ' ' : '') + n.r.noiDung) + '</td><td>' + e(Sc.refName('donvi', n.r.donViId)) + '</td><td class="vb-c">' + e([ma.chuong, ma.loai, ma.khoan].filter(Boolean).join('-')) + '</td><td class="num">' + fm(n.sum.tong) + '</td><td class="num">' + fm(n.sum.giaiNgan) + '</td><td class="num">' + fm(so(n)) + '</td><td>' + e(n.r.cuoiNamLyDo || '') + '</td></tr>'; }).join('');
+    });
+    return '<table class="vb-tbl"><thead><tr><th>TT</th><th>Nội dung</th><th>Đơn vị</th><th>Chương-Loại-Khoản</th><th>Kinh phí được sử dụng</th><th>Đã giải ngân</th><th>Số đề nghị</th><th>Lý do, căn cứ</th></tr></thead><tbody>' + h + '</tbody></table>';
+  }
+  function vbCuoiNamHtml(y, ds, la, loai, dvTen) {
+    const c = A.vbCfg(), cong = k => U.sum(ds.filter(n => n.r.cuoiNamXL === k), n => U.num(n.r.cuoiNamTien || n.sum.conLai)), dem = k => ds.filter(n => n.r.cuoiNamXL === k).length;
+    const tong = U.sum(la, n => n.sum.tong), gn = U.sum(la, n => n.sum.giaiNgan), con = tong - gn, chuaDX = la.filter(n => n.sum.conLai > 0.5 && !n.r.cuoiNamXL);
+    const pham = dvTen ? 'của ' + dvTen : 'của các đơn vị dự toán trực thuộc';
+    const canCuCN = P('<i>[Căn cứ Luật Ngân sách nhà nước và các văn bản hướng dẫn hiện hành về chuyển nguồn, hủy dự toán cuối năm];</i>') + P('<i>[Căn cứ văn bản hướng dẫn khóa sổ kế toán, quyết toán ngân sách năm ' + y + ' của Bộ Tài chính, Sở Tài chính];</i>') + P('<i>Căn cứ Quyết định số …/QĐ-UBND ngày … của Ủy ban nhân dân tỉnh Sơn La về việc giao dự toán ngân sách nhà nước năm ' + y + ';</i>');
+    const soLieu = P('Tổng kinh phí được sử dụng năm ' + y + ' ' + e(pham) + ' là ' + fm(tong) + ' đồng; đã giải ngân ' + fm(gn) + ' đồng, đạt ' + U.fmtPct(U.pct(gn, tong)) + '; còn lại ' + fm(con) + ' đồng. Trên cơ sở rà soát của các đơn vị, đề xuất xử lý như sau:') +
+      [dem('chuyennguon') ? 'Đề nghị chuyển nguồn sang năm ' + (y + 1) + ' tiếp tục thực hiện: ' + dem('chuyennguon') + ' nội dung, số tiền ' + fm(cong('chuyennguon')) + ' đồng (' + e(A.bangChu(cong('chuyennguon')).toLowerCase()) + ').' : '',
+        dem('huy') ? 'Hủy dự toán: ' + dem('huy') + ' nội dung, số tiền ' + fm(cong('huy')) + ' đồng.' : '',
+        dem('thuhoi') ? 'Thu hồi về ngân sách: ' + dem('thuhoi') + ' nội dung, số tiền ' + fm(cong('thuhoi')) + ' đồng.' : '',
+        chuaDX.length ? 'Còn ' + chuaDX.length + ' nội dung với ' + fm(U.sum(chuaDX, n => n.sum.conLai)) + ' đồng chưa có đề xuất: các đơn vị tiếp tục giải ngân đến hết ngày 31/12/' + y + '.' : ''].filter(Boolean).map((t, i) => P((i + 1) + '. ' + t)).join('') +
+      P('(Chi tiết tại Phụ lục kèm theo.)');
+    const phuLuc = '<p class="vb-c"><b>PHỤ LỤC</b></p><p class="vb-c"><b>DANH SÁCH ĐỀ NGHỊ XỬ LÝ KINH PHÍ CUỐI NĂM ' + y + '</b></p><p class="vb-c"><i>(Kèm theo ' + (loai === 'tt' ? 'Tờ trình' : 'Công văn') + ' số&nbsp;&nbsp;&nbsp;&nbsp;/' + e(loai === 'tt' ? 'TTr-' + c.khSo + '-' + c.khPhong : c.khSo + '-' + c.khPhong) + ' ngày&nbsp;&nbsp;&nbsp;&nbsp;/&nbsp;&nbsp;&nbsp;&nbsp;/' + y + ')</i></p><p class="vb-c"><i>Đơn vị tính: đồng</i></p>' + bangCuoiNam(ds, y);
+    if (loai === 'tt') return khung({ phong: true, soKH: 'TTr', tenLoai: 'TỜ TRÌNH', trichYeu: 'Về việc đề nghị chuyển nguồn, hủy dự toán, thu hồi kinh phí năm ' + y + (dvTen ? ' của ' + dvTen : ''), kinhGui: [c.kinhGuiTT],
+      than: canCuCN + soLieu + P(e(A.cfg('tenDonVi')) + ' kính trình Giám đốc Sở xem xét, có văn bản đề nghị Sở Tài chính thẩm định, trình cấp có thẩm quyền quyết định./.'), noiNhan: ['Như trên', 'Lưu: ' + c.khPhong], ky: c.ky.totrinh, phuLuc });
+    return khung({ trichYeu: 'đề nghị chuyển nguồn, hủy dự toán, thu hồi kinh phí năm ' + y, kinhGui: ['Sở Tài chính tỉnh Sơn La'],
+      than: canCuCN + P(e(soTen()) + ' báo cáo tình hình thực hiện dự toán năm ' + y + ' và đề nghị xử lý kinh phí cuối năm như sau:') + soLieu + P(e(soTen()) + ' đề nghị Sở Tài chính xem xét, thẩm định, tham mưu cấp có thẩm quyền quyết định./.'),
+      noiNhan: ['Như trên', 'Lãnh đạo Sở', 'Các đơn vị trực thuộc có liên quan', 'Lưu: VT, ' + c.khPhong], ky: c.ky.congvan, phuLuc });
+  }
+  A.vbCuoiNam = (y, dvId) => {
+    const la = L.gnLeaves(y, { dv: dvId || '' }), ds = la.filter(n => ['chuyennguon', 'huy', 'thuhoi'].includes(n.r.cuoiNamXL));
+    if (!ds.length) { UI.toast('Chưa có nội dung nào được đề xuất chuyển nguồn, hủy dự toán hoặc thu hồi.', 'bad'); return; }
+    const dvTen = dvId ? Sc.refName('donvi', dvId) : '';
+    const m = UI.modal({ title: 'Soạn văn bản xử lý kinh phí cuối năm ' + y, size: 'sm', footer: false,
+      body: '<button class="cmd-i" data-l="tt">' + ic('doc', 17) + '<span class="ct">Tờ trình của Phòng trình Giám đốc Sở</span></button><button class="cmd-i" data-l="cv">' + ic('doc', 17) + '<span class="ct">Công văn của Sở gửi Sở Tài chính</span></button><p class="small soft mt">Căn cứ pháp lý để trong ngoặc vuông — ghi đúng văn bản hiện hành và hướng dẫn khóa sổ năm ' + y + ' trước khi trình.</p>' });
+    UI.on(m.body, 'click', '[data-l]', b => { m.close(true); const l = b.dataset.l; A.vbXem(l === 'tt' ? 'Tờ trình xử lý kinh phí cuối năm' : 'Công văn đề nghị xử lý kinh phí cuối năm', vbCuoiNamHtml(y, ds, la, l, dvTen), (l === 'tt' ? 'to-trinh' : 'cong-van') + '-xu-ly-kinh-phi-cuoi-nam-' + y); });
+  };
+
   /* ---------- Điểm vào từ giao diện ---------- */
   // Gói thầu: chọn các gói cùng kế hoạch rồi soạn tờ trình / quyết định
   A.vbGoiThau = (g, loai) => {
