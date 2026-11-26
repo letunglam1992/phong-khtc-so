@@ -178,11 +178,12 @@
         o.nam = o.parsed.nam || (o.ngay ? +o.ngay.slice(0, 4) : (A.year() || +U.today().slice(0, 4)));
         const leaf = o.parsed.items.filter(i => !i.isGroup); o.tong = U.sum(leaf, L.nsTong); o.gn = U.sum(leaf, i => i.giaiNgan);
         o.mtqg = L.nsMTQGTongHop(wb, dvs);
+        if (wb.SheetNames.length > 1) o.fname = f.name + ' [trang "' + sh + '"]';
       } catch (er) { o.loi = er.message || String(er); }
       // Biểu tổng hợp của Sở (mục I, II… là đơn vị): tách từng đơn vị; phần chưa có số liệu bỏ qua để không ghi đè số đã có
       const tach = !o.loi && L.nsTachDonVi(o.parsed, dvs);
       if (tach && o.mtqg) tach.forEach(x => { if (x.dvId) x.themMTQG = L.nsGanMTQG(x, o.mtqg[x.dvId]); });
-      if (tach) tach.forEach(x => ds.push(Object.assign({}, o, { fname: f.name + ' — mục ' + x.parsed.items[0].stt + ' ' + x.ten, parsed: x.parsed, dvId: x.dvId, dvBieu: x.ten, tong: x.tong, gn: x.gn, loi: x.rong ? 'Phần này trên biểu chưa có số liệu: bỏ qua, giữ nguyên số đã có của đơn vị.' : x.parsed.warnings.some(w => w.includes('không ghi nội dung')) ? 'Có dòng ghi số tiền nhưng không ghi nội dung (' + x.parsed.warnings.filter(w => w.includes('không ghi nội dung')).map(w => w.split(' có số')[0]).join(', ') + '): bỏ qua phần này, sửa biểu rồi nhập lại.' : '' })));
+      if (tach) tach.forEach(x => ds.push(Object.assign({}, o, { fname: o.fname + ' — mục ' + x.parsed.items[0].stt + ' ' + x.ten, parsed: x.parsed, dvId: x.dvId, dvBieu: x.ten, tong: x.tong, gn: x.gn, loi: x.rong ? 'Phần này trên biểu chưa có số liệu: bỏ qua, giữ nguyên số đã có của đơn vị.' : x.parsed.warnings.some(w => w.includes('không ghi nội dung')) ? 'Có dòng ghi số tiền nhưng không ghi nội dung (' + x.parsed.warnings.filter(w => w.includes('không ghi nội dung')).map(w => w.split(' có số')[0]).join(', ') + '): bỏ qua phần này, sửa biểu rồi nhập lại.' : '' })));
       else { if (dvChon && !o.loi) o.dvId = dvChon; ds.push(o); }
     }
     const dvOpt = v => '<option value="">— Chọn đơn vị —</option><option value="-"' + (v === '-' ? ' selected' : '') + '>— Không nhập phần này —</option>' + dvs.map(d => '<option value="' + d.id + '"' + (d.id === v ? ' selected' : '') + '>' + e(d.ten) + '</option>').join('');

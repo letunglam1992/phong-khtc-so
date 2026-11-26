@@ -301,7 +301,26 @@
   /* Đọc biểu "Báo cáo tình hình thực hiện giải ngân thanh toán NSNN" (mẫu Phòng đang dùng).
      rows: mảng 2 chiều giá trị thô; fmt: mảng 2 chiều chuỗi hiển thị (để lấy STT đúng như trên biểu). */
   // Trang tính chứa biểu giải ngân: "Nhiệm vụ" nếu có, không thì trang đầu tiên có dòng tiêu đề đúng mẫu và có dòng dữ liệu (bỏ qua trang tổng hợp theo đơn vị)
-  L.nsTrangBieu = wb => wb.SheetNames.find(n => U.norm(n) === 'nhiem vu') || wb.SheetNames.find(n => { try { const o = { header: 1, defval: null }, ws = wb.Sheets[n]; return L.parseBudget(XLSX.utils.sheet_to_json(ws, Object.assign({ raw: true }, o)), XLSX.utils.sheet_to_json(ws, Object.assign({ raw: false }, o))).items.length > 0; } catch (x) { return false; } }) || wb.SheetNames[0];
+  // Trang tính chứa biểu giải ngân: "Nhiệm vụ" nếu có; nhiều trang đúng mẫu (vd. bản chép cũ "Tong hop chung" và "KP thường xuyên")
+  // thì chọn trang có dòng TỔNG CỘNG khớp trang "Tổng hợp" (Phụ lục I, mục A trừ phần Chương trình MTQG); không có trang Tổng hợp thì lấy trang đầu.
+  L.nsTrangBieu = wb => {
+    const nv = wb.SheetNames.find(n => U.norm(n) === 'nhiem vu'); if (nv) return nv;
+    const o = { header: 1, defval: null }, doc = (n, sua) => { const ws = wb.Sheets[n], f = rs => sua ? rs.map(r => (r || []).map(c => typeof c === 'string' && U.norm(c) === 'don vi' ? 'Nội dung' : c)) : rs; try { return L.parseBudget(f(XLSX.utils.sheet_to_json(ws, Object.assign({ raw: true }, o))), f(XLSX.utils.sheet_to_json(ws, Object.assign({ raw: false }, o)))); } catch (x) { return { items: [] }; } };
+    const ung = wb.SheetNames.map(n => ({ n, p: doc(n) })).filter(x => x.p.items.length);
+    if (ung.length <= 1) return ung.length ? ung[0].n : wb.SheetNames[0];
+    let dich = null;
+    wb.SheetNames.some(n => {
+      const ws = wb.Sheets[n], raw = XLSX.utils.sheet_to_json(ws, Object.assign({ raw: true }, o));
+      if (!raw.slice(0, 40).some(r => (r || []).some(c => typeof c === 'string' && U.norm(c) === 'don vi'))) return false;
+      const it = doc(n, true).items, a = it.findIndex(x => /^a$/i.test(String(x.stt || '').trim())), b = it.findIndex(x => /^b$/i.test(String(x.stt || '').trim()));
+      if (a < 0) return false;
+      dich = L.nsTong(it[a]) - U.sum(it.slice(a + 1, b > a ? b : it.length).filter(x => L.RE_MTQG && L.RE_MTQG.test(U.norm(x.noiDung))), L.nsTong);
+      return true;
+    });
+    const tongTrang = p => { const t = p.items.find(x => /^tong cong/.test(U.norm(x.noiDung))); return t ? L.nsTong(t) : U.sum(p.items.filter(x => x.level === 0), L.nsTong); };
+    if (dich === null) return ung[0].n;
+    return ung.map(x => ({ n: x.n, lech: Math.abs(tongTrang(x.p) - dich) })).sort((a, b) => a.lech - b.lech)[0].n;
+  };
   L.parseBudget = (rows, fmt) => {
     const nrm = v => U.norm(v), out = { items: [], warnings: [], headerRow: -1, title: '' };
     let hr = -1;
