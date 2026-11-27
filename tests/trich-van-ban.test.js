@@ -265,3 +265,39 @@ test('sửa lỗi nhận dạng chữ: cụm từ sai dấu hay gặp, giữ ki�
   assert.equal(T.suaOCR('HỢP ĐÒNG DỊCH VỤ; Hợp đông; CÔNG TY TNHH THẲM ĐỊNH GIÁ; nhà thâu; sô 580/QĐ; Quyêt định; CHUYỂN ĐÓI SÓ; kê từ ngày; kê khai; số 5; Đất đai'),
     'HỢP ĐỒNG DỊCH VỤ; Hợp đồng; CÔNG TY TNHH THẨM ĐỊNH GIÁ; nhà thầu; số 580/QĐ; Quyết định; CHUYỂN ĐỔI SỐ; kể từ ngày; kê khai; số 5; Đất đai');
 });
+
+test('QĐ đặt hàng theo mẫu của Sở: nhà cung cấp, danh mục dịch vụ, dự toán, thời gian, loại hợp đồng, cơ quan ban hành 2 cột', () => {
+  const t = `   UBND TỈNH SƠN LA            CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM
+   SỞ NÔNG NGHIỆP                    Độc lập - Tự do - Hạnh phúc
+   VÀ MÔI TRƯỜNG
+   Số: 900/QĐ-SNNMT              Sơn La, ngày 31 tháng 12 năm 2025
+QUYẾT ĐỊNH
+Về việc đặt hàng cung cấp dịch vụ công thử nghiệm năm 2026
+Nhiệm vụ: Thu gom thử nghiệm tại xã Thử Nghiệm
+GIÁM ĐỐC SỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG
+Căn cứ Nghị định số 32/2019/NĐ-CP;
+QUYẾT ĐỊNH:
+Điều 1: Đặt hàng cung cấp dịch vụ công thử nghiệm với các nội dung như sau:
+1. Tên nhà cung cấp dịch vụ: Công ty Cổ phần Thử
+nghiệm Sơn La
+2. Tên danh mục dịch vụ sự nghiệp công sử dụng kinh phí ngân sách
+nhà nước: Dịch vụ thu gom thử nghiệm.
+3. Số lượng, khối lượng đặt hàng (tạm tính): 1.000 tấn
+4. Giá đặt hàng
+Tổng kinh phí năm 2026 không được vượt tổng dự toán kinh phí được giao: 1.234.567.000 đồng (số tiền bằng chữ: …).
+5. Loại Hợp đồng: Hợp đồng theo đơn giá cố định. Giá Hợp đồng được điều chỉnh khi cần.
+7. Thời gian triển khai và thời gian hoàn thành: Từ ngày 01/01/2026
+đến 31/12/2026.
+Điều 2. Giao phòng Kế hoạch - Tài chính tham mưu.`;
+  const r = T.chuanHoa(T.trichQuyTac(t)), d = r.dat_hang;
+  assert.equal(r.loai, 'dat_hang_qd'); assert.equal(r.co_quan_ban_hanh, 'UBND TỈNH SƠN LA SỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG');
+  assert.equal(d.don_vi_nhan, 'Công ty Cổ phần Thử nghiệm Sơn La'); assert.equal(d.ten_dich_vu, 'Dịch vụ thu gom thử nghiệm');
+  assert.equal(d.nhiem_vu, 'Thu gom thử nghiệm tại xã Thử Nghiệm'); assert.equal(d.gia_tri, 1234567000);
+  assert.equal(d.thoi_gian, 'Từ ngày 01/01/2026 đến 31/12/2026'); assert.equal(d.loai_hop_dong, 'theo đơn giá cố định'); assert.equal(d.khoi_luong, '1.000 tấn');
+});
+
+test('từ điển sửa lỗi người dùng bổ sung: đọc "sai => đúng", bỏ dòng sai dạng, giữ kiểu chữ', () => {
+  const d = T.docTuDien('Chiềng Cới => Chiềng Cơi\nthug om -> thu gom\nrác => \nkhông có dấu bằng');
+  assert.deepEqual(d, [['Chiềng Cới', 'Chiềng Cơi'], ['thug om', 'thu gom']]);
+  assert.equal(T.suaOCR('rác thug om tại CHIỀNG CỚI, Chiềng Cới', d), 'rác thu gom tại CHIỀNG CƠI, Chiềng Cơi');
+});

@@ -181,8 +181,50 @@
   A.nsBangMa = (y, dv) => {
     const la = L.gnLeaves(y, { dv }), bang = (title, rows, sub) => '<div class="card"><div class="card-h"><h3>' + title + '</h3><div class="sub">' + sub + '</div></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>' + (title.includes('nguồn') ? 'Nguồn' : 'Chương - Loại - Khoản') + '</th><th class="num">Số dòng</th><th class="num">Được sử dụng</th><th class="num">Đã giải ngân</th><th class="num">Trong đó tạm ứng</th><th style="min-width:120px">Tỷ lệ</th></tr></thead><tbody>' + rows.map(g => '<tr><td>' + e(g.ten) + '</td><td class="num">' + g.n + '</td><td class="num">' + U.fmtMoney(g.tong) + '</td><td class="num">' + U.fmtMoney(g.gn) + '</td><td class="num">' + (g.tamUng ? U.fmtMoney(g.tamUng) : '') + '</td><td>' + UI.pbar(g.ty || 0) + '</td></tr>').join('') + '</tbody></table></div></div>';
     if (!la.length) return '';
-    return '<div class="grid2 mt">' + bang('Theo Chương - Loại - Khoản', L.nsTheoMa(la, 'khoan'), 'Mã lấy từ trường đã nhập, chữ của dòng hoặc dòng cha') + bang('Theo nguồn kinh phí', L.nsTheoMa(la, 'nguon'), 'Nguồn tiết kiệm CCTL và tiền thưởng là nguồn để dành, không tính vào tỷ lệ nhiệm vụ chuyên môn') + '</div>';
+    return '<div class="toolbar mt"><span class="sp"></span><button class="btn" data-gan-nguon="' + y + '">' + ic('filter', 16) + 'Gán mã nguồn theo quy tắc</button></div><div class="grid2">' + bang('Theo Chương - Loại - Khoản', L.nsTheoMa(la, 'khoan'), 'Mã lấy từ trường đã nhập, chữ của dòng hoặc dòng cha') + bang('Theo nguồn kinh phí', L.nsTheoMa(la, 'nguon'), 'Nguồn tiết kiệm CCTL và tiền thưởng là nguồn để dành, không tính vào tỷ lệ nhiệm vụ chuyên môn') + '</div>';
   };
+
+  /* ---------- Mục 4: gán mã nguồn hàng loạt theo quy tắc chữ ---------- */
+  // Quy tắc: { chua: chữ trong nội dung dòng, cha: chữ trong các dòng cha, nguon: mã } — quy tắc trên cùng khớp trước. Lưu ở Thiết lập máy này (cfg.nsQuyTacNguon).
+  L.nsApQuyTac = (leaves, rules, ghiDe) => {
+    const qt = (rules || []).filter(x => x.nguon && (x.chua || x.cha)), out = [];
+    leaves.forEach(n => {
+      if (n.r.maNguon && !ghiDe) return;
+      const t = U.norm(n.r.noiDung); let ch = '', x = S.get('ngansach', n.r.parentId), c = 0; while (x && c++ < 12) { ch += ' ' + U.norm(x.noiDung); x = S.get('ngansach', x.parentId); }
+      const q = qt.find(r => (!r.chua || t.includes(U.norm(r.chua))) && (!r.cha || ch.includes(U.norm(r.cha)))); if (!q) return;
+      const cu = L.nsMa(n.r).nguon || ''; if (cu === q.nguon && n.r.maNguon === q.nguon) return;
+      out.push({ n, cu, moi: q.nguon, q });
+    });
+    return out;
+  };
+  A.nsGanNguon = y => {
+    const la = L.gnLeaves(y, {}), opt = v => L.NS_NGUON.map(o => '<option value="' + o[0] + '"' + (o[0] === v ? ' selected' : '') + '>' + e(o[1]) + '</option>').join('');
+    let rules = (S.cfg.nsQuyTacNguon || []).map(x => Object.assign({}, x)); if (!rules.length) rules = [{ chua: '', cha: '', nguon: 'khongtuchu' }];
+    const body = document.createElement('div'); let gd = false;
+    const doc = () => { rules = $$('[data-qt]', body).map(r => ({ chua: $('[data-chua]', r).value.trim(), cha: $('[data-cha]', r).value.trim(), nguon: $('[data-ng]', r).value })); };
+    const ve = () => {
+      const kq = L.nsApQuyTac(la, rules, gd);
+      body.innerHTML = '<p class="small soft">Mỗi quy tắc: dòng chi tiết có <b>nội dung chứa</b> và/hoặc <b>dòng cha chứa</b> cụm chữ thì gán mã nguồn đã chọn. Quy tắc trên cùng được xét trước. Không phân biệt dấu, hoa thường. Dòng đã chọn mã nguồn bằng tay giữ nguyên trừ khi tích "Ghi đè".</p>' +
+        '<table class="tbl"><thead><tr><th>Nội dung chứa</th><th>Dòng cha chứa</th><th>Gán nguồn</th><th></th></tr></thead><tbody>' + rules.map((r, i) => '<tr data-qt="' + i + '"><td><input class="inp" data-chua value="' + e(r.chua || '') + '" placeholder="vd. CCTL" aria-label="Nội dung chứa"></td><td><input class="inp" data-cha value="' + e(r.cha || '') + '" placeholder="vd. không tự chủ" aria-label="Dòng cha chứa"></td><td><select class="sel" data-ng aria-label="Nguồn">' + opt(r.nguon) + '</select></td><td><button class="btn icon sm" data-xoaqt="' + i + '" aria-label="Xóa quy tắc" title="Xóa quy tắc">' + ic('trash', 14) + '</button></td></tr>').join('') + '</tbody></table>' +
+        '<div class="gap mt"><button class="btn sm" data-themqt>' + ic('plus', 14) + 'Thêm quy tắc</button><button class="btn sm" data-xemqt>Xem trước</button><label class="check"><input type="checkbox" id="gn_gd"' + (gd ? ' checked' : '') + '> Ghi đè cả dòng đã chọn mã nguồn bằng tay</label></div>' +
+        '<div class="eyebrow mt">Sẽ đổi ' + kq.length + ' dòng · ' + U.fmtShort(U.sum(kq, x => x.n.sum.tong)) + '</div>' +
+        (kq.length ? '<div class="tbl-wrap" style="max-height:320px;overflow:auto"><table class="tbl"><thead><tr><th>Đơn vị</th><th>Nội dung</th><th class="num">Được sử dụng</th><th>Nguồn hiện tại</th><th>Nguồn mới</th></tr></thead><tbody>' + kq.map(x => '<tr><td class="small">' + e(Sc.refName('donvi', x.n.r.donViId)) + '</td><td class="wrap">' + e(U.trunc((x.n.r.stt ? x.n.r.stt + ' ' : '') + x.n.r.noiDung, 90)) + '</td><td class="num">' + U.fmtMoney(x.n.sum.tong) + '</td><td class="small">' + e(L.nsNguonTen(x.cu)) + '</td><td class="small"><b>' + e(L.nsNguonTen(x.moi)) + '</b></td></tr>').join('') + '</tbody></table></div>' : '<p class="small muted">Chưa có dòng nào khớp.</p>');
+    };
+    ve();
+    UI.on(body, 'click', '[data-themqt]', () => { doc(); rules.push({ chua: '', cha: '', nguon: 'khongtuchu' }); ve(); });
+    UI.on(body, 'click', '[data-xoaqt]', b => { doc(); rules.splice(+b.dataset.xoaqt, 1); if (!rules.length) rules.push({ chua: '', cha: '', nguon: 'khongtuchu' }); ve(); });
+    UI.on(body, 'click', '[data-xemqt]', () => { doc(); ve(); });
+    UI.on(body, 'change', '#gn_gd', x => { gd = x.checked; doc(); ve(); });
+    UI.modal({ title: 'Gán mã nguồn theo quy tắc — năm ' + y, size: 'xl', body,
+      buttons: [{ label: 'Đóng', on: a => a.close() }, { label: 'Lưu quy tắc, áp dụng', cls: 'primary', icon: 'check', on: async a => {
+        doc(); const kq = L.nsApQuyTac(la, rules, gd);
+        await S.setCfg({ nsQuyTacNguon: rules.filter(x => x.chua || x.cha) });
+        if (!kq.length) { a.close(); UI.toast('Đã lưu quy tắc; không có dòng nào cần đổi.', 'ok'); return; }
+        if (!await UI.confirm({ title: 'Gán mã nguồn cho ' + kq.length + ' dòng?', msg: 'Ghi mã nguồn vào ' + kq.length + ' dòng chi tiết năm ' + y + '. Có thể sửa lại từng dòng ở trường "Mã nguồn kinh phí".', ok: 'Gán mã' })) return;
+        try { await S.saveMany(kq.map(x => ({ c: 'ngansach', rec: { id: x.n.r.id, maNguon: x.moi } })), { note: 'Gán mã nguồn theo quy tắc cho ' + kq.length + ' dòng năm ' + y }); a.close(); UI.toast('Đã gán mã nguồn cho ' + kq.length + ' dòng.', 'ok'); A.render(); } catch (er) { UI.fail(er); }
+      } }] });
+  };
+  UI.on(document.body, 'click', '[data-gan-nguon]', b => A.nsGanNguon(+b.dataset.ganNguon));
 
   /* ---------- Ghi căn cứ quyết định khi sửa số tiền ở thẻ Cập nhật giải ngân ---------- */
   // Gọi từ hộp "Sửa số tiền dự toán": các cột dự toán đổi số được ghi thêm vào quyết định đã chọn (phần chênh)

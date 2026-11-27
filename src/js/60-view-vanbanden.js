@@ -138,7 +138,7 @@
   };
   // Bóc tách: quy tắc + AI (nếu có), AI lỗi vẫn có kết quả theo quy tắc
   VB.extract = async (text, ten) => {
-    text = TV.suaOCR(String(text || '').replace(/\r/g, ''));
+    text = TV.suaOCR(String(text || '').replace(/\r/g, ''), TV.docTuDien(S.cfg.ocrTuDien));
     const qt = TV.trichQuyTac(text); let kq, aiLoi = '', mh = '';
     if (A.AI && A.AI.coSan()) {
       try { const r = await A.AI.goi([{ role: 'system', content: TV.LOI_NHAC_HE_THONG }, { role: 'user', content: TV.loiNhacNguoiDung(text, ten) }], { max_tokens: 3000, timeout: 90000 }); kq = TV.ghep(TV.docJson(r.text), qt); mh = r.tenMoHinh; }
@@ -292,6 +292,12 @@
     guiMayChu(it.id, 0);
   }
   VB.review = review;
+  /* Mục 13: từ điển sửa lỗi nhận dạng chữ do người dùng bổ sung (Thiết lập) — áp dụng khi đọc văn bản trên máy này */
+  A.ocrCfgHtml = () => '<div class="card mb"><div class="card-h"><h3>Từ điển sửa lỗi nhận dạng chữ</h3><div class="sub">Áp dụng khi đọc văn bản, bản scan trên máy này (ngoài khoảng 20 lỗi phần mềm đã tự sửa)</div></div><div class="card-b"><div class="fld"><label for="ocr_td">Mỗi dòng một cặp: chữ đọc sai =&gt; chữ đúng</label><textarea class="inp" id="ocr_td" rows="6" placeholder="THẲM ĐỊNH GIÁ MHD => THẨM ĐỊNH GIÁ MHD&#10;Chiềng Cới => Chiềng Cơi&#10;thug om => thu gom">' + e(S.cfg.ocrTuDien || '') + '</textarea><div class="help">So khớp cả cụm từ, không phân biệt chữ hoa thường, giữ kiểu chữ của văn bản. Nên ghi cụm đủ dài để không sửa nhầm chữ đúng.</div></div><div class="gap mt"><button class="btn primary" data-ocr-luu>Lưu từ điển</button><span class="small muted" data-ocr-tt></span></div></div></div>';
+  A.ocrCfgBind = root => {
+    const b = $('[data-ocr-luu]', root); if (!b) return;
+    b.onclick = async () => { const v = $('#ocr_td', root).value, n = TV.docTuDien(v).length, sai = v.split('\n').filter(l => l.trim() && !TV.docTuDien(l).length).length; await S.setCfg({ ocrTuDien: v }); $('[data-ocr-tt]', root).textContent = 'Đã lưu ' + n + ' cặp' + (sai ? '; ' + sai + ' dòng không đúng dạng "sai => đúng" bị bỏ qua' : '') + '.'; };
+  };
   /* Quét hợp đồng, phụ lục, biên bản từ hồ sơ hợp đồng hoặc gói thầu đang mở: đọc (kể cả bản scan), lưu vào Văn bản đến, mở hộp duyệt
      với bản ghi đích gắn sẵn; nhiều tệp thì duyệt lần lượt. */
   VB.quetHD = async (ctx, reopen) => {

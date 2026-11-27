@@ -498,3 +498,18 @@ table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 .gn-legend .d{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .gn-legend .d.dat,.gn-legend .d.xong{background:var(--ok)}.gn-legend .d.cham{background:var(--warn)}.gn-legend .d.rat{background:var(--bad)}
 @media (max-width:900px){.ns-gon .cc-col{display:none}}
+/* Trang tóm tắt cho lãnh đạo (56i-lanhdao.js): một cột, chữ lớn, đọc trên điện thoại */
+.ld{max-width:720px;margin:0 auto}
+.ld-big{border:1px solid var(--border);border-radius:var(--r-lg);background:var(--card);padding:16px;text-align:center;box-shadow:var(--sh1)}
+.ld-big .ld-v{font-size:44px;font-weight:700;line-height:1.1}
+.ld-big.ok .ld-v{color:var(--ok-fg)}.ld-big.warn .ld-v{color:var(--warn-fg)}.ld-big.bad .ld-v{color:var(--bad-fg)}
+.ld-l{font-size:15px;margin-top:2px}.ld-s{display:block;font-size:12.5px;color:var(--soft);margin-top:4px}
+.ld-h{font-size:15px;margin:18px 0 8px}
+.ld-list{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--card);overflow:hidden}
+.ld-row{display:flex;gap:12px;align-items:center;justify-content:space-between;text-align:left;border:0;border-top:1px solid var(--border);background:none;padding:10px 12px;font:inherit;color:var(--text);cursor:pointer;min-height:48px}
+.ld-row:first-child{border-top:0}.ld-row:hover{background:var(--hover)}
+.ld-t{flex:1;min-width:0;font-size:14px}.ld-p{width:42%;min-width:120px}.ld-n{font-weight:600;white-space:nowrap}
+.ld-ks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ld-k{border:1px solid var(--border);border-radius:var(--r-md);background:var(--card);padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.ld-k b{font-size:22px}.ld-k span{font-size:12.5px;color:var(--soft)}
+.ld-k.bad b{color:var(--bad-fg)}.ld-k.warn b{color:var(--warn-fg)}.ld-k.ok b{color:var(--ok-fg)}.ld-k.info b{color:var(--info-fg)}

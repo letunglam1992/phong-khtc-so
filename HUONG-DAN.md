@@ -82,7 +82,7 @@ Mỗi tài sản loại **"Cơ sở nhà, đất"** (hoặc "Trụ sở, nhà l�
 ## 4d. Theo dõi, dự báo giải ngân dự toán (Tài chính, giải ngân)
 
 - **Mẫu biểu**: "Báo cáo tình hình thực hiện giải ngân thanh toán nguồn chi thường xuyên" (Phụ lục II): TT, Nội dung, (3) KP chuyển nguồn năm trước sang, (4) Dự toán giao đầu năm, (5) KP bổ sung trong năm, (6) Điều chỉnh tăng, (7) Điều chỉnh giảm, (8) KP thu hồi trong năm, Chỉ tiêu tiết kiệm, (9) Tổng KP được sử dụng = 3 + 4 + 5 + 6 − 7 − 8 − tiết kiệm, (10) Kinh phí đã giải ngân đến ngày…, (11) Kinh phí còn lại = 9 − 10, (12) Tỷ lệ giải ngân, Ghi chú. Tên trường trên phần mềm và tệp Excel xuất ra dùng đúng tên, thứ tự cột này; ngày số liệu đọc từ tiêu đề cột 10.
-- **Nhập lại biểu**: ghép với dòng đã có theo số thứ tự + nội dung, bỏ qua khác biệt dấu câu, nhận cả dòng được đánh lại số hoặc sửa chữ (cùng số thứ tự, cùng dòng cha, nội dung giống ≥ 75%). Mặc định biểu mới **thay toàn bộ** dự toán của đơn vị trong năm: dòng không còn trên biểu bị xóa (có bản chụp để khôi phục). Chỉ chọn "Giữ lại các dòng cũ…" khi biểu chỉ gồm một phần nguồn kinh phí.
+- **Nhập lại biểu**: ghép với dòng đã có theo số thứ tự + nội dung, bỏ qua khác biệt dấu câu, nhận cả dòng được đánh lại số hoặc sửa chữ (cùng số thứ tự, cùng dòng cha, nội dung giống ≥ 75%). Biểu mới thay dự toán của đơn vị trong năm; **dòng cũ không còn trên biểu được liệt kê để chọn xóa hay giữ**: mặc định giữ dòng tự thêm, dòng đã chuyển từ đơn vị khác, dòng đang gắn quyết định dự toán, hợp đồng, gói thầu, dòng lập từ đề nghị chuyển nguồn; dòng lấy từ biểu cũ mặc định xóa. Có bản chụp để khôi phục (mục 5).
 - **Dấu ⚠** trên dòng tổng: số trên biểu Excel khác tổng các dòng chi tiết. Bấm **Rà soát, xử lý cảnh báo** (thẻ Chi tiết dự toán): phần mềm tìm dòng còn sót từ lần nhập biểu trước (nguyên nhân thường gặp) để xóa; chênh lệch còn lại do biểu gốc cộng sai thì chọn "Chấp nhận số tính từ dòng chi tiết". Ô thành phần để trống trên dòng tổng của biểu (ví dụ tiết kiệm) không bị coi là lệch.
 
 - **Chi tiết dự toán — kiểu bảng "Gọn"** (mặc định): vừa khung, không phải kéo ngang. Cột: TT · Nội dung (kèm ghi chú, cán bộ) · Cơ cấu kinh phí (CN chuyển nguồn, DT dự toán, BS bổ sung, ĐC +/− điều chỉnh, TH thu hồi, TK tiết kiệm — chỉ hiện khoản có số) · Tổng được sử dụng · Đã giải ngân · Còn lại · Tiến độ. Thanh tiến độ tô màu so với mốc (mục tiêu tháng, chưa đặt thì tỷ lệ thời gian; vạch đứng là mốc): xanh đạt, vàng chậm dưới ngưỡng, đỏ chậm từ ngưỡng trở lên. Chọn **"Đủ cột biểu"** để xem đủ 10 cột như Phụ lục II; xuất Excel luôn đủ cột.
@@ -118,13 +118,17 @@ Mỗi tài sản loại **"Cơ sở nhà, đất"** (hoặc "Trụ sở, nhà l�
 | QĐ phê duyệt KHLCNT / tờ trình KHLCNT | Thêm hoặc cập nhật từng gói thầu trong bảng (giá, nguồn vốn, hình thức, phương thức, loại HĐ, thời gian), ghi số QĐ, bước tiến trình |
 | QĐ phê duyệt HSMT/HSYC, danh sách nhà thầu đáp ứng kỹ thuật, danh sách ngắn, tổ chuyên gia | Ghi bước vào tiến trình của gói thầu (tìm theo tên gói thầu trong trích yếu), chuyển sang "Đang lựa chọn nhà thầu" |
 | QĐ phê duyệt kết quả LCNT | Ghi nhà thầu trúng thầu, giá trúng thầu, số QĐ vào gói thầu tương ứng |
-| Hợp đồng | Thêm hợp đồng, gắn gói thầu (theo tên, nhà thầu), chuyển gói thầu sang "Đã ký hợp đồng" |
-| Phụ lục, biên bản nghiệm thu, thanh lý | Thêm dòng phụ lục / nghiệm thu; ghi thanh lý vào hợp đồng đã có |
+| QĐ đặt hàng, giao nhiệm vụ cung cấp dịch vụ sự nghiệp công | Thêm hoặc cập nhật gói: hình thức Đặt hàng/Giao nhiệm vụ, loại "Dịch vụ sự nghiệp công", đơn vị nhận (ô nhà thầu), dự toán kinh phí đặt hàng (ô giá trúng thầu), thời gian, nguồn, loại hợp đồng, số, ngày QĐ; chuyển gói sang "Đã có kết quả". Không ghi vào ô KHLCNT |
+| Biên bản thương thảo, hoàn thiện hợp đồng | Ghi vào gói thầu (không tạo hợp đồng): ngày thương thảo, giá sau thương thảo, nhà thầu, loại HĐ, thời gian; bước "Thương thảo, hoàn thiện, ký hợp đồng"; báo khi khác giá trúng thầu |
+| Hợp đồng | Thêm hợp đồng, gắn gói thầu (theo tên, nhà thầu), chuyển gói thầu sang "Đã ký hợp đồng"; ghi mã số thuế nhà thầu, nguồn vốn, phương thức thanh toán vào ghi chú; báo khi giá trị khác giá sau thương thảo |
+| Phụ lục hợp đồng | Thêm dòng phụ lục (giá trị tăng/giảm, gia hạn đến) vào hợp đồng tìm theo "Căn cứ Hợp đồng số …" |
+| Biên bản nghiệm thu | Thêm lần nghiệm thu (đợt, giá trị); "nghiệm thu hoàn thành" thì chuyển hợp đồng sang "Đã nghiệm thu"; báo khi cộng dồn vượt giá trị hợp đồng, có thể trùng lần đã ghi |
+| Biên bản thanh lý | Ghi thanh lý, giá trị quyết toán, số còn phải thanh toán, số phải hoàn trả; báo khi số "đã thanh toán" khác phần mềm |
 | QĐ giao, bổ sung, điều chỉnh, thu hồi dự toán | Cộng số tiền vào cột tương ứng của dòng dự toán được chọn |
 | Mọi văn bản | Lưu vào danh mục Văn bản kèm tệp gốc (bỏ chọn nếu không cần) |
 
 Hai cách đọc:
-1. **Đọc trên máy này** (không cần cài gì): PDF có lớp chữ, Word .docx, hoặc dán nội dung. AI gọi qua Worker Cloudflare (mục 4g); AI lỗi hoặc hết hạn mức thì vẫn có kết quả theo quy tắc.
+1. **Đọc trên máy này** (không cần cài gì): PDF có lớp chữ, Word .docx, dán nội dung, **và cả PDF scan, ảnh chụp** — phần mềm tự nhận dạng chữ tiếng Việt ngay trên trình duyệt (lần đầu tải dữ liệu khoảng 1,4 MB, cần mạng; mỗi trang vài giây). AI gọi qua Worker Cloudflare (mục 4g); AI lỗi hoặc hết hạn mức thì vẫn có kết quả theo quy tắc.
 2. **Thư mục Google Drive (tự động)**: đọc cả PDF scan, ảnh chụp (nhận dạng chữ tiếng Việt của Google Drive). Cài đặt một lần:
    1. script.google.com → Dự án mới → dán toàn bộ `gas/Code.gs` (bản 2, có trong thư mục `dist/`), đổi `MA_BI_MAT`.
    2. Bên trái → **Dịch vụ** → thêm **Drive API**.
@@ -159,6 +163,7 @@ Lưu ý: máy đọc có thể sai — luôn đối chiếu với văn bản g�
   Nhật ký cập nhật ghi đúng tên người đăng nhập.
 - **Đồng bộ theo từng bản ghi**: mỗi thay đổi vào hàng chờ; phần mềm tự đồng bộ khi mở, mỗi 3 phút và khoảng 15 giây sau khi sửa (có nút *Đồng bộ ngay*). Hai máy cùng sửa một bản ghi: giữ bản sửa sau cùng, ghi vào mục *Xung đột gần đây*. Thay đổi không đủ quyền bị máy chủ từ chối và hoàn tác trên máy. Lần đầu kết nối, toàn bộ dữ liệu trên máy được gửi lên.
 - **Sao lưu Google Drive**: máy chủ chép toàn bộ dữ liệu đã đồng bộ sang thư mục `KHTC_So_SAO_LUU` khoảng 23 giờ hằng ngày (bật ở thẻ *Sao lưu trên Google Drive* hoặc bằng hàm `caiDatVanBanDen`), giữ 30 bản gần nhất. Mỗi bản tải về được, hoặc *Khôi phục…* gộp vào dữ liệu trên máy (có bản chụp trước khi gộp) rồi đồng bộ lên.
+- **Mã bí mật**: lần đầu sửa dòng `var MA_BI_MAT = '…'` rồi triển khai; lần gọi đầu tiên mã được lưu vào Cài đặt dự án → Thuộc tính tập lệnh `MA_BI_MAT`. Các lần cập nhật Code.gs sau chỉ cần **dán đè cả tệp**, không phải sửa dòng này. Muốn đổi mã: sửa Thuộc tính tập lệnh, hoặc sửa dòng trong Code.gs (dòng đã sửa ghi đè mã đã lưu).
 - **Nâng cấp từ bản 2**: dán Code.gs bản 3, Triển khai → Quản lý → Sửa → *Phiên bản mới*; chạy lại `caiDatVanBanDen` một lần để bật sao lưu hằng ngày. Dữ liệu đồng bộ cũ được chuyển sang dạng theo bản ghi tự động.
 
 ## 4i. Các chức năng bổ sung (tháng 11/2026)
@@ -188,19 +193,57 @@ Lưu ý: máy đọc có thể sai — luôn đối chiếu với văn bản g�
 
 **Email nhắc việc sáng thứ Hai** (cần Code.gs mới)
 - Thiết lập → thẻ *Email nhắc việc sáng thứ Hai*: nhập địa chỉ nhận bản tổng hợp, bật gửi thư riêng cho từng cán bộ (lấy email trong danh sách cán bộ), bấm *Gửi thử ngay*.
-- Khoảng 7 giờ sáng thứ Hai, máy chủ gửi: hợp đồng sắp hết hạn, quá hạn; bảo lãnh sắp hết hiệu lực; nội dung giải ngân chậm. Tính trên **dữ liệu đã đồng bộ lên máy chủ**. Lần đầu chạy hàm `nhacViecThuHai` trong Apps Script một lần để cấp quyền gửi thư.
+- Khoảng 7 giờ sáng thứ Hai, máy chủ gửi: hợp đồng sắp hết hạn, quá hạn; bảo lãnh sắp hết hiệu lực; nội dung giải ngân chậm; **gói thầu, hợp đồng cần xử lý tiếp** (quá hạn hoặc sắp hạn lựa chọn nhà thầu; đã có kết quả chưa nhập hợp đồng; có QĐ kết quả chưa ghi bước "Đăng tải kết quả"; đã nghiệm thu chưa thanh lý). Phần mềm không tự tính thời hạn theo luật, chỉ dựa trên hồ sơ đã nhập. Tính trên **dữ liệu đã đồng bộ lên máy chủ**. Lần đầu chạy hàm `nhacViecThuHai` trong Apps Script một lần để cấp quyền gửi thư.
 
 **Tìm kiếm, dùng khi mất mạng, kiểm tra dữ liệu**
 - Ô **Tìm toàn bộ dữ liệu** (Ctrl K) và nút **Tìm trong nội dung** ở Văn bản đến: tìm cả trong toàn văn các văn bản đã đọc, không cần gõ dấu; kết quả hiện đoạn chứa từ cần tìm.
 - **Dùng khi mất mạng**: sau lần mở đầu tiên có mạng, phần mềm mở được khi mất mạng; thay đổi lưu trên máy và tự đồng bộ khi có mạng lại. Trên điện thoại (Chrome, Safari): *Thêm vào màn hình chính* để dùng như ứng dụng.
 - **Sức khỏe dữ liệu** (nhóm Tổng hợp): điểm chất lượng dữ liệu, bản ghi thiếu thông tin quan trọng (cán bộ, nguồn kinh phí, thời hạn…), dòng dự toán lâu chưa cập nhật, chênh lệch đối chiếu chưa giải trình. Chỉ đọc, bấm từng bản ghi để bổ sung.
 
+## 4j. Các chức năng bổ sung (cuối tháng 11/2026)
+
+**Nhập biểu tổng hợp của Sở (Phụ lục I, II)** — Tài chính → *Theo đơn vị* → *Nhập biểu nhiều đơn vị*
+- Một tệp biểu tổng hợp được tách theo mục La Mã (I, II…), mỗi mục tự nhận đơn vị theo tên. Tệp có nhiều trang đúng mẫu (ví dụ thêm bản chép cũ "Tong hop chung") thì phần mềm chọn trang có dòng TỔNG CỘNG khớp trang "Tổng hợp" và ghi tên trang đã đọc ở cột tệp.
+- Trang chi tiết không có phần **Chương trình MTQG** (trang NTM, Giảm nghèo, 1719 không có cột giải ngân): phần mềm lấy các dòng MTQG của từng đơn vị ở trang "Tổng hợp" (mục B) bổ sung vào, ghi rõ ở "điểm cần rà soát".
+- Cột **So với số đang có**: được sử dụng, giải ngân tăng/giảm; số dòng mới, không còn, đổi số (bấm *Xem* để xem từng dòng); báo khi **ngày số liệu giải ngân trùng lần nhập trước** (số giải ngân không đổi).
+- Ô Đơn vị có *— Không nhập phần này —* và *＋ Thêm đơn vị theo dõi mới…* (dùng cho mục không phải đơn vị dự toán, như "Nguồn viện trợ không hoàn lại"): đặt tên tùy ý; tên trên biểu lưu làm tên viết tắt để lần sau tự nhận. Sửa tên, tên viết tắt, thứ tự bằng nút **Sửa tên** ở thẻ Theo đơn vị.
+- Mục có dòng ghi tiền mà không ghi nội dung, hoặc chưa có số liệu, được đánh dấu bỏ qua.
+
+**Sổ quyết định dự toán** (thẻ *Quyết định dự toán*): mỗi quyết định ghi các dòng dự toán chịu tác động theo cột (giao, bổ sung, điều chỉnh tăng, giảm, thu hồi, tiết kiệm, chuyển nguồn). Phần mềm cộng các quyết định rồi so với số trên từng dòng: số chưa có căn cứ, lệch, dòng âm do giảm trùng, dòng quyết định trỏ tới dòng đã xóa. Nút *Gắn số đang có vào quyết định* để lập sổ nhanh; sửa số tiền bằng nút ✎ có ô chọn quyết định làm căn cứ.
+
+**Mã ngân sách, nguồn**: dòng dự toán có Chương, Loại, Khoản, mã nguồn (để trống thì lấy theo chữ của dòng hoặc dòng cha). Thẻ *Dự toán – thực hiện – quyết toán* có bảng theo Chương-Loại-Khoản và theo nguồn; nút **Gán mã nguồn theo quy tắc** (ví dụ "nội dung chứa CCTL" + "dòng cha chứa không tự chủ" → Kinh phí không tự chủ): xem trước các dòng sẽ đổi rồi áp dụng; dòng đã chọn mã bằng tay giữ nguyên trừ khi tích "Ghi đè". Quy tắc lưu trên máy này.
+
+**Đơn vị dự toán, phòng, thứ tự**: danh mục đơn vị có loại (đơn vị dự toán / phòng, bộ phận), mã quan hệ ngân sách, **thứ tự trên báo cáo** (để trống: Văn phòng Sở → chi cục → trung tâm → Văn phòng Đăng ký đất đai). Dòng dự toán có "Phòng, bộ phận thực hiện". Nút *Chuyển đơn vị* chuyển toàn bộ dòng năm đó khi nhập nhầm.
+
+**Kho bạc, tạm ứng, hai tỷ lệ**: thẻ *Đối chiếu* có bảng nhập lũy kế Kho bạc theo đơn vị, tính chênh với số đơn vị báo; dòng dự toán có "tạm ứng chưa thanh toán". Thẻ *Đã giải ngân* có thêm **tỷ lệ nhiệm vụ chuyên môn** (không tính tiết kiệm CCTL và tiền thưởng — nguồn để dành).
+
+**Thanh toán hợp đồng đối chiếu nguồn**: hộp *Ghi thanh toán* hiện dòng dự toán nguồn (được sử dụng, đơn vị đã báo giải ngân, các hợp đồng cùng nguồn đã thanh toán, còn lại), báo ngay khi vượt; ô tích cập nhật số giải ngân của dòng nguồn theo thanh toán hợp đồng (ghi mốc "theo hợp đồng"). Hồ sơ hợp đồng báo đỏ khi tổng thanh toán vượt kinh phí của dòng nguồn.
+
+**Cuối năm** (thẻ *Cuối năm*)
+- Rà soát nội dung còn kinh phí, chọn đề xuất cho từng dòng: tiếp tục giải ngân, chuyển nguồn, hủy dự toán, thu hồi (số tiền, lý do). *Xuất danh sách đề nghị* (Excel).
+- **Soạn văn bản đề nghị**: tờ trình của Phòng trình Giám đốc Sở hoặc công văn của Sở gửi Sở Tài chính, kèm phụ lục 3 phần. **Căn cứ pháp lý để trong ngoặc vuông** — ghi đúng văn bản hiện hành và hướng dẫn khóa sổ của năm trước khi trình.
+- **Lập dòng chuyển nguồn năm sau**: tạo dòng năm sau (cột chuyển nguồn) cho các nội dung đề nghị chuyển nguồn, giữ mã, nguồn, cán bộ; lập lại thì cập nhật số, không trùng. **So sánh hai năm** theo đơn vị.
+- *Ghi số quyết toán bằng số giải ngân* cho dòng chưa có số quyết toán.
+
+**Báo cáo theo mẫu Phụ lục I, II** (thẻ *Theo đơn vị* → *Xuất theo mẫu Phụ lục I, II*): Excel 2 trang cùng cột với biểu của Sở. Chọn nhóm nguồn *Theo mẫu của Sở* (tự chủ gồm tiền thưởng; không tự chủ gồm KH-CN, chuyển đổi số, NSTW; từng chương trình MTQG; viện trợ) hoặc *Chi tiết*.
+
+**Bấm thẻ số liệu để xem chi tiết**: các thẻ ở Tài chính (tổng kinh phí, đã giải ngân, còn lại…) mở bảng nội dung chi tiết có tìm kiếm, sắp xếp, xuất Excel; các thẻ ở Đấu thầu, hợp đồng mở danh sách đã lọc (đang LCNT, quá hạn, hợp đồng đang thực hiện, sắp hết hạn, nghiệm thu chưa thanh lý).
+
+**Gói đặt hàng, giao nhiệm vụ** (dịch vụ sự nghiệp công): loại gói "Dịch vụ sự nghiệp công", hình thức "Đặt hàng" hoặc "Giao nhiệm vụ", số và ngày QĐ đặt hàng; đơn vị nhận ghi ở ô nhà thầu, kinh phí ở ô giá trúng thầu. Gói còn ghi hình thức cũ "Đặt hàng, giao nhiệm vụ": dùng nút *Chuyển hình thức* ở đầu trang Đấu thầu.
+
+**Quét hợp đồng, biên bản từ hồ sơ**: gói thầu → *Quét hợp đồng, biên bản*; hợp đồng → *Quét phụ lục, biên bản*: chọn tệp (cả bản scan), phần mềm đọc, lưu vào Văn bản đến và mở hộp duyệt với gói thầu, hợp đồng đang mở được gắn sẵn. Ô chọn gói thầu, hợp đồng hiện tên đầy đủ kèm giá, số KHLCNT, nhà thầu, dự án, tình trạng để phân biệt các gói trùng tên.
+
+**Sửa lỗi nhận dạng chữ**: phần mềm tự sửa khoảng 20 cụm hay sai dấu trên bản scan ("HỢP ĐÒNG", "THẲM ĐỊNH", "nhà thâu", "sô 580"…) và đổi tên nhà thầu, đơn vị về cách viết đã có trong phần mềm khi chỉ khác dấu. Thiết lập → *Từ điển sửa lỗi nhận dạng chữ*: tự thêm cặp "chữ sai => chữ đúng" (áp dụng khi đọc trên máy này).
+
+**Tóm tắt cho lãnh đạo** (nhóm Điều hành): một màn hình đọc trên điện thoại — tỷ lệ giải ngân toàn Sở so với mốc, theo đơn vị (chậm nhất trước), 5 nội dung chậm còn nhiều kinh phí nhất, gói thầu và hợp đồng quá hạn, đề xuất xử lý cuối năm. Tài khoản **chỉ xem** mở phần mềm vào thẳng trang này. Cấp cho lãnh đạo: quản lý tạo tài khoản vai trò "Chỉ xem" (mục 4h), lãnh đạo mở `phong-khtc-so.vercel.app` trên điện thoại, đăng nhập, *Thêm vào màn hình chính*.
+
 ## 5. Sao lưu, khôi phục
 
 - Dữ liệu nằm trong IndexedDB của **trình duyệt trên máy đang dùng**. Xóa dữ liệu duyệt web, dùng cửa sổ ẩn danh, đổi trình duyệt hoặc đổi máy sẽ không thấy dữ liệu.
 - **Sao lưu**: nút mũi tên ở thanh trên, hoặc Thiết lập → Sao lưu. Tệp JSON chứa toàn bộ dữ liệu, cấu hình và (tùy chọn) tệp đính kèm. Nên sao lưu hằng tuần; phần mềm nhắc khi quá 7 ngày.
 - **Khôi phục**: Thiết lập → "gộp" (giữ bản sửa sau cùng của từng bản ghi) hoặc "thay toàn bộ". Tệp sai định dạng bị từ chối.
-- Trước mỗi thao tác lớn (khôi phục, nhập lại biểu dự toán, tải đồng bộ, xóa toàn bộ) phần mềm tự chụp một bản; giữ 3 bản gần nhất, khôi phục tại Thiết lập.
+- Trước mỗi thao tác lớn (khôi phục, nhập lại biểu dự toán, tải đồng bộ, xóa toàn bộ, ghi số quyết toán…) phần mềm tự chụp một bản; giữ **6 bản** gần nhất tại Thiết lập.
+- **Khôi phục từng phần**: mỗi bản chụp và mỗi bản sao lưu Drive có nút *Xem khác biệt, khôi phục từng phần*: so với dữ liệu hiện tại theo nhóm (dự toán từng năm, gói thầu, hợp đồng, quyết định…), hiện số bản ghi sẽ thêm lại, xóa, đổi về, tổng được sử dụng và đã giải ngân trước/sau; chỉ khôi phục nhóm được tích (ví dụ đưa dự toán năm 2026 về trước lần nhập biểu, giữ nguyên hợp đồng). Thao tác ghi vào nhật ký và đồng bộ lên máy chủ như bình thường.
 - Mỗi danh sách đều có **Xuất Excel / Nhập Excel** (có tệp mẫu, báo dòng lỗi và dòng trùng trước khi ghi).
 
 ## 6. Kết nối với hai phần mềm sẵn có
@@ -251,3 +294,6 @@ Bản ghi kéo về có nhãn nguồn và nút mở lại đúng phần mềm g�
 7. **Đối chiếu**: tạm ứng hợp đồng còn dư (chưa thu hồi) đang mặc định tính vào số đã chi khi so với giải ngân — cần xác nhận cách tính.
 8. **Căn cứ pháp lý mặc định** trong mẫu văn bản (Luật Đấu thầu 22/2023/QH15; Luật 57/2024/QH15; Luật 90/2025/QH15; Nghị định 214/2025/NĐ-CP) và **thẩm quyền**: tờ trình do Phòng trình Giám đốc Sở, quyết định phê duyệt KHLCNT do Giám đốc Sở ký — cần rà soát.
 9. **Thu hồi**: dòng mới "đề nghị thu hồi", chưa có quyết định, vẫn tính là giải ngân chậm.
+10. **Biểu giải ngân 18/11/2026 (bản 26/11)**: Chi cục Chăn nuôi, Thú y và Thủy sản — "Kinh phí mua trang phục kiểm dịch" đã giải ngân 49.675.000 đồng, vượt dự toán 36.000.000 đồng.
+11. **Nguồn kinh phí chưa rõ căn cứ**: khoản 1,5 tỷ "khoanh định khu vực cấm" (QĐ 580); khoản 683,5 triệu (QĐ 2836) có trừ vào 25,6 tỷ chuyển đổi số chưa phân bổ; nguồn phân bổ 61,09 tỷ Loại 250/280.
+12. **Căn cứ văn bản cuối năm** (chuyển nguồn, hủy dự toán) để trong ngoặc vuông — cần ghi đúng văn bản hiện hành và hướng dẫn khóa sổ của năm.

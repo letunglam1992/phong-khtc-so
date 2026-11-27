@@ -280,6 +280,17 @@
   /* Ghép dòng biểu mới với dòng dự toán đã có (giữ mã dòng, lịch sử giải ngân, cán bộ):
      1) trùng số thứ tự + nội dung; 2) trùng nội dung; 3) nội dung chỉ khác dấu câu, khoảng trắng;
      4) cùng số thứ tự và cùng dòng cha, nội dung giống ≥ 75% (sửa chữ, đánh lại số) */
+  /* Mục 1: so một biểu đã đọc với số đang có của đơn vị, năm: tổng, giải ngân, dòng mới, dòng không còn, dòng đổi số; ngày giải ngân lần trước */
+  L.nsSoSanhBieu = (parsed, dvId, nam) => {
+    const old = S.all('ngansach').filter(r => r.donViId === dvId && +r.nam === nam), it = parsed.items, match = L.nsGhepDong(it, old), used = new Set(match.filter(Boolean).map(r => r.id));
+    const cha = new Set(old.map(r => r.parentId).filter(Boolean)), laCu = old.filter(r => !cha.has(r.id)), laMoi = it.filter(x => !x.isGroup);
+    const K = [['chuyenNguon', 'chuyển nguồn'], ['duToan', 'dự toán đầu năm'], ['boSung', 'bổ sung'], ['dcTang', 'điều chỉnh tăng'], ['dcGiam', 'điều chỉnh giảm'], ['thuHoi', 'thu hồi'], ['tietKiem', 'tiết kiệm'], ['giaiNgan', 'giải ngân']];
+    const doi = [];
+    it.forEach((x, i) => { const c = match[i]; if (!c || x.isGroup) return; const ds = K.filter(k => Math.abs(U.num(x[k[0]]) - U.num(c[k[0]])) > 0.5).map(k => ({ k: k[0], ten: k[1], cu: U.num(c[k[0]]), moi: U.num(x[k[0]]) })); if (ds.length) doi.push({ it: x, cu: c, ds }); });
+    const ngayCu = old.map(r => ((r.gnHist || []).filter(h => h.nguon === 'excel').map(h => h.ngay).sort().pop()) || r.ngayGN || '').filter(U.isISO).sort().pop() || '';
+    return { coCu: old.length > 0, tongCu: U.sum(laCu, L.nsTong), gnCu: U.sum(laCu, r => r.giaiNgan), tongMoi: U.sum(laMoi, L.nsTong), gnMoi: U.sum(laMoi, x => x.giaiNgan),
+      moi: it.filter((x, i) => !match[i] && !x.isGroup), bo: old.filter(r => !used.has(r.id) && !cha.has(r.id)), doi, ngayCu };
+  };
   L.nsGhepDong = (items, old) => {
     const ch = s => U.norm(s).replace(/[^a-z0-9]+/g, ' ').trim(), used = new Set(), by = (f) => { const m = new Map(); old.forEach(r => { const k = f(r); if (k && !m.has(k)) m.set(k, r); }); return m; };
     const k1 = by(r => U.norm(r.stt) + '|' + U.norm(r.noiDung)), k2 = by(r => U.norm(r.noiDung)), k3 = by(r => ch(r.noiDung));
