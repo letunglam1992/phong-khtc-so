@@ -206,3 +206,14 @@ test('nhắc việc: gói có kết quả chưa có HĐ, chưa ghi đăng tải 
   assert.deepEqual(t.dt.map(x => x.ten + ':' + x.viec.slice(0, 20)), ['A:Đã có kết quả từ 01/', 'HD1:Đã nghiệm thu ngày 0', 'A:Chưa ghi bước "Đăng ', 'B:Sắp đến hạn lựa chọn']);
   assert.match(NhacViec.thu(t, { today: '2026-11-19' }).html, /4\. Gói thầu, hợp đồng cần xử lý tiếp \(4\)/);
 });
+
+test('đọc biểu: STT "3.1" bị Excel đổi thành ngày (46025) được trả lại; ghép dòng đánh số lại, viết khác giữa biểu đơn vị và biểu tổng hợp', () => {
+  const rows = [['BÁO CÁO'], ['TT', 'Nội dung', 'KP chuyển nguồn', 'Dự toán giao đầu năm', 'KP bổ sung', 'Tăng', 'Giảm', 'Thu hồi', 'Tổng KP được sử dụng', 'Kinh phí đã giải ngân đến 26/11/2026', 'Còn lại'],
+    ['I', 'ĐƠN VỊ THỬ', 0, 100, 0, 0, 0, 0, 100, 10, 90], [3, 'Kinh phí không tự chủ', 0, 100, 0, 0, 0, 0, 100, 10, 90], [46025, 'Chương 412, khoản 332', 0, 100, 0, 0, 0, 0, 100, 10, 90],
+    ['-', 'Kinh phí tiếp nhận dân di cư tự do năm 2026', 0, 90, 0, 0, 0, 0, 90, 10, 80], ['-', 'Lệ phí cấp giấy', 0, 10, 0, 0, 0, 0, 10, 0, 10]];
+  const p = L.parseBudget(rows, null), c = p.items.find(x => /Chương 412/.test(x.noiDung));
+  assert.equal(c.stt, '3.1'); assert.ok(c.isGroup);
+  const old = [{ id: 'a', stt: '(3)', noiDung: 'Kinh phí tiếp nhận dân di cư tự do', duToan: 90, parentId: 'g' }, { id: 'g', stt: '3', noiDung: 'Kinh phí không tự chủ' }];
+  const m = L.nsGhepDong(p.items, old), i = p.items.findIndex(x => /dân di cư/.test(x.noiDung));
+  assert.equal(m[i] && m[i].id, 'a');
+});

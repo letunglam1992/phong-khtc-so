@@ -160,7 +160,44 @@
     if (!dvs.length) { UI.toast('Chưa có đơn vị dự toán. Thêm đơn vị ở trang Cán bộ và phân công.', 'bad'); return; }
     const files = await UI.pickFile('.xlsx,.xls', true); if (!files || !files.length) return;
     const ds = [];
+    // Đọc một trang tính thành một phần nhập (đoán đơn vị theo dòng "ĐƠN VỊ:", tiêu đề, tên tệp, tên trang)
+    const docTrang = (f, wb, sh, kemTenTrang) => {
+      const o = { fname: f.name, parsed: null, loi: '' };
+      try {
+        const ws = wb.Sheets[sh];
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }), fmt = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null });
+        o.parsed = L.parseBudget(raw, fmt);
+        if (!o.parsed.items.length) o.loi = o.parsed.warnings.join(' ') || 'Không đọc được dòng dữ liệu nào.';
+        const tren = raw.slice(0, Math.max(0, o.parsed.headerRow)).flat().filter(c => typeof c === 'string');
+        o.dvBieu = (tren.find(c => /^\s*đơn vị\s*:/i.test(c)) || '').replace(/^\s*đơn vị\s*:\s*/i, '').trim();
+        const d = L.nsDoanDonVi([o.dvBieu, o.parsed.title, (o.parsed.items.find(x => x.level === 0) || {}).noiDung, kemTenTrang ? sh : f.name.replace(/[_-]+/g, ' ')].join(' '), dvs);
+        // Không khớp đúng tên: so tỷ lệ từ chung với tên, tên viết tắt ("Nguồn vốn viện trợ…" ↔ "Nguồn viện trợ…")
+        const tu = s => new Set(U.norm(s).split(/[^a-z0-9]+/).filter(w => w.length > 1)), dice = (a, b) => { let c = 0; a.forEach(w => { if (b.has(w)) c++; }); return a.size + b.size ? 2 * c / (a.size + b.size) : 0; };
+        const d2 = d || (o.dvBieu ? (dvs.map(v => ({ v, k: Math.max(dice(tu(o.dvBieu), tu(v.ten)), v.tenTat ? dice(tu(o.dvBieu), tu(v.tenTat)) : 0) })).filter(x => x.k >= 0.8).sort((a, b) => b.k - a.k)[0] || {}).v : null);
+        o.dvId = d2 ? d2.id : '';
+        const dm = (o.parsed.title.match(/(\d{1,2}\/\d{1,2}\/\d{4})/) || [])[1];
+        o.ngay = (dm ? U.parseDate(dm) : '') || o.parsed.ngaySoLieu || '';
+        o.nam = o.parsed.nam || (o.ngay ? +o.ngay.slice(0, 4) : (A.year() || +U.today().slice(0, 4)));
+        const leaf = o.parsed.items.filter(i => !i.isGroup); o.tong = U.sum(leaf, L.nsTong); o.gn = U.sum(leaf, i => i.giaiNgan);
+        o.fname = f.name + ' [trang "' + sh + '"]';
+        if (!o.loi && !o.parsed.items.some(x => L.nsTong(x) || x.giaiNgan)) o.loi = 'Trang này chưa có số liệu: bỏ qua, giữ nguyên số đã có của đơn vị.';
+      } catch (er) { o.loi = er.message || String(er); }
+      return o;
+    };
     for (const f of Array.from(files)) {
+      // Tệp tổng hợp của Phòng: mỗi đơn vị một trang (dòng "ĐƠN VỊ: …" khác nhau) → mỗi trang là một phần nhập
+      try {
+        const wb0 = await UI.readWorkbook(f), cacTrang = wb0.SheetNames.filter(n => { try { return L.parseBudget(XLSX.utils.sheet_to_json(wb0.Sheets[n], { header: 1, raw: true, defval: null })).items.length > 0; } catch (x) { return false; } });
+        if (cacTrang.length >= 3) {
+          const phan = cacTrang.map(n => docTrang(f, wb0, n, true)), dvKhac = new Set(phan.filter(x => x.dvId).map(x => x.dvId));
+          if (dvKhac.size >= 2 && !phan.some(x => !x.loi && L.nsTachDonVi(x.parsed, dvs))) {
+            const daCo = new Set();
+            phan.forEach(x => { if (!x.loi && x.dvId) { if (daCo.has(x.dvId)) x.loi = 'Trang khác trong tệp đã có số liệu của cùng đơn vị: bỏ qua trang này.'; else daCo.add(x.dvId); } });
+            phan.forEach(x => { if (dvChon && !x.loi) x.dvId = x.dvId || dvChon; ds.push(x); });
+            continue;
+          }
+        }
+      } catch (er) { /* đọc lại theo cách một trang bên dưới */ }
       const o = { fname: f.name, parsed: null, loi: '' };
       try {
         const wb = await UI.readWorkbook(f), sh = L.nsTrangBieu(wb), ws = wb.Sheets[sh];

@@ -76,6 +76,11 @@ a{color:var(--accent)}
 .app.collapsed .nav-item .badge{position:absolute;top:2px;right:6px;min-width:16px;height:16px;font-size:10px;padding:0 4px}
 .app.collapsed .brand{justify-content:center;padding-left:0;padding-right:0}
 .app.collapsed .side-foot{justify-content:center}
+/* Nút thu gọn menu ở góc trên bên phải; khi thu gọn nằm trên biểu tượng, mũi tên quay ngược */
+.side .collapse-btn{position:absolute;top:12px;right:10px;width:28px;height:28px;min-height:0;padding:0;z-index:2;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--card)}
+.app.collapsed .side .collapse-btn{position:static;margin:10px auto 0}
+.app.collapsed .side .collapse-btn svg{transform:rotate(180deg)}
+.app:not(.collapsed) .brand{padding-right:44px}
 
 .main{min-width:0;display:flex;flex-direction:column}
 .top{background:linear-gradient(120deg,var(--h1),var(--h2));color:var(--on-h);padding:18px 28px 20px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}

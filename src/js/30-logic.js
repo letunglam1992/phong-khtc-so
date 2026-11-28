@@ -306,6 +306,21 @@
       old.forEach(r => { if (used.has(r.id) || U.norm(r.stt) !== U.norm(it.stt)) return; if (chaMoi ? r.parentId !== chaMoi.id : !!r.parentId && it.parent >= 0) return; const v = tu(it.noiDung, r.noiDung); if (v >= bs) { bs = v; best = r; } });
       lay(i, best);
     });
+    // Dòng chi tiết đánh số lại hoặc viết khác giữa biểu đơn vị và biểu tổng hợp ("(3) … dân di cư tự do" ↔ "(2) … dân di cư tự do năm 2026"):
+    // bỏ số thứ tự ở đầu, so mức giống tên; cùng số dự toán (chuyển nguồn + giao + bổ sung) thì hạ ngưỡng. Chỉ ghép dòng chi tiết với dòng chi tiết.
+    const chaCu = new Set(old.map(r => r.parentId).filter(Boolean)), boSo = s => String(s || '').replace(/^\s*(\(?\d+(\.\d+)*[.)]?|[-+•])\s*/, '');
+    const dt = x => U.num(x.chuyenNguon) + U.num(x.duToan) + U.num(x.boSung);
+    items.forEach((it, i) => {
+      if (out[i] || it.isGroup) return;
+      let best = null, bs = 0;
+      old.forEach(r => {
+        if (used.has(r.id) || chaCu.has(r.id)) return;
+        const v = tu(boSo(it.noiDung), boSo(r.noiDung)), cung = dt(it) > 0 && Math.abs(dt(it) - dt(r)) < 0.5;
+        const diem = v >= 0.6 ? v + (cung ? 0.5 : 0) : (cung && v >= 0.35 ? v + 0.3 : 0);
+        if (diem > bs) { bs = diem; best = r; }
+      });
+      if (best) lay(i, best);
+    });
     return out;
   };
 
@@ -381,6 +396,8 @@
       const rawS = col.stt === undefined ? '' : r[col.stt];
       let sttTxt = (fmt && fmt[i] && col.stt !== undefined && fmt[i][col.stt] !== undefined && fmt[i][col.stt] !== null) ? String(fmt[i][col.stt]).trim() : (rawS === null || rawS === undefined ? '' : String(rawS).trim());
       if (typeof rawS === 'number' && rawS < 0 && Number.isInteger(rawS)) sttTxt = '(' + (-rawS) + ')';  // Excel hiểu "(1)" là -1
+      // Excel tự đổi "3.1" thành ngày 03/01 (số ngày ≈ 46025): trả lại "3.1" (ngày.tháng); STT thật không bao giờ lớn như vậy
+      if (typeof rawS === 'number' && Number.isInteger(rawS) && rawS > 36500 && rawS < 73050) { const d = new Date(Date.UTC(1899, 11, 30) + rawS * 86400000); sttTxt = d.getUTCDate() + '.' + (d.getUTCMonth() + 1); }
       let level, kind;
       const s = sttTxt.replace(/\s/g, '').replace(/^(\d+(?:\.\d+)?)\.$/, '$1'); // "3.4." → "3.4", "2." → "2"
       if (/^[IVXLC]+$/.test(s)) { level = 0; kind = 'num'; }
