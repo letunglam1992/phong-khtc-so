@@ -154,11 +154,8 @@
 
   // Mục 6: nhập cùng lúc biểu Phụ lục II của nhiều đơn vị (Văn phòng Sở, chi cục, trung tâm…)
   // opt.dvId: mở từ nút "Cập nhật biểu" của một đơn vị: biểu một đơn vị (không phải biểu tổng hợp) gán cho đơn vị đó
-  async function importNhieu(opt) {
-    const dvChon = opt && opt.dvId;
-    const dvs = L.dvDuToan();
-    if (!dvs.length) { UI.toast('Chưa có đơn vị dự toán. Thêm đơn vị ở trang Cán bộ và phân công.', 'bad'); return; }
-    const files = await UI.pickFile('.xlsx,.xls', true); if (!files || !files.length) return;
+  // Đọc các tệp biểu thành danh sách phần nhập (mỗi phần: một đơn vị) — dùng chung cho nhập tay và tự cập nhật từ biểu trên Drive
+  async function docCacTep(files, dvs, dvChon) {
     const ds = [];
     // Đọc một trang tính thành một phần nhập (đoán đơn vị theo dòng "ĐƠN VỊ:", tiêu đề, tên tệp, tên trang)
     const docTrang = (f, wb, sh, kemTenTrang) => {
@@ -223,6 +220,17 @@
       if (tach) tach.forEach(x => ds.push(Object.assign({}, o, { fname: o.fname + ' — mục ' + x.parsed.items[0].stt + ' ' + x.ten, parsed: x.parsed, dvId: x.dvId, dvBieu: x.ten, tong: x.tong, gn: x.gn, loi: x.rong ? 'Phần này trên biểu chưa có số liệu: bỏ qua, giữ nguyên số đã có của đơn vị.' : x.parsed.warnings.some(w => w.includes('không ghi nội dung')) ? 'Có dòng ghi số tiền nhưng không ghi nội dung (' + x.parsed.warnings.filter(w => w.includes('không ghi nội dung')).map(w => w.split(' có số')[0]).join(', ') + '): bỏ qua phần này, sửa biểu rồi nhập lại.' : '' })));
       else { if (dvChon && !o.loi) o.dvId = dvChon; ds.push(o); }
     }
+    return ds;
+  }
+  A.nsDocCacTep = docCacTep;
+  A.nsLuuBieu = (...a) => luuBieu(...a);
+  A.nsLyDoGiuDong = r => lyDoGiu(r);
+  async function importNhieu(opt) {
+    const dvChon = opt && opt.dvId;
+    const dvs = L.dvDuToan();
+    if (!dvs.length) { UI.toast('Chưa có đơn vị dự toán. Thêm đơn vị ở trang Cán bộ và phân công.', 'bad'); return; }
+    const files = await UI.pickFile('.xlsx,.xls', true); if (!files || !files.length) return;
+    const ds = await docCacTep(files, dvs, dvChon);
     const dvOpt = v => '<option value="">— Chọn đơn vị —</option><option value="-"' + (v === '-' ? ' selected' : '') + '>— Không nhập phần này —</option><option value="+">＋ Thêm đơn vị theo dõi mới…</option>' + dvs.map(d => '<option value="' + d.id + '"' + (d.id === v ? ' selected' : '') + '>' + e(d.ten) + '</option>').join('');
     const m = UI.modal({
       title: 'Nhập biểu giải ngân nhiều đơn vị', sub: ds.length + ' tệp', size: 'lg',
@@ -375,7 +383,7 @@
           (nLech ? '<div class="note warn mb" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span class="grow" style="min-width:240px"><b>' + nLech + ' dòng tổng có số trên biểu Excel khác tổng các dòng chi tiết</b> (đánh dấu ⚠, rê chuột để xem chênh lệch).</span><button class="btn sm primary" data-rasoat>' + ic('check', 15) + 'Rà soát, xử lý cảnh báo</button></div>' : '') + '<div data-tree></div>';
       } else if (Sel.tab === 'dv') {
         const rows = L.nsByDonVi(y), gb = A.nsGuiBieu(y), ngayDV = id => (gb.ds.find(o => o.d.id === id) || {}).ngay || '', chua = gb.ds.filter(o => o.chua);
-        h += '<div class="toolbar"><span class="small soft">Kỳ số liệu mới nhất toàn ngành: <b>' + (gb.ky ? U.fmtDate(gb.ky) : '—') + '</b> · ' + (gb.ds.length - chua.length) + '/' + gb.ds.length + ' đơn vị đã gửi</span><span class="sp"></span><button class="btn" data-tn-xls>' + ic('download', 16) + 'Xuất báo cáo toàn ngành</button><button class="btn" data-tn-pl title="Excel 2 trang: Phụ lục I tổng hợp theo nguồn và đơn vị, Phụ lục II chi tiết — cùng cột như biểu của Sở">' + ic('download', 16) + 'Xuất theo mẫu Phụ lục I, II</button><button class="btn primary" data-tn-imp>' + ic('upload', 16) + 'Nhập biểu nhiều đơn vị</button></div>';
+        h += '<div data-bn></div><div class="toolbar"><span class="small soft">Kỳ số liệu mới nhất toàn ngành: <b>' + (gb.ky ? U.fmtDate(gb.ky) : '—') + '</b> · ' + (gb.ds.length - chua.length) + '/' + gb.ds.length + ' đơn vị đã gửi</span><span class="sp"></span><button class="btn" data-tn-xls>' + ic('download', 16) + 'Xuất báo cáo toàn ngành</button><button class="btn" data-tn-pl title="Excel 2 trang: Phụ lục I tổng hợp theo nguồn và đơn vị, Phụ lục II chi tiết — cùng cột như biểu của Sở">' + ic('download', 16) + 'Xuất theo mẫu Phụ lục I, II</button><button class="btn primary" data-tn-imp>' + ic('upload', 16) + 'Nhập biểu nhiều đơn vị</button></div>';
         h += rows.length ? '<div class="grid-21"><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Đơn vị dự toán</th><th>Số liệu đến ngày</th><th class="num">Dự toán đầu năm</th><th class="num">Tổng được sử dụng</th><th class="num">Đã giải ngân</th><th class="num">Còn lại</th><th class="num">Quyết toán</th><th>Tỷ lệ giải ngân</th></tr></thead><tbody>' + rows.map(x => { const nd = ngayDV(x.dv.id), cu = gb.ky && nd < gb.ky; return '<tr class="click" data-pick="' + x.dv.id + '"><td><b>' + e(x.dv.ten) + '</b><div><button class="btn sm mt" data-capnhat="' + x.dv.id + '" title="Nhập biểu mới đơn vị vừa gửi">' + ic('upload', 14) + 'Cập nhật biểu</button> <button class="btn sm" data-chuyendv="' + x.dv.id + '" title="Chuyển toàn bộ dự toán năm này sang đơn vị khác (khi nhập nhầm đơn vị)">Chuyển đơn vị</button> <button class="btn sm" data-suadv="' + x.dv.id + '" title="Sửa tên, tên viết tắt (tên trên biểu), thứ tự trên báo cáo">Sửa tên</button></div></td><td class="nowrap">' + (nd ? U.fmtDate(nd) : '—') + (cu ? ' <span class="chip plain quahan">Chưa gửi kỳ mới</span>' : '') + '</td><td class="num">' + U.fmtMoney(x.total.duToan) + '</td><td class="num">' + U.fmtMoney(x.total.tong) + '</td><td class="num">' + U.fmtMoney(x.total.giaiNgan) + '</td><td class="num">' + U.fmtMoney(x.total.conLai) + '</td><td class="num">' + U.fmtMoney(x.total.quyetToan) + '</td><td style="min-width:130px">' + UI.pbar(x.total.tyLe || 0) + '</td></tr>'; }).join('') + '</tbody><tfoot><tr><td>Toàn ngành (' + rows.length + ' đơn vị có dữ liệu)</td><td></td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.duToan)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.tong)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.giaiNgan)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.conLai)) + '</td><td class="num">' + U.fmtMoney(U.sum(rows, x => x.total.quyetToan)) + '</td><td>' + U.fmtPct(U.pct(U.sum(rows, x => x.total.giaiNgan), U.sum(rows, x => x.total.tong))) + '</td></tr></tfoot></table></div>' +
           '<div class="card"><div class="card-h"><h3>Đơn vị chưa gửi biểu (' + chua.length + ')</h3><div class="sub">' + (gb.ky ? 'So với kỳ số liệu đến ' + U.fmtDate(gb.ky) : 'Năm ' + y) + '</div></div><div class="card-b">' + (chua.map(o => '<div class="small" style="padding:3px 0;display:flex;gap:8px;align-items:center"><div class="grow"><b>' + e(o.d.ten) + '</b><div class="t2">' + (o.ngay ? 'Số liệu gần nhất đến ' + U.fmtDate(o.ngay) : 'Chưa có số liệu năm ' + y) + '</div></div><button class="btn sm" data-capnhat="' + o.d.id + '">' + ic('upload', 14) + 'Nhập biểu</button></div>').join('') || '<div class="note ok">Mọi đơn vị đã gửi biểu kỳ này.</div>') + '</div></div></div>' : '<div class="card">' + UI.empty('Chưa có dự toán năm ' + y, 'Bấm "Nhập biểu nhiều đơn vị" và chọn cùng lúc các tệp Phụ lục II do Văn phòng Sở, chi cục, trung tâm gửi về.') + '</div>';
         h += soNhanBieu(y, Sel, dvs);
@@ -400,6 +408,7 @@
       $$('[data-tab]', root).forEach(b => b.onclick = () => { Sel.tab = b.dataset.tab; A.render(); });
       $$('[data-pick]', root).forEach(tr => tr.onclick = () => { Sel.dv = tr.dataset.pick; Sel.tab = 'ct'; A.render(); });
       if ($('[data-tn-imp]', root)) $('[data-tn-imp]', root).onclick = () => importNhieu();
+      if ($('[data-bn]', root) && A.bnVe) A.bnVe($('[data-bn]', root), y);
       $$('[data-capnhat]', root).forEach(b => b.onclick = ev => { ev.stopPropagation(); importNhieu({ dvId: b.dataset.capnhat }); });
       $$('[data-chuyendv]', root).forEach(b => b.onclick = ev => { ev.stopPropagation(); chuyenDonVi(b.dataset.chuyendv, y); });
       $$('[data-suadv]', root).forEach(b => b.onclick = ev => { ev.stopPropagation(); const d = S.get('donvi', b.dataset.suadv); if (d) UI.form({ coll: 'donvi', rec: d, onSaved: () => A.render() }); });

@@ -56,6 +56,7 @@ function doPost(e) {
     if (a === 'inboxProcess') return ghi ? out_(xuLy_({ max: Math.min(+req.max || TOI_DA_MOI_LAN, TOI_DA_MOI_LAN), id: req.id || '' })) : cam();
     if (a === 'inboxRetry') return ghi ? out_(thuLai_(req.id)) : cam();
     if (a === 'aiChat') return out_(troChuyen_(req));
+    if (a === 'bieuNguon') return out_(bieuNguon_(req));
     lock.waitLock(25000);
     if (a === 'info') { var i0 = info_(); i0.user = { tenDN: nd.tenDN, ten: nd.ten, vaiTro: nd.vaiTro, canBoId: nd.canBoId }; return out_(i0); }
     if (a === 'pull' || a === 'push' || a === 'syncDelta') return out_(dongBo_(req, nd));
@@ -431,6 +432,22 @@ function troChuyen_(req) {
   if (JSON.stringify(msgs).length > 60000) return { ok: false, error: 'Nội dung gửi AI quá dài.' };
   try { var t = goiAITin_(msgs, Math.min(+req.max_tokens || 1200, 4000)); return { ok: true, text: t, model: MO_HINH_VUA_DUNG || moTaAI_() }; }
   catch (e) { return { ok: false, tam: !!e.tam, error: String(e.message || e) }; }
+}
+
+/* ---- Biểu giải ngân dùng chung trên Drive: trả tệp Excel (base64) khi tệp đổi sau thời điểm `since` ---- */
+// Tệp .xlsx tải nguyên bản; Google Sheets xuất ra .xlsx. Phần mềm đọc, so sánh, nhập bằng chính bộ đọc biểu trên trình duyệt.
+function bieuNguon_(req) {
+  var id = String(req.fileId || '').trim();
+  if (!/^[\w-]{20,}$/.test(id)) return { ok: false, error: 'Mã tệp Google Drive không hợp lệ.' };
+  var f; try { f = DriveApp.getFileById(id); } catch (e) { return { ok: false, error: 'Tài khoản chạy Apps Script chưa được chia sẻ tệp này (hoặc tệp đã bị xóa).' }; }
+  var mod = f.getLastUpdated().toISOString(), ten = f.getName(), mime = f.getMimeType();
+  if (req.since && String(req.since) >= mod) return { ok: true, changed: false, modified: mod, name: ten };
+  var blob = mime === 'application/vnd.google-apps.spreadsheet'
+    ? UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + id + '/export?format=xlsx', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } }).getBlob()
+    : f.getBlob();
+  var bytes = blob.getBytes();
+  if (bytes.length > 15 * 1048576) return { ok: false, error: 'Tệp lớn hơn 15 MB.' };
+  return { ok: true, changed: true, modified: mod, name: ten, b64: Utilities.base64Encode(bytes) };
 }
 
 /* ---- Đọc văn bản trong hàng đợi ---- */
