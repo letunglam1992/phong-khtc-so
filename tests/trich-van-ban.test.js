@@ -301,3 +301,70 @@ test('từ điển sửa lỗi người dùng bổ sung: đọc "sai => đúng",
   assert.deepEqual(d, [['Chiềng Cới', 'Chiềng Cơi'], ['thug om', 'thu gom']]);
   assert.equal(T.suaOCR('rác thug om tại CHIỀNG CỚI, Chiềng Cới', d), 'rác thu gom tại CHIỀNG CƠI, Chiềng Cơi');
 });
+
+test('BB kiểm tra, nghiệm thu sản phẩm đo đạc: hạng mục, đơn vị thi công (bỏ tên người), thời gian thực hiện', () => {
+  const t = `CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM
+Độc lập - Tự do - Hạnh phúc
+Sơn La, ngày 15 tháng 7 năm 2026
+BIÊN BẢN KIÉM TRA, NGHIỆM THU
+CHẤT LƯỢNG, KHÓI LƯỢNG CÔNG TRÌNH, SẢN PHẨM, DỊCH VỤ CÔNG
+Hạng mục công trình: Xây dựng lưới địa chính xã Thử Nghiệm,
+huyện Mẫu, tỉnh Sơn La.
+Thuộc Thiết kế kỹ thuật-Dự toán: Đo đạc bản đồ địa chính xã Thử Nghiệm.
+- Đơn vị thi công: Liên danh Công ty A - về
+Công ty cổ phần B.
+- Đại diện đơn vị thi công: Liên danh Công ty A -
+Công ty cổ phần B
+„ ® Ông: Nguyễn Văn C - Chức vụ: Giám đốc;
+a. Về thời gian thực hiện:
+Bắt đầu: ngày 01 tháng 12 năm 2025;
+Kết thúc: ngày 30 tháng 6 năm 2026.`;
+  const r = T.chuanHoa(T.trichQuyTac(t));
+  assert.equal(r.loai, 'nghiem_thu');
+  assert.equal(r.ngay_van_ban, '2026-07-15');
+  assert.equal(r.nghiem_thu.ten_goi_thau, 'Xây dựng lưới địa chính xã Thử Nghiệm, huyện Mẫu, tỉnh Sơn La');
+  assert.equal(r.nghiem_thu.nha_thau, 'Liên danh Công ty A - Công ty cổ phần B');
+  assert.equal(r.nghiem_thu.tu_ngay, '2025-12-01'); assert.equal(r.nghiem_thu.den_ngay, '2026-06-30');
+  assert.equal(r.nghiem_thu.hoan_thanh, null);
+});
+
+test('hóa đơn GTGT điện tử: ký hiệu, số, ngày, bên bán, MST, dòng hàng, cộng tiền hàng, thuế, tổng thanh toán', () => {
+  const t = `                    HÓA ĐƠN GIÁ TRỊ GIA TĂNG                          Ký hiệu (Serial):    1C26TAB
+                               (VAT INVOICE)                         Số (No.):            7
+                 Ngày (date) 20 tháng (month) 10 năm (year) 2026
+ Đơn vị bán hàng (Seller): CÔNG TY TNHH THỬ NGHIỆM
+ Mã số thuế (Tax code): 5500000001
+ Họ tên người mua hàng (Buyer name):
+ Tên đơn vị: (Company name): SỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG TỈNH SƠN LA
+ Mã số thuế (Tax code): 5500000002
+STT              Tên hàng hóa, dịch vụ                     Đơn vị tính      Số lượng      Đơn giá         Thành tiền
+  1    Thanh toán chi phí chôn mốc                          Điểm              10       1.000.000,5    10.000.005
+                                                   Cộng tiền hàng (Total amount):        '10.000.005
+         Thuế suất GTGT (VAT rate): 8%             Tiền thuế GTGT (VAT amount):           800.000,4
+                                          Tổng tiền thanh toán (Total payment):      10.800.005`;
+  const r = T.chuanHoa(T.trichQuyTac(t)), h = r.hoa_don;
+  assert.equal(r.loai, 'hoa_don'); assert.equal(r.so_van_ban, '7'); assert.equal(r.ngay_van_ban, '2026-10-20');
+  assert.equal(h.ky_hieu, '1C26TAB'); assert.equal(h.nha_thau, 'CÔNG TY TNHH THỬ NGHIỆM'); assert.equal(h.ma_so_thue, '5500000001');
+  assert.equal(h.ben_mua, 'SỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG TỈNH SƠN LA'); assert.equal(h.mst_ben_mua, '5500000002');
+  assert.equal(h.noi_dung, 'Thanh toán chi phí chôn mốc'); assert.equal(h.thue_suat, '8%');
+  assert.equal(h.cong_tien_hang, 10000005); assert.equal(h.tien_thue, 800000); assert.equal(h.tong_thanh_toan, 10800005);
+});
+
+test('BB bàn giao sản phẩm: ngày đọc lỗi "3©", sản phẩm, bên giao, bên nhận', () => {
+  const t = `Phụ lục số 20
+ỦY BAN NHÂN DÂN TỈNH SƠN LA CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM
+SỞ NÔNG NGHIỆP VÀ MÔI TRƯỜNG Độc lập - Tự do - Hạnh phúc
+Sơn La, ngày 3© tháng 6 năm 2026
+BIÊN BẢN BÀN GIAO
+SẢN PHẨM XÂY DỰNG LƯỚI ĐỊA CHÍNH
+Ngày 30 tháng 6 năm 2026, tại Sở các bên liên quan tổ chức giao, nhận sản phẩm: Xây dựng lưới địa chính xã Thử Nghiệm, tỉnh Sơn La gồm:
+1. Các bên bàn giao, nhận bàn giao gồm:
+1.1. Bên bàn giao: Liên danh Công ty A -
+Công ty cổ phần B
+- Ông Nguyễn Văn C Chức vụ: Giám đốc
+1.2. Bên nhận bàn giao: Sở Nông nghiệp và Môi trường tỉnh Sơn La.`;
+  const r = T.chuanHoa(T.trichQuyTac(t)), b = r.ban_giao;
+  assert.equal(r.loai, 'ban_giao'); assert.equal(r.ngay_van_ban, '2026-06-30');
+  assert.equal(b.ten_goi_thau, 'Xây dựng lưới địa chính xã Thử Nghiệm, tỉnh Sơn La');
+  assert.equal(b.nha_thau, 'Liên danh Công ty A - Công ty cổ phần B'); assert.equal(b.ben_nhan, 'Sở Nông nghiệp và Môi trường tỉnh Sơn La');
+});

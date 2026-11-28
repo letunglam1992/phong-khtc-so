@@ -27,7 +27,7 @@
   };
   L.vbPlan = (r, src) => {
     r = r || {}; src = src || {};
-    [['hop_dong', 'nha_thau'], ['thuong_thao', 'nha_thau'], ['ket_qua', 'nha_thau'], ['nghiem_thu', 'nha_thau'], ['thanh_ly', 'nha_thau'], ['dat_hang', 'don_vi_nhan']].forEach(([a, b]) => { if (r[a] && r[a][b]) r[a][b] = L.vbChuanTen(r[a][b]); });
+    [['hop_dong', 'nha_thau'], ['thuong_thao', 'nha_thau'], ['ket_qua', 'nha_thau'], ['nghiem_thu', 'nha_thau'], ['thanh_ly', 'nha_thau'], ['hoa_don', 'nha_thau'], ['ban_giao', 'nha_thau'], ['dat_hang', 'don_vi_nhan']].forEach(([a, b]) => { if (r[a] && r[a][b]) r[a][b] = L.vbChuanTen(r[a][b]); });
     const ops = [], dk = src.dinhKem ? [src.dinhKem] : [], so = r.so_van_ban || '', ngay = r.ngay_van_ban || '';
     const da = L.vbTimDA(r.ten_du_an_nhiem_vu);
     const ghiNguon = 'Cập nhật từ văn bản ' + (vbTen(r) || src.ten || '');
@@ -105,6 +105,31 @@
       hdOp('tl', 'Thanh lý hợp đồng', h, [], Object.assign({ trangThai: 'thanhly', thanhLyNgay: ngay || U.today(), thanhLySo: so, quyetToanHD: t.gia_tri_quyet_toan || '' }, ghi ? { ghiChu: [(h && h.ghiChu) || '', ghi].filter(Boolean).join(' ') } : {}), ['trangThai', 'thanhLyNgay', 'thanhLySo', 'quyetToanHD'].concat(ghi ? ['ghiChu'] : []));
       ops[ops.length - 1].canhBao = [lechTT, lechGT(t, h), x && t.gia_tri_quyet_toan && t.gia_tri_quyet_toan > x.giaTriHL + 0.5 ? 'Giá trị quyết toán vượt giá trị hợp đồng.' : ''].filter(Boolean).join(' ');
     }
+    // Hợp đồng theo nhà thầu (hóa đơn không ghi tên gói thầu): khớp mã số thuế ghi trong hợp đồng hoặc tên nhà thầu (cả khi là thành viên liên danh);
+    // nhiều hợp đồng cùng nhà thầu thì chỉ tự chọn khi còn đúng một hợp đồng chưa thanh lý
+    const hdTheoNT = (ten, mst, tenGoi) => {
+      const k = U.norm(ten || '').replace(/^(cong ty|cty)\s+/, ''), ds = S.all('hopdong').filter(h => (mst && String(h.ghiChu || '').includes(mst)) || (ten && h.nhaThau && (giong(h.nhaThau, ten) > 0.5 || (k.length > 10 && U.norm(h.nhaThau).includes(k)))));
+      if (tenGoi) { const g = best(ds, h => h.ten || '', tenGoi, 0.5); if (g) return g; }
+      const mo = ds.filter(h => !['thanhly', 'chamdut'].includes(h.trangThai)); return mo.length === 1 ? mo[0] : ds.length === 1 ? ds[0] : null;
+    };
+    if (r.loai === 'hoa_don') {
+      const b = r.hoa_don || {}, h = (b.so_hop_dong && L.vbTimHD(b.so_hop_dong)) || hdTheoNT(b.nha_thau, b.ma_so_thue, b.noi_dung), x = h ? L.hd(h) : null, tong = U.num(b.tong_thanh_toan);
+      const nhan = 'Hóa đơn số ' + (b.so_hoa_don || '') + (b.ky_hieu ? ' (' + b.ky_hieu + ')' : '');
+      const lechTien = b.cong_tien_hang != null && b.tien_thue != null && tong && Math.abs(b.cong_tien_hang + b.tien_thue - tong) > 1 ? 'Cộng tiền hàng + thuế (' + U.fmtMoney(b.cong_tien_hang + b.tien_thue) + ') khác tổng thanh toán (' + U.fmtMoney(tong) + ') — kiểm tra lại số đọc được.' : '';
+      const trung = h && (h.thanhToan || []).some(z => U.norm(z.noiDung || '').includes(U.norm(nhan))) ? 'Hợp đồng đã có lần thanh toán ghi ' + nhan + ' — có thể trùng.' : '';
+      const vuotHD = x && tong && x.thanhToan + tong > x.giaTriHL + 0.5 ? 'Cộng dồn thanh toán kể cả hóa đơn này (' + U.fmtMoney(x.thanhToan + tong) + ') vượt giá trị hợp đồng (' + U.fmtMoney(x.giaTriHL) + ').' : '';
+      const vuotNT = x && tong && x.nghiemThu > 0 && x.thanhToan + tong > x.nghiemThu + 0.5 ? 'Cộng dồn thanh toán (' + U.fmtMoney(x.thanhToan + tong) + ') vượt giá trị đã nghiệm thu (' + U.fmtMoney(x.nghiemThu) + ').' : '';
+      hdOp('hdon', 'Ghi lần thanh toán theo ' + nhan + ' — ' + U.fmtMoney(tong) + ' đồng', h, [{ k: 'thanhToan', label: 'Thanh toán', row: { ngay: b.ngay || ngay || U.today(), soTien: tong || '', noiDung: [nhan, b.noi_dung ? U.trunc(b.noi_dung, 120) : ''].filter(Boolean).join(': ') } }]);
+      const op = ops[ops.length - 1]; op.on = false;   // hóa đơn do bên bán lập, chưa phải chứng từ chi: người dùng tự tick khi Kho bạc đã thanh toán
+      op.canhBao = ['Hóa đơn là chứng từ bên bán lập, chưa phải chứng từ Kho bạc chi. Chỉ tick khi đã thanh toán; sửa ngày theo ngày Kho bạc chi.', lechTien, trung, vuotHD, vuotNT].filter(Boolean).join(' ');
+    }
+    if (r.loai === 'ban_giao') {
+      const b = r.ban_giao || {}, h = timHD(b) || hdTheoNT(b.nha_thau, '', b.ten_goi_thau);
+      const ghi = 'Bàn giao sản phẩm ngày ' + (ngay ? U.fmtDate(ngay) : '…') + (b.ben_nhan ? ' cho ' + b.ben_nhan : '') + '.';
+      const daCo = h && U.norm(h.ghiChu || '').includes(U.norm(ghi));
+      hdOp('bg', 'Ghi bàn giao sản phẩm vào hợp đồng', h, [], daCo ? {} : { ghiChu: [(h && h.ghiChu) || '', ghi].filter(Boolean).join(' ') }, daCo ? [] : ['ghiChu']);
+      ops[ops.length - 1].canhBao = daCo ? 'Ghi chú hợp đồng đã có nội dung bàn giao này.' : '';
+    }
     if (r.loai === 'du_toan_qd') {
       const dt = r.du_toan || {}, nam = ngay ? +ngay.slice(0, 4) : +U.today().slice(0, 4), lv = L.nsTree(nam, null).flat.filter(n => !n.children.length);
       const loai = U.norm(dt.loai_dieu_chinh || r.trich_yeu || ''), truong = /thu hoi/.test(loai) ? 'thuHoi' : /giam/.test(loai) ? 'dcGiam' : /dieu chinh tang|tang/.test(loai) ? 'dcTang' : /giao du toan|giao dau nam/.test(loai) ? 'duToan' : 'boSung';
@@ -115,7 +140,7 @@
     }
     // Luôn đề xuất lưu văn bản vào danh mục văn bản (bỏ chọn nếu không cần)
     const vbCu = so ? S.all('vanban').find(v => U.norm(v.soKyHieu) === U.norm(so) && (!ngay || !v.ngayBanHanh || v.ngayBanHanh === ngay)) : null;
-    ops.push({ key: 'vb', title: vbCu ? 'Văn bản đã có trong danh mục — cập nhật tệp' : 'Lưu vào danh mục văn bản', coll: 'vanban', id: vbCu ? vbCu.id : '', choices: choicesOf('vanban'), fields: { soKyHieu: so, ngayBanHanh: ngay, coQuan: r.co_quan_ban_hanh || '', trichYeu: r.trich_yeu || src.ten || '', trangThai: r.loai === 'khac' ? 'chua' : 'khongyc', vaiTro: 'thammuu', duAnIds: da ? [da.id] : [], ghiChu: ghiNguon }, keys: ['soKyHieu', 'ngayBanHanh', 'coQuan', 'trichYeu', 'trangThai', 'chuTriId', 'han'], push: [], dinhKem: dk, on: (r.loai === 'khac' || !vbCu) && !!(so || !['thuong_thao', 'nghiem_thu', 'thanh_ly_hd'].includes(r.loai)) });   // biên bản không có số: không tự lưu vào danh mục văn bản (tick và nhập số nếu cần)
+    ops.push({ key: 'vb', title: vbCu ? 'Văn bản đã có trong danh mục — cập nhật tệp' : 'Lưu vào danh mục văn bản', coll: 'vanban', id: vbCu ? vbCu.id : '', choices: choicesOf('vanban'), fields: { soKyHieu: so, ngayBanHanh: ngay, coQuan: r.co_quan_ban_hanh || '', trichYeu: r.trich_yeu || src.ten || '', trangThai: r.loai === 'khac' ? 'chua' : 'khongyc', vaiTro: 'thammuu', duAnIds: da ? [da.id] : [], ghiChu: ghiNguon }, keys: ['soKyHieu', 'ngayBanHanh', 'coQuan', 'trichYeu', 'trangThai', 'chuTriId', 'han'], push: [], dinhKem: dk, on: (r.loai === 'khac' || !vbCu) && r.loai !== 'hoa_don' && !!(so || !['thuong_thao', 'nghiem_thu', 'thanh_ly_hd', 'ban_giao'].includes(r.loai)) });   // biên bản không có số: không tự lưu vào danh mục văn bản (tick và nhập số nếu cần)
     return ops;
   };
 
